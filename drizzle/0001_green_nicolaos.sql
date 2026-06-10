@@ -1,0 +1,2 @@
+ALTER TABLE `students` DROP INDEX `students_roll_number_unique`;--> statement-breakpoint
+ALTER TABLE `attendance` ADD CONSTRAINT `attendance_student_date_unique` UNIQUE(`student_id`,`attendance_date`);

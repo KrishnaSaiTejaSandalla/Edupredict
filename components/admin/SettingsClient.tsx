@@ -4,7 +4,13 @@ import { useState } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
 import logo from "@/branding/logo.png";
-import { updateUserProfile, updateUserPassword, updateSchoolProfile } from "@/lib/settings-actions";
+import {
+  updateUserProfile,
+  updateUserPassword,
+  updateSchoolProfile,
+  updateUserNotificationPreferences,
+  updateUserAppearancePreferences,
+} from "@/lib/settings-actions";
 
 const tabs = ["Profile", "School", "Notifications", "Security", "Appearance"];
 
@@ -40,6 +46,8 @@ interface UserProps {
   name: string;
   email: string;
   schoolId: number | null;
+  notificationPreferences?: string | null;
+  appearancePreferences?: string | null;
 }
 
 interface SchoolProps {
@@ -71,9 +79,14 @@ export default function SettingsClient({
     .slice(0, 2)
     .toUpperCase();
 
-  const handleSaveDefault = () => {
-    toast.success("Settings saved successfully!");
-  };
+  // Parse saved preferences or fallback to default configuration
+  const parsedNotifs = user.notificationPreferences
+    ? JSON.parse(user.notificationPreferences)
+    : { email: true, inApp: true, attendance: true, exams: true };
+
+  const parsedAppearance = user.appearancePreferences
+    ? JSON.parse(user.appearancePreferences)
+    : { theme: "dark", density: "comfortable" };
 
   const handleProfileSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -115,6 +128,22 @@ export default function SettingsClient({
     }
   };
 
+  const handleNotificationsSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get("email") === "on";
+    const inApp = formData.get("inApp") === "on";
+    const attendance = formData.get("attendance") === "on";
+    const exams = formData.get("exams") === "on";
+
+    try {
+      await updateUserNotificationPreferences(user.id, { email, inApp, attendance, exams });
+      toast.success("Notification preferences saved successfully!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save notification preferences");
+    }
+  };
+
   const handleSecuritySubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -130,6 +159,20 @@ export default function SettingsClient({
     }
   };
 
+  const handleAppearanceSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const theme = formData.get("theme") as string;
+    const density = formData.get("density") as string;
+
+    try {
+      await updateUserAppearancePreferences(user.id, { theme, density });
+      toast.success("Appearance settings saved successfully!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save appearance settings");
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Header Row */}
@@ -142,9 +185,8 @@ export default function SettingsClient({
           </p>
         </div>
         <button
-          type={["profile", "school", "security"].includes(activeTab) ? "submit" : "button"}
-          form={["profile", "school", "security"].includes(activeTab) ? `${activeTab}-form` : undefined}
-          onClick={!["profile", "school", "security"].includes(activeTab) ? handleSaveDefault : undefined}
+          type="submit"
+          form={`${activeTab}-form`}
           className="rounded-xl bg-cyan-400 px-5 py-3 text-xs font-semibold text-slate-950 shadow-lg shadow-cyan-400/10 hover:bg-cyan-300 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
         >
           Save Changes
@@ -241,20 +283,34 @@ export default function SettingsClient({
           )}
 
           {activeTab === "notifications" && (
-            <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] p-6 shadow-xl shadow-black/20 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <form
+              id="notifications-form"
+              onSubmit={handleNotificationsSubmit}
+              className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] p-6 shadow-xl shadow-black/20 animate-in fade-in slide-in-from-bottom-2 duration-300"
+            >
               <div className="mb-6 border-b border-white/5 pb-4">
                 <h2 className="text-sm font-semibold text-white uppercase tracking-wider">Notification Preferences</h2>
                 <p className="text-xs text-slate-500 mt-1">Configure when and how you receive status updates.</p>
               </div>
               <div className="grid gap-3.5 md:grid-cols-2">
-                {['Email notifications', 'In-app notifications', 'Attendance alerts', 'Exam reminders'].map((label) => (
-                  <label key={label} className="flex items-center justify-between rounded-xl border border-white/5 bg-[#0b1020]/40 px-4 py-4 text-xs font-semibold text-slate-300 hover:bg-white/[0.03] transition cursor-pointer">
-                    <span>{label}</span>
-                    <input type="checkbox" defaultChecked className="h-4.5 w-4.5 accent-cyan-400 cursor-pointer rounded border-white/10" />
-                  </label>
-                ))}
+                <label className="flex items-center justify-between rounded-xl border border-white/5 bg-[#0b1020]/40 px-4 py-4 text-xs font-semibold text-slate-300 hover:bg-white/[0.03] transition cursor-pointer">
+                  <span>Email notifications</span>
+                  <input type="checkbox" name="email" defaultChecked={parsedNotifs.email} className="h-4.5 w-4.5 accent-cyan-400 cursor-pointer rounded border-white/10" />
+                </label>
+                <label className="flex items-center justify-between rounded-xl border border-white/5 bg-[#0b1020]/40 px-4 py-4 text-xs font-semibold text-slate-300 hover:bg-white/[0.03] transition cursor-pointer">
+                  <span>In-app notifications</span>
+                  <input type="checkbox" name="inApp" defaultChecked={parsedNotifs.inApp} className="h-4.5 w-4.5 accent-cyan-400 cursor-pointer rounded border-white/10" />
+                </label>
+                <label className="flex items-center justify-between rounded-xl border border-white/5 bg-[#0b1020]/40 px-4 py-4 text-xs font-semibold text-slate-300 hover:bg-white/[0.03] transition cursor-pointer">
+                  <span>Attendance alerts</span>
+                  <input type="checkbox" name="attendance" defaultChecked={parsedNotifs.attendance} className="h-4.5 w-4.5 accent-cyan-400 cursor-pointer rounded border-white/10" />
+                </label>
+                <label className="flex items-center justify-between rounded-xl border border-white/5 bg-[#0b1020]/40 px-4 py-4 text-xs font-semibold text-slate-300 hover:bg-white/[0.03] transition cursor-pointer">
+                  <span>Exam reminders</span>
+                  <input type="checkbox" name="exams" defaultChecked={parsedNotifs.exams} className="h-4.5 w-4.5 accent-cyan-400 cursor-pointer rounded border-white/10" />
+                </label>
               </div>
-            </div>
+            </form>
           )}
 
           {activeTab === "security" && (
@@ -278,20 +334,32 @@ export default function SettingsClient({
           )}
 
           {activeTab === "appearance" && (
-            <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] p-6 shadow-xl shadow-black/20 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <form
+              id="appearance-form"
+              onSubmit={handleAppearanceSubmit}
+              className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] p-6 shadow-xl shadow-black/20 animate-in fade-in slide-in-from-bottom-2 duration-300"
+            >
               <div className="mb-6 border-b border-white/5 pb-4">
                 <h2 className="text-sm font-semibold text-white uppercase tracking-wider">Appearance Settings</h2>
-                <p className="text-xs text-slate-500 mt-1">Customize visual layouts and scale settings.</p>
+                <p className="text-xs text-slate-500 mt-1">Customize visual layouts and theme settings.</p>
               </div>
-              <div className="grid gap-3.5 md:grid-cols-3">
-                {['Dark Theme (Recommended)', 'Compact Rows', 'Comfortable Padding'].map((label, index) => (
-                  <label key={label} className="rounded-xl border border-white/5 bg-[#0b1020]/40 p-4 text-xs font-semibold text-slate-300 hover:bg-white/[0.03] transition cursor-pointer flex items-center gap-2">
-                    <input type="radio" name="appearance" defaultChecked={index === 0} className="accent-cyan-400 cursor-pointer h-4 w-4" />
-                    <span>{label}</span>
-                  </label>
-                ))}
+              <div className="grid gap-5 md:grid-cols-2">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Theme Option</label>
+                  <select name="theme" defaultValue={parsedAppearance.theme} className="h-11 w-full rounded-xl border border-white/10 bg-[#0b1020]/60 px-4 text-sm text-white outline-none transition focus:border-cyan-400/50">
+                    <option value="dark">Dark Theme (Recommended)</option>
+                    <option value="light">Light Theme</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Row Padding Density</label>
+                  <select name="density" defaultValue={parsedAppearance.density} className="h-11 w-full rounded-xl border border-white/10 bg-[#0b1020]/60 px-4 text-sm text-white outline-none transition focus:border-cyan-400/50">
+                    <option value="comfortable">Comfortable Layout</option>
+                    <option value="compact">Compact Layout</option>
+                  </select>
+                </div>
               </div>
-            </div>
+            </form>
           )}
         </div>
 

@@ -24,12 +24,10 @@ export default function MarksForm({ students, examId, action }: Props) {
     }, {} as Record<number, string>)
   );
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
     setLoading(true);
 
     const formData = new FormData();
@@ -45,7 +43,7 @@ export default function MarksForm({ students, examId, action }: Props) {
       router.refresh();
       toast.success('Marks saved successfully');
     } catch (err: any) {
-      setError(err?.message || 'Unable to save marks.');
+      toast.error(err?.message || 'Unable to save marks.');
     } finally {
       setLoading(false);
     }
@@ -84,7 +82,6 @@ export default function MarksForm({ students, examId, action }: Props) {
         </table>
       </div>
 
-      {error && <div className="text-red-400 text-sm">{error}</div>}
       <button
         type="submit"
         disabled={loading}

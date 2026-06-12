@@ -1,187 +1,319 @@
-import { requireRole } from '@/lib/auth';
-import { db } from '@/lib/db';
-import { subjects } from '@/lib/schema';
-import { asc, desc, like } from 'drizzle-orm';
-import { revalidatePath } from 'next/cache';
-import SubjectForm from '@/components/admin/SubjectForm';
-import AdminSearch from '@/components/admin/AdminSearch';
+'use client';
 
-type SearchParams = {
-  q?: string;
-  page?: string;
-  sort?: string;
-  dir?: string;
-};
+import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
+import { getAllSubjects, createSubject, updateSubject, deleteSubject } from '@/lib/actions';
 
-type Props = {
-  searchParams?: Promise<SearchParams>;
-};
+interface SubjectRow {
+  id: number;
+  name: string;
+  code: string;
+  description: string | null;
+  maxMarks: string | null;
+  passingMarks: string | null;
+  teacherCount?: number;
+}
 
-export default async function SubjectsPage({ searchParams }: Props) {
-  await requireRole('admin');
+export default function SubjectsPage() {
+  const [subjects, setSubjects] = useState<SubjectRow[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    code: '',
+    description: '',
+    maxMarks: '100',
+    passingMarks: '40',
+  });
 
-  const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const q = resolvedSearchParams?.q || '';
-  const page = Number(resolvedSearchParams?.page || '1');
-  const sort = resolvedSearchParams?.sort || 'id';
-  const dir = resolvedSearchParams?.dir === 'desc' ? 'desc' : 'asc';
-  const limit = 10;
-  const offset = (page - 1) * limit;
-  const orderBy =
-    sort === 'name'
-      ? subjects.name
-      : sort === 'code'
-        ? subjects.code
-        : sort === 'maxMarks'
-          ? subjects.maxMarks
-          : subjects.id;
+  useEffect(() => {
+    loadData();
+  }, []);
 
-  const subjectRows = await db
-    .select()
-    .from(subjects)
-    .where(q ? like(subjects.name, `%${q}%`) : undefined)
-    .orderBy(dir === 'desc' ? desc(orderBy) : asc(orderBy))
-    .limit(limit)
-    .offset(offset);
-
-  async function createSubject(formData: FormData) {
-    'use server';
-    const name = String(formData.get('name') || '').trim();
-    const code = String(formData.get('code') || '').trim();
-    const description = String(formData.get('description') || '').trim();
-    const maxMarksValue = formData.get('maxMarks');
-    const passingMarksValue = formData.get('passingMarks');
-    const maxMarks = maxMarksValue ? Number(maxMarksValue) : null;
-    const passingMarks = passingMarksValue ? Number(passingMarksValue) : null;
-
-    if (!name || !code) {
-      throw new Error('Name and code are required.');
+  async function loadData() {
+    try {
+      const data = await getAllSubjects();
+      setSubjects(data as SubjectRow[]);
+    } catch (err) {
+      console.error('Load error:', err);
+      toast.error('Failed to load subjects.');
+    } finally {
+      setLoading(false);
     }
-
-    await db.insert(subjects).values({
-      schoolId: 1,
-      name,
-      code,
-      description: description || null,
-      maxMarks: maxMarks !== null ? String(maxMarks) : null,
-      passingMarks: passingMarks !== null ? String(passingMarks) : null,
-    });
-
-    revalidatePath('/admin/subjects');
   }
 
-  const nextPage = page + 1;
-  const prevPage = page > 1 ? page - 1 : 1;
-  const baseQuery = q ? `?q=${encodeURIComponent(q)}&` : '?';
-  const sortParam = `sort=${encodeURIComponent(sort)}&dir=${encodeURIComponent(dir)}`;
+  function openCreate() {
+    setEditingId(null);
+    setFormData({ name: '', code: '', description: '', maxMarks: '100', passingMarks: '40' });
+    setShowForm(true);
+  }
+
+  function openEdit(sub: SubjectRow) {
+    setEditingId(sub.id);
+    setFormData({
+      name: sub.name,
+      code: sub.code,
+      description: sub.description || '',
+      maxMarks: sub.maxMarks ? String(sub.maxMarks) : '100',
+      passingMarks: sub.passingMarks ? String(sub.passingMarks) : '40',
+    });
+    setShowForm(true);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      const parsedData = {
+        ...formData,
+        maxMarks: Number(formData.maxMarks),
+        passingMarks: Number(formData.passingMarks),
+      };
+      if (editingId) {
+        await updateSubject(editingId, parsedData);
+        toast.success('Subject updated successfully.');
+      } else {
+        await createSubject(parsedData);
+        toast.success('Subject created successfully.');
+      }
+      setFormData({ name: '', code: '', description: '', maxMarks: '100', passingMarks: '40' });
+      setEditingId(null);
+      setShowForm(false);
+      await loadData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save subject.');
+    }
+  }
+
+  async function handleDelete(id: number) {
+    if (!confirm('Delete this subject? This cannot be undone.')) return;
+    try {
+      await deleteSubject(id);
+      toast.success('Subject deleted successfully.');
+      await loadData();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to delete subject.');
+    }
+  }
+
+  const filteredSubjects = subjects.filter((sub) => {
+    const search = searchQuery.toLowerCase();
+    return (
+      sub.name.toLowerCase().includes(search) ||
+      sub.code.toLowerCase().includes(search) ||
+      (sub.description && sub.description.toLowerCase().includes(search))
+    );
+  });
+
+  const inputCls =
+    'h-11 w-full rounded-xl border border-white/10 bg-[#0b1020]/60 px-3 text-sm text-white outline-none focus:border-cyan-400/50 transition placeholder:text-slate-600';
+  const labelCls =
+    'block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5';
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#070b16] p-8 text-slate-400 font-medium animate-pulse flex items-center gap-2">
+        <span className="h-2 w-2 rounded-full bg-cyan-400 animate-ping" />
+        Loading subjects...
+      </div>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[#070b16] p-4 sm:p-6 lg:p-8 space-y-8">
-      
-      {/* HEADER */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      {/* Header Row */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-400">Database</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">Subjects</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-400">Manage academic subjects, course syllabus codes, and exam grading limits.</p>
+          <p className="mt-2 text-sm text-slate-400">Manage academic subjects, course syllabus codes, and exam grading limits.</p>
         </div>
-        <div className="w-full sm:w-auto">
-          <AdminSearch placeholder="Search subjects..." />
-        </div>
-      </div>
 
-      {/* MAIN GRID */}
-      <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
-        
-        {/* TABLE CONTAINER */}
-        <div className="flex flex-col gap-6">
-          <section className="overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] shadow-xl shadow-black/20">
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-left border-collapse text-slate-300">
-                <thead className="bg-slate-950/60 border-b border-white/10 text-slate-400 text-xs font-bold uppercase tracking-wider">
-                  <tr>
-                    <th className="px-6 py-4">ID</th>
-                    <th className="px-6 py-4">Name</th>
-                    <th className="px-6 py-4">Code</th>
-                    <th className="px-6 py-4">Max Marks</th>
-                    <th className="px-6 py-4">Passing Marks</th>
-                    <th className="px-6 py-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {subjectRows.map((subject) => (
-                    <tr key={subject.id} className="hover:bg-white/[0.02] transition duration-150 text-white">
-                      <td className="px-6 py-4 text-xs font-semibold text-slate-500">#{subject.id}</td>
-                      <td className="px-6 py-4 font-semibold">{subject.name}</td>
-                      <td className="px-6 py-4 text-slate-400 font-mono text-xs">{subject.code}</td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex rounded-lg bg-emerald-500/10 px-2 py-1 text-xs font-semibold text-emerald-400 border border-emerald-500/20">
-                          {subject.maxMarks ?? '100'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex rounded-lg bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-400 border border-amber-500/20">
-                          {subject.passingMarks ?? '40'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex gap-2 justify-end">
-                          <a
-                            href={`/admin/subjects/${subject.id}`}
-                            title="Edit Subject"
-                            className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/[0.04] text-slate-400 border border-white/5 hover:text-cyan-400 hover:border-cyan-400/30 transition duration-150"
-                          >
-                            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5Z" />
-                            </svg>
-                          </a>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-
-                  {subjectRows.length === 0 && (
-                    <tr>
-                      <td className="px-6 py-12 text-center" colSpan={6}>
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <svg viewBox="0 0 24 24" className="h-10 w-10 text-slate-600 fill-current">
-                            <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
-                          </svg>
-                          <p className="text-sm font-semibold text-slate-500">No subjects found</p>
-                          <p className="text-xs text-slate-600">Try adjusting your search queries.</p>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          {/* PAGINATION */}
-          <div className="flex items-center justify-between text-xs font-semibold text-slate-400">
-            <a
-              href={`/admin/subjects${baseQuery}${sortParam}&page=${prevPage}`}
-              className="rounded-xl border border-white/10 bg-slate-900 px-4 py-2.5 hover:bg-slate-800 transition duration-150"
-            >
-              Previous
-            </a>
-            <a
-              href={`/admin/subjects${baseQuery}${sortParam}&page=${nextPage}`}
-              className="rounded-xl border border-white/10 bg-slate-900 px-4 py-2.5 hover:bg-slate-800 transition duration-150"
-            >
-              Next
-            </a>
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Search bar */}
+          <div className="relative flex-1 min-w-[240px] sm:flex-initial">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+              <svg viewBox="0 0 24 24" className="h-4 w-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.602 10.602Z" />
+              </svg>
+            </span>
+            <input
+              type="text"
+              placeholder="Search subjects..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-10 w-full rounded-xl border border-white/10 bg-[#0b1020]/60 pl-9 pr-3 text-xs text-white outline-none focus:border-cyan-400/50 placeholder:text-slate-500 transition-all"
+            />
           </div>
+          <button
+            onClick={() => (showForm && !editingId ? setShowForm(false) : openCreate())}
+            className="rounded-xl bg-blue-500 px-5 py-3 text-xs font-bold text-white shadow-lg shadow-blue-500/20 hover:bg-blue-400 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 whitespace-nowrap"
+          >
+            {showForm && !editingId ? 'Close Editor' : '+ Create Subject'}
+          </button>
         </div>
-
-        {/* FORM SIDEBAR */}
-        <aside className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] p-6 shadow-xl shadow-black/20 self-start">
-          <h2 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">Create Subject</h2>
-          <SubjectForm action={createSubject} submitLabel="Create Subject" />
-        </aside>
       </div>
 
+      {/* Editor Panel */}
+      {showForm && (
+        <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] p-6 shadow-2xl shadow-black/25 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6">
+            {editingId ? 'Edit Subject Details' : 'Create New Subject'}
+          </h2>
+          <form onSubmit={handleSubmit} className="grid gap-5 md:grid-cols-2">
+            <div>
+              <label className={labelCls}>Subject Name *</label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
+                className={inputCls}
+                placeholder="e.g., Mathematics"
+              />
+            </div>
+
+            <div>
+              <label className={labelCls}>Subject Code *</label>
+              <input
+                type="text"
+                value={formData.code}
+                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                required
+                className={inputCls}
+                placeholder="e.g., MATH101"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className={labelCls}>Description</label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                className="w-full min-h-[80px] p-3 rounded-xl border border-white/10 bg-[#0b1020]/60 text-sm text-white outline-none focus:border-cyan-400/50 transition placeholder:text-slate-600"
+                placeholder="e.g., General algebra, geometry and calculus fundamentals."
+              />
+            </div>
+
+            <div>
+              <label className={labelCls}>Max Marks</label>
+              <input
+                type="number"
+                value={formData.maxMarks}
+                onChange={(e) => setFormData({ ...formData, maxMarks: e.target.value })}
+                className={inputCls}
+                placeholder="100"
+              />
+            </div>
+
+            <div>
+              <label className={labelCls}>Passing Marks</label>
+              <input
+                type="number"
+                value={formData.passingMarks}
+                onChange={(e) => setFormData({ ...formData, passingMarks: e.target.value })}
+                className={inputCls}
+                placeholder="40"
+              />
+            </div>
+
+            <div className="md:col-span-2 flex gap-3 mt-2">
+              <button
+                type="submit"
+                className="rounded-xl bg-emerald-500 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-emerald-500/20 hover:bg-emerald-400 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
+              >
+                Save Subject Record
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForm(false);
+                  setEditingId(null);
+                }}
+                className="rounded-xl border border-white/10 bg-white/[0.04] px-5 py-2.5 text-xs font-bold text-white hover:bg-white/[0.08] transition duration-200"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Subjects Data Table */}
+      <div className="overflow-auto rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] shadow-xl shadow-black/25">
+        <table className="w-full text-left text-sm text-slate-300">
+          <thead className="border-b border-white/10 bg-[#070b16]/40 text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <tr>
+              <th className="p-4 px-6">ID</th>
+              <th className="p-4 px-6">Subject Name</th>
+              <th className="p-4 px-6">Subject Code</th>
+              <th className="p-4 px-6">Teacher Count</th>
+              <th className="p-4 px-6 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/5">
+            {filteredSubjects.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="p-12 text-center text-slate-500 font-medium">
+                  <div className="flex flex-col items-center gap-3">
+                    <svg viewBox="0 0 24 24" className="h-10 w-10 text-slate-700" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+                    </svg>
+                    <p className="text-sm font-medium text-slate-500">No subjects found.</p>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              filteredSubjects.map((sub) => (
+                <tr key={sub.id} className="hover:bg-white/[0.02] transition duration-200">
+                  {/* Row ID */}
+                  <td className="p-4 px-6 font-mono text-xs font-semibold text-slate-500">#{sub.id}</td>
+                  {/* Subject Name */}
+                  <td className="p-4 px-6 font-semibold text-white">{sub.name}</td>
+                  {/* Subject Code */}
+                  <td className="p-4 px-6">
+                    <span className="inline-flex items-center rounded-lg bg-cyan-500/10 px-2.5 py-1 text-[10px] font-bold text-cyan-300 border border-cyan-500/20 uppercase tracking-wider">
+                      {sub.code}
+                    </span>
+                  </td>
+                  {/* Teacher Count */}
+                  <td className="p-4 px-6">
+                    <span className="inline-flex items-center rounded-lg bg-purple-500/10 px-2.5 py-1 text-[10px] font-bold text-purple-300 border border-purple-500/20">
+                      {sub.teacherCount ?? 0} {(sub.teacherCount ?? 0) === 1 ? 'Teacher' : 'Teachers'}
+                    </span>
+                  </td>
+                  {/* Actions */}
+                  <td className="p-4 px-6 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      {/* Edit */}
+                      <button
+                        onClick={() => openEdit(sub)}
+                        title="Edit"
+                        className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/5 bg-white/[0.04] text-slate-400 hover:text-amber-400 hover:border-amber-400/30 transition duration-150"
+                      >
+                        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5Z" />
+                        </svg>
+                      </button>
+                      {/* Delete */}
+                      <button
+                        onClick={() => handleDelete(sub.id)}
+                        title="Delete"
+                        className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/5 bg-white/[0.04] text-slate-400 hover:text-rose-400 hover:border-rose-400/30 transition duration-150"
+                      >
+                        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                        </svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </main>
   );
 }

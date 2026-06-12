@@ -19,13 +19,11 @@ type Props = {
 };
 
 export default function SubjectForm({ action, initial = {}, submitLabel = 'Save' }: Props) {
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
     setLoading(true);
     const form = event.currentTarget;
     const formData = new FormData(form);
@@ -41,7 +39,7 @@ export default function SubjectForm({ action, initial = {}, submitLabel = 'Save'
 
       router.refresh();
     } catch (err: any) {
-      setError(err?.message || 'Unable to save subject.');
+      toast.error(err?.message || 'Unable to save subject.');
     } finally {
       setLoading(false);
     }
@@ -103,8 +101,6 @@ export default function SubjectForm({ action, initial = {}, submitLabel = 'Save'
           />
         </div>
       </div>
-
-      {error && <div className="text-red-400 text-sm">{error}</div>}
 
       <button
         type="submit"

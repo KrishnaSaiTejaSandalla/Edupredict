@@ -1,5 +1,6 @@
 "use client";
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 function validatePassword(p: string) {
   if (p.length < 8) return 'Password must be at least 8 characters';
@@ -14,14 +15,12 @@ export default function RegisterForm() {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('student');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const pv = validatePassword(password);
-    if (pv) return setError(pv);
+    if (pv) return toast.error(pv);
     setLoading(true);
-    setError(null);
     try {
       const res = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, email, password, role }) });
       const data = await res.json();
@@ -34,7 +33,7 @@ export default function RegisterForm() {
       else if (userRole === 'student') window.location.href = '/student';
       else window.location.href = '/role-selection';
     } catch (err: any) {
-      setError(err.message || 'Registration failed');
+      toast.error(err.message || 'Registration failed');
     } finally {
       setLoading(false);
     }
@@ -63,7 +62,6 @@ export default function RegisterForm() {
           <option value="admin">Admin</option>
         </select>
       </div>
-      {error && <div className="text-red-600 mt-2">{error}</div>}
       <button disabled={loading} type="submit" className="mt-4 px-4 py-2 bg-green-600 text-white">{loading ? 'Registering...' : 'Register'}</button>
     </form>
   );

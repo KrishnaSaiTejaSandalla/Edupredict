@@ -1,17 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 
 export default function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
@@ -34,7 +33,7 @@ export default function LoginForm() {
         window.location.href = "/";
       }
     } catch (err: any) {
-      setError(err.message || "Login failed");
+      toast.error(err.message || "Login failed");
     } finally {
       setLoading(false);
     }
@@ -87,11 +86,6 @@ export default function LoginForm() {
         </label>
         <span className="text-blue-400">Forgot password?</span>
       </div>
-      {error && (
-        <div className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-          {error}
-        </div>
-      )}
       <button
         disabled={loading}
         type="submit"

@@ -1,8 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useTransition } from "react";
 import { toast } from "sonner";
-import { markNotificationRead, markAllNotificationsRead } from "@/lib/notification-actions";
+import {
+  markNotificationRead,
+  markAllNotificationsRead,
+} from "@/lib/notification-actions";
+import { useNotificationStore } from "@/store/useNotificationStore";
+import { useEffect } from "react";
 
 interface NotificationItem {
   id: number;
@@ -12,85 +17,273 @@ interface NotificationItem {
   type: string;
   priority: string;
   isRead: boolean;
-  createdAt: Date | string;
+  createdAt: string;
 }
+
+type PriorityFilter = "all" | "high" | "medium" | "low";
+
+// Map notification types to preference categories
+function matchesCategory(item: NotificationItem, category: string): boolean {
+  const t = item.type?.toLowerCase() ?? "";
+  const title = item.title?.toLowerCase() ?? "";
+  const msg = item.message?.toLowerCase() ?? "";
+
+  switch (category) {
+    case "academic":
+      return (
+        t.includes("exam") ||
+        t.includes("marks") ||
+        t.includes("result") ||
+        title.includes("exam") ||
+        title.includes("marks") ||
+        title.includes("result") ||
+        msg.includes("exam") ||
+        msg.includes("marks") ||
+        msg.includes("result")
+      );
+
+    case "attendance":
+      return (
+        t.includes("attendance") ||
+        title.includes("attendance") ||
+        title.includes("absent") ||
+        msg.includes("attendance") ||
+        msg.includes("absent")
+      );
+
+    case "system":
+      return (
+        title.includes("student") ||
+        title.includes("teacher") ||
+        title.includes("updated") ||
+        title.includes("deleted") ||
+        title.includes("added") ||
+        msg.includes("student") ||
+        msg.includes("teacher") ||
+        msg.includes("updated") ||
+        msg.includes("deleted") ||
+        msg.includes("added")
+      );
+
+    case "reports":
+      return (
+        title.includes("report") ||
+        title.includes("marks pending") ||
+        title.includes("exam finished") ||
+        msg.includes("report") ||
+        msg.includes("marks pending") ||
+        msg.includes("exam finished")
+      );
+
+    default:
+      return true;
+  }
+}
+
+function getPriorityStyle(priority: string) {
+  if (priority === "high")
+    return "border-l-4 border-l-rose-500 bg-rose-500/5 border border-white/5";
+  if (priority === "medium")
+    return "border-l-4 border-l-amber-500 bg-amber-500/5 border border-white/5";
+  return "border-l-4 border-l-cyan-500 bg-cyan-500/5 border border-white/5";
+}
+
+function getPriorityBadge(priority: string) {
+  if (priority === "high")
+    return (
+      <span className="rounded-full bg-rose-500/20 px-2 py-0.5 text-[10px] font-bold text-rose-300">
+        High
+      </span>
+    );
+  if (priority === "medium")
+    return (
+      <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-300">
+        Medium
+      </span>
+    );
+  return (
+    <span className="rounded-full bg-cyan-500/20 px-2 py-0.5 text-[10px] font-bold text-cyan-300">
+      Low
+    </span>
+  );
+}
+
+function timeAgo(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "Just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
+}
+
+const PREF_FILTERS = [
+  { key: "academic", label: "Academic Alerts" },
+  { key: "attendance", label: "Attendance Warnings" },
+  { key: "system", label: "System Updates" },
+  { key: "reports", label: "Report Reminders" },
+] as const;
+
+type PrefKey = (typeof PREF_FILTERS)[number]["key"];
 
 export default function NotificationsClient({
   initialItems,
   userId,
+  initialUnreadCount,
 }: {
   initialItems: NotificationItem[];
   userId: number;
+  initialUnreadCount: number;
+  // initialPrefs is no longer used — preferences are UI-only filters
+  initialPrefs?: unknown;
 }) {
-  const [items, setItems] = useState<NotificationItem[]>(initialItems);
-  const [filter, setFilter] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
+  // Only show unread items — read items are hidden from the feed
+  const [items, setItems] = useState<NotificationItem[]>(
+    initialItems.filter((i) => !i.isRead)
+  );
 
-  const handleMarkAllRead = async () => {
-    // Optimistic UI update
-    setItems((prev) => prev.map((item) => ({ ...item, isRead: true })));
-    try {
-      await markAllNotificationsRead(userId);
-      toast.success("All notifications marked as read!");
-    } catch (err) {
-      toast.error("Failed to mark notifications as read on the server.");
-      // Rollback on error if necessary (re-fetch or keep items as-is)
-    }
+  const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  // Preference checkboxes — UI-only visibility filters, never saved
+  const [activePrefs, setActivePrefs] = useState<Record<PrefKey, boolean>>({
+    academic: true,
+    attendance: true,
+    system: true,
+    reports: true,
+  });
+  const [, startTransition] = useTransition();
+
+  const { hydrate, decrement, clearAll } = useNotificationStore();
+
+  useEffect(() => {
+    hydrate(initialUnreadCount);
+  }, [hydrate, initialUnreadCount]);
+
+  // Debounce search
+  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => setDebouncedSearch(val), 300);
   };
 
-  const handleMarkSingleRead = async (id: number) => {
-    const item = items.find((i) => i.id === id);
-    if (!item || item.isRead) return;
+  // ── Compute visible items ──────────────────────────────────────────────
+  const visibleItems = items.filter((item) => {
+    // Priority tab filter
+    if (priorityFilter !== "all") {
+      const p = item.priority?.toLowerCase();
+      if (priorityFilter === "low") {
+        if (p !== "low" && p !== "info") return false;
+      } else {
+        if (p !== priorityFilter) return false;
+      }
+    }
 
-    // Optimistic UI update
-    setItems((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, isRead: true } : i))
+    // Preference category filter (UI only — AND logic across enabled categories)
+    const enabledPrefs = (Object.keys(activePrefs) as PrefKey[]).filter(
+      (k) => activePrefs[k]
     );
+
+    if (enabledPrefs.length === 0) return false;
+
+    if (
+      !enabledPrefs.some((k) =>
+        matchesCategory(item, k)
+      )
+    ) {
+      return false;
+    }
+
+    // Search
+    const q = debouncedSearch.toLowerCase();
+    if (q) {
+      const matchSearch =
+        item.title?.toLowerCase().includes(q) ||
+        item.message?.toLowerCase().includes(q);
+      if (!matchSearch) return false;
+    }
+
+    return true;
+  });
+
+  // Counts based on all current unread items (not just the visible filtered set)
+  const countByPriority = (p: PriorityFilter) => {
+    if (p === "all") return items.length;
+    if (p === "low") return items.filter((i) => i.priority === "low" || i.priority === "info").length;
+    return items.filter((i) => i.priority === p).length;
+  };
+
+  // ── Mark single read ───────────────────────────────────────────────────
+  const handleMarkRead = async (id: number) => {
+    // Remove from feed immediately
+    setItems((prev) => prev.filter((i) => i.id !== id));
+    decrement(1);
 
     try {
       await markNotificationRead(id);
-    } catch (err) {
+    } catch {
+      // Rollback — re-add the item
+      const item = initialItems.find((i) => i.id === id);
+      if (item) {
+        setItems((prev) => [item, ...prev]);
+        decrement(-1);
+      }
+      toast.error("Failed to mark notification as read");
+    }
+  };
+
+  // ── Mark all read ──────────────────────────────────────────────────────
+  const handleMarkAllRead = async () => {
+    if (items.length === 0) {
+      toast.info("No unread notifications");
+      return;
+    }
+
+    const snapshot = [...items];
+    // Remove all from feed immediately
+    setItems([]);
+    clearAll();
+
+    try {
+      await markAllNotificationsRead(userId);
+      toast.success("All notifications marked as read");
+    } catch {
       // Rollback
-      setItems((prev) =>
-        prev.map((i) => (i.id === id ? { ...i, isRead: false } : i))
-      );
-      toast.error("Failed to mark notification as read.");
+      setItems(snapshot);
+      hydrate(snapshot.length);
+      toast.error("Failed to mark all notifications as read");
     }
   };
 
-  const getFilteredItems = () => {
-    return items.filter((item) => {
-      const matchesSearch =
-        item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.message.toLowerCase().includes(searchQuery.toLowerCase());
-
-      if (filter === "all") return matchesSearch;
-      if (filter === "high") return item.priority === "high" && matchesSearch;
-      if (filter === "medium") return item.priority === "medium" && matchesSearch;
-      if (filter === "low") return (item.priority === "low" || item.priority === "info") && matchesSearch;
-
-      return matchesSearch;
-    });
+  // ── Toggle preference filter ───────────────────────────────────────────
+  const togglePref = (key: PrefKey) => {
+    setActivePrefs((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const filtered = getFilteredItems();
-
-  const countByPriority = (priority: string) => {
-    if (priority === "all") return items.length;
-    if (priority === "low") {
-      return items.filter((item) => item.priority === "low" || item.priority === "info").length;
-    }
-    return items.filter((item) => item.priority === priority).length;
-  };
+  const TABS: { id: PriorityFilter; label: string }[] = [
+    { id: "all", label: "All Alerts" },
+    { id: "high", label: "High" },
+    { id: "medium", label: "Medium" },
+    { id: "low", label: "Low" },
+  ];
 
   return (
     <div className="space-y-8">
-      {/* Header section */}
+      {/* ── Header ───────────────────────────────────────────────────── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-400">Notifications</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">Notification Center</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-400">School updates, alerts, and system messages in one place.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-400">
+            Notifications
+          </p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            Notification Center
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-slate-400">
+            School updates, alerts, and system messages in one place.
+          </p>
         </div>
         <button
           onClick={handleMarkAllRead}
@@ -100,42 +293,33 @@ export default function NotificationsClient({
         </button>
       </div>
 
-      {/* Main Grid */}
+      {/* ── Main Grid ────────────────────────────────────────────────── */}
       <section className="grid gap-8 xl:grid-cols-[1fr_320px]">
-        
-        {/* Left Side: Filter Tabs, Search, and Feed */}
+        {/* Left: Filter tabs + search + feed */}
         <div className="space-y-6">
-          
-          {/* Controls Bar */}
+          {/* Controls bar */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-white/5 bg-gradient-to-br from-slate-950/40 to-white/[0.02] p-4 shadow-md">
-            
-            {/* Priority Tabs */}
+            {/* Priority tabs */}
             <div className="flex flex-wrap gap-2 text-xs font-semibold">
-              {[
-                { id: "all", label: "All Alerts" },
-                { id: "high", label: "High" },
-                { id: "medium", label: "Medium" },
-                { id: "low", label: "Low" },
-              ].map((tab) => {
-                const isActive = filter === tab.id;
+              {TABS.map((tab) => {
+                const isActive = priorityFilter === tab.id;
                 const badgeColor =
                   tab.id === "high"
                     ? "bg-rose-500/20 text-rose-300"
                     : tab.id === "medium"
-                    ? "bg-amber-500/20 text-amber-300"
-                    : tab.id === "low"
-                    ? "bg-cyan-500/20 text-cyan-300"
-                    : "bg-white/10 text-slate-300";
+                      ? "bg-amber-500/20 text-amber-300"
+                      : tab.id === "low"
+                        ? "bg-cyan-500/20 text-cyan-300"
+                        : "bg-white/10 text-slate-300";
 
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setFilter(tab.id)}
-                    className={`flex items-center gap-2 rounded-xl px-4 py-2.5 transition duration-200 ${
-                      isActive
-                        ? "bg-cyan-400/10 text-white ring-1 ring-cyan-400/25 border border-cyan-400/10"
-                        : "text-slate-400 hover:bg-white/[0.03] hover:text-white"
-                    }`}
+                    onClick={() => setPriorityFilter(tab.id)}
+                    className={`flex items-center gap-2 rounded-xl px-4 py-2.5 transition duration-200 ${isActive
+                      ? "bg-cyan-400/10 text-white ring-1 ring-cyan-400/25 border border-cyan-400/10"
+                      : "text-slate-400 hover:bg-white/[0.03] hover:text-white"
+                      }`}
                   >
                     {tab.label}
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${badgeColor}`}>
@@ -146,7 +330,7 @@ export default function NotificationsClient({
               })}
             </div>
 
-            {/* Search Input */}
+            {/* Search */}
             <div className="relative">
               <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
                 <svg viewBox="0 0 24 24" className="h-4.5 w-4.5 fill-current">
@@ -156,95 +340,103 @@ export default function NotificationsClient({
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 placeholder="Search alerts..."
                 className="h-10 w-full sm:w-60 rounded-xl border border-white/10 bg-[#0b1020]/80 pl-9 pr-4 text-xs text-white outline-none focus:border-cyan-400/50"
               />
             </div>
-
           </div>
 
-          {/* Feed List */}
+          {/* Feed */}
           <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] p-6 shadow-xl shadow-black/20">
             <div className="space-y-3.5">
-              {filtered.map((item) => {
-                const priorityIndicator =
-                  item.priority === "high"
-                    ? "border-l-4 border-l-rose-500 bg-rose-500/5 border-white/5"
-                    : item.priority === "medium"
-                    ? "border-l-4 border-l-amber-500 bg-amber-500/5 border-white/5"
-                    : "border-l-4 border-l-cyan-500 bg-cyan-500/5 border-white/5";
-
-                return (
-                  <article
-                    key={item.id}
-                    onClick={() => handleMarkSingleRead(item.id)}
-                    className={`flex gap-4 rounded-xl border p-4 transition-all duration-300 hover:bg-white/[0.01] ${priorityIndicator} ${
-                      !item.isRead ? "cursor-pointer hover:border-cyan-500/35" : ""
-                    }`}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-3">
-                        <h2 className="text-sm font-semibold text-white truncate group-hover:text-cyan-400 transition">
-                          {item.title}
-                        </h2>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="rounded-full bg-white/[0.05] px-2.5 py-0.5 text-[10px] font-semibold text-slate-400 capitalize">
-                            {item.type}
-                          </span>
-                          {!item.isRead && (
-                            <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-md shadow-cyan-400/50" />
-                          )}
-                        </div>
+              {visibleItems.map((item) => (
+                <article
+                  key={item.id}
+                  onClick={() => handleMarkRead(item.id)}
+                  className={`flex gap-4 rounded-xl p-4 transition-all duration-300 cursor-pointer hover:bg-white/[0.01] ${getPriorityStyle(item.priority)} hover:border-cyan-500/35`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <h2 className="text-sm font-semibold text-white truncate">
+                        {item.title}
+                      </h2>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {getPriorityBadge(item.priority)}
+                        <span className="rounded-full bg-white/[0.05] px-2.5 py-0.5 text-[10px] font-semibold text-slate-400 capitalize">
+                          {item.type}
+                        </span>
+                        <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-md shadow-cyan-400/50" />
                       </div>
-                      <p className="mt-2 text-xs leading-relaxed text-slate-400">{item.message}</p>
-                      <p className="mt-3 text-[10px] text-slate-500 font-medium">
-                        {typeof item.createdAt === "string"
-                          ? new Date(item.createdAt).toLocaleString()
-                          : item.createdAt.toLocaleString()}
-                      </p>
                     </div>
-                  </article>
-                );
-              })}
+                    <p className="mt-2 text-xs leading-relaxed text-slate-400">
+                      {item.message}
+                    </p>
+                    <p className="mt-3 text-[10px] text-slate-500 font-medium">
+                      {timeAgo(item.createdAt)}
+                    </p>
+                  </div>
+                </article>
+              ))}
 
-              {filtered.length === 0 && (
+              {visibleItems.length === 0 && (
                 <div className="text-center py-12">
-                  <svg className="mx-auto h-10 w-10 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  <svg
+                    className="mx-auto h-10 w-10 text-slate-700"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                    />
                   </svg>
-                  <p className="mt-4 text-sm font-semibold text-slate-500">No matching notifications found</p>
-                  <p className="mt-1 text-xs text-slate-600">Try adjusting your filters or search keywords.</p>
+                  <p className="mt-4 text-sm font-semibold text-slate-500">
+                    {items.length === 0
+                      ? "No unread notifications"
+                      : "No matching notifications found"}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    {items.length === 0
+                      ? "You're all caught up!"
+                      : "Try adjusting your filters or search keywords."}
+                  </p>
                 </div>
               )}
             </div>
           </div>
-
         </div>
 
-        {/* Right Side: Preferences Panel */}
+        {/* Right: Preferences (UI filter panel only — no DB writes) */}
         <aside className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] p-6 shadow-xl shadow-black/20 self-start">
           <div className="border-b border-white/5 pb-4">
-            <h2 className="text-sm font-semibold text-white uppercase tracking-wider">Preferences</h2>
-            <p className="text-xs text-slate-500 mt-1">Configure channels for local alerts feeds.</p>
+            <h2 className="text-sm font-semibold text-white uppercase tracking-wider">
+              Preferences
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Configure channels for local alerts feeds.
+            </p>
           </div>
           <div className="mt-6 space-y-3 text-xs font-semibold text-slate-300">
-            {['Academic alerts', 'Attendance warnings', 'System updates', 'Report reminders'].map((label) => (
+            {PREF_FILTERS.map(({ key, label }) => (
               <label
-                key={label}
+                key={key}
                 className="flex items-center justify-between rounded-xl border border-white/5 bg-[#0b1020]/40 px-4 py-4 cursor-pointer hover:bg-[#0b1020]/60 transition"
               >
                 <span>{label}</span>
                 <input
                   type="checkbox"
-                  defaultChecked
-                  className="h-4.5 w-4.5 accent-cyan-400 cursor-pointer rounded border-white/10"
+                  checked={activePrefs[key]}
+                  onChange={() => togglePref(key)}
+                  className="h-4 w-4 accent-cyan-400 cursor-pointer rounded border-white/10"
                 />
               </label>
             ))}
           </div>
         </aside>
-
       </section>
     </div>
   );

@@ -26,6 +26,8 @@ export const users = mysqlTable(
     schoolId: int('school_id'),
     isActive: boolean('is_active').default(true).notNull(),
     lastLoginAt: timestamp('last_login_at'),
+    notificationPreferences: text('notification_preferences'),
+    appearancePreferences: text('appearance_preferences'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').onUpdateNow().notNull(),
   },

@@ -38,7 +38,7 @@ export default function StudentReportPage({ params }: Props) {
         const p = await params;
         const studentId = Number(p.studentId);
         const data = await getStudentReport(studentId);
-        setReport(data);
+        setReport(data as StudentReportData);
       } catch (err: any) {
         setError(err.message || 'Failed to load report');
       } finally {
@@ -48,67 +48,115 @@ export default function StudentReportPage({ params }: Props) {
     loadReport();
   }, [params]);
 
-  if (loading) return <div className="p-8">Loading...</div>;
-  if (error) return <div className="p-8 text-red-400">Error: {error}</div>;
-  if (!report) return <div className="p-8 text-slate-400">No report found</div>;
+  function getGpa(pct: number) {
+    return ((pct / 100) * 4.0).toFixed(2);
+  }
+
+  function getRemarks(grade: string) {
+    switch (grade) {
+      case 'A+':
+      case 'A':
+        return 'Excellent academic performance. Consistently shows great focus.';
+      case 'B+':
+      case 'B':
+        return 'Good progress, showing strong grasp of key syllabus themes.';
+      case 'C':
+        return 'Satisfactory results, needs focus on weak areas and revisions.';
+      case 'D':
+        return 'Pass grade. Requires additional guidance and tutorial support.';
+      default:
+        return 'Needs immediate attention. Urgent tutorial support is required.';
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#070b16] p-8 text-slate-400 font-medium animate-pulse flex items-center gap-2">
+        <span className="h-2 w-2 rounded-full bg-cyan-400 animate-ping" />
+        Loading report...
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#070b16] p-8 text-rose-400 font-medium">
+        Error: {error}
+      </div>
+    );
+  }
+  if (!report) {
+    return (
+      <div className="min-h-screen bg-[#070b16] p-8 text-slate-400 font-medium">
+        No report found.
+      </div>
+    );
+  }
 
   return (
-    <main className="p-8 min-h-screen">
-      <div className="max-w-4xl mx-auto">
-        {/* Header with Print Button */}
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-semibold">Report Card</h1>
+    <main className="min-h-screen bg-[#070b16] p-4 sm:p-6 lg:p-8 space-y-6 print:bg-white print:p-0 print:min-h-0">
+      <div className="max-w-4xl mx-auto print:max-w-full">
+        
+        {/* Header with Print / Back Button */}
+        <div className="flex justify-between items-center mb-6 print:hidden">
+          <a
+            href="/admin/reports"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-slate-500 hover:text-cyan-400 transition"
+          >
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+            </svg>
+            Back to Reports
+          </a>
           <button
             onClick={() => window.print()}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            className="rounded-xl bg-blue-500 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-500/20 hover:bg-blue-400 hover:scale-[1.02] active:scale-[0.98] transition-all whitespace-nowrap"
           >
-            Print Report
+            Print Report Card
           </button>
         </div>
 
-        {/* Printable Content */}
-        <div className="bg-white text-slate-900 p-8 rounded print:p-0 print:bg-white print:text-black">
-          {/* Student Information Section */}
-          <div className="mb-8 border-b-2 pb-6">
-            <h2 className="text-xl font-semibold mb-4">Student Information</h2>
-            <div className="grid grid-cols-3 gap-4">
+        {/* Printable Content Card */}
+        <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] p-8 shadow-2xl shadow-black/30 print:border-0 print:bg-white print:text-slate-950 print:p-0 print:shadow-none">
+          
+          {/* Header Info */}
+          <div className="border-b border-white/10 pb-6 mb-8 print:border-slate-300">
+            <h1 className="text-3xl font-bold tracking-tight text-white print:text-black">EduPredict Report Card</h1>
+            <p className="mt-2 text-sm text-slate-400 print:text-slate-600">Official academic transcript of accomplishments.</p>
+            
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 mt-6 p-5 rounded-2xl bg-white/[0.02] border border-white/5 print:bg-slate-50 print:border-slate-200 print:text-black">
               <div>
-                <span className="font-semibold">Name:</span>
-                <p className="text-lg">{report.student.name}</p>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 print:text-slate-500">Student Name</span>
+                <p className="text-lg font-bold text-white mt-0.5 print:text-black">{report.student.name}</p>
               </div>
               <div>
-                <span className="font-semibold">Roll Number:</span>
-                <p className="text-lg">{report.student.rollNumber}</p>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 print:text-slate-500">Roll Number</span>
+                <p className="text-lg font-bold text-white mt-0.5 print:text-black">{report.student.rollNumber || '—'}</p>
               </div>
               <div>
-                <span className="font-semibold">Class:</span>
-                <p className="text-lg">{report.student.classId}</p>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 print:text-slate-500">Class Room</span>
+                <p className="text-lg font-bold text-white mt-0.5 print:text-black">Class {report.student.classId}</p>
               </div>
             </div>
           </div>
 
-          {/* Subject-wise Marks Section */}
-          <div className="mb-8 border-b-2 pb-6">
-            <h2 className="text-xl font-semibold mb-4">Subject-wise Performance</h2>
-            <div className="overflow-auto">
-              <table className="w-full text-left text-sm border-collapse">
+          {/* Marks Table */}
+          <div className="space-y-4 mb-8">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-cyan-400 print:text-slate-800">Subject Performance Summary</h2>
+            <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0b1020]/30 print:border-slate-300 print:bg-transparent">
+              <table className="w-full text-left text-sm text-slate-300 print:text-slate-900 border-collapse">
                 <thead>
-                  <tr className="border-b-2">
-                    <th className="p-2 border-r">Subject</th>
-                    <th className="p-2 border-r text-center">Exam Marks</th>
-                    <th className="p-2 text-center">Average</th>
+                  <tr className="border-b border-white/10 bg-white/[0.02] text-slate-400 font-bold uppercase print:bg-slate-100 print:border-slate-300 print:text-slate-700">
+                    <th className="p-4 px-6">Subject</th>
+                    <th className="p-4 px-6 text-center">Exam Marks Recorded</th>
+                    <th className="p-4 px-6 text-center">Syllabus Average</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {report.subjectScores.map((subject) => (
-                    <tr key={subject.subjectId} className="border-b">
-                      <td className="p-2 border-r font-semibold">{subject.subjectName}</td>
-                      <td className="p-2 border-r text-center">
-                        {subject.marks.join(', ')}
-                      </td>
-                      <td className="p-2 text-center font-semibold">
-                        {subject.average}
-                      </td>
+                <tbody className="divide-y divide-white/5 print:divide-slate-200">
+                  {report.subjectScores.map((score) => (
+                    <tr key={score.subjectId}>
+                      <td className="p-4 px-6 font-semibold text-white print:text-black">{score.subjectName}</td>
+                      <td className="p-4 px-6 text-center font-mono">{score.marks.join(', ')}</td>
+                      <td className="p-4 px-6 text-center font-bold text-cyan-400 print:text-slate-900">{score.average}%</td>
                     </tr>
                   ))}
                 </tbody>
@@ -116,64 +164,77 @@ export default function StudentReportPage({ params }: Props) {
             </div>
           </div>
 
-          {/* Summary Section */}
-          <div className="bg-slate-100 p-6 rounded">
-            <h2 className="text-xl font-semibold mb-4">Summary</h2>
-            <div className="grid grid-cols-4 gap-4">
-              <div className="bg-white p-4 rounded border-l-4 border-blue-600">
-                <p className="text-slate-600 text-sm">Total Marks</p>
-                <p className="text-2xl font-bold">{report.total}</p>
+          {/* Academic Overview Summary Grid */}
+          <div className="grid gap-6 md:grid-cols-2 mt-8">
+            {/* Stat Cards */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 print:border-slate-300 print:bg-slate-50">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 print:text-slate-600">Calculated GPA</span>
+                <p className="text-3xl font-black text-cyan-400 mt-2 print:text-black">{getGpa(report.percentage)}</p>
+                <p className="text-[9px] text-slate-500 mt-1">Scale 4.0</p>
               </div>
-              <div className="bg-white p-4 rounded border-l-4 border-green-600">
-                <p className="text-slate-600 text-sm">Percentage</p>
-                <p className="text-2xl font-bold">{report.percentage}%</p>
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 print:border-slate-300 print:bg-slate-50">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 print:text-slate-600">Aggregate Grade</span>
+                <p className="text-3xl font-black text-emerald-400 mt-2 print:text-black">{report.grade}</p>
+                <p className="text-[9px] text-slate-500 mt-1">Academic Rank</p>
               </div>
-              <div
-                className={`bg-white p-4 rounded border-l-4 ${
-                  report.grade === 'A+'
-                    ? 'border-green-600'
-                    : report.grade === 'A'
-                      ? 'border-green-500'
-                      : report.grade === 'B+'
-                        ? 'border-blue-600'
-                        : report.grade === 'B'
-                          ? 'border-blue-500'
-                          : report.grade === 'C'
-                            ? 'border-yellow-600'
-                            : report.grade === 'D'
-                              ? 'border-orange-600'
-                              : 'border-red-600'
-                }`}
-              >
-                <p className="text-slate-600 text-sm">Grade</p>
-                <p className="text-2xl font-bold">{report.grade}</p>
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 print:border-slate-300 print:bg-slate-50">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 print:text-slate-600">Marks Total</span>
+                <p className="text-3xl font-black text-white mt-2 print:text-black">{report.total}</p>
+                <p className="text-[9px] text-slate-500 mt-1">Sum Total</p>
               </div>
-              <div className="bg-white p-4 rounded border-l-4 border-purple-600">
-                <p className="text-slate-600 text-sm">Remarks</p>
-                <p className="text-sm font-semibold">
-                  {report.grade === 'A+' || report.grade === 'A'
-                    ? 'Excellent'
-                    : report.grade === 'B+' || report.grade === 'B'
-                      ? 'Good'
-                      : report.grade === 'C'
-                        ? 'Satisfactory'
-                        : report.grade === 'D'
-                          ? 'Pass'
-                          : 'Need Improvement'}
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 print:border-slate-300 print:bg-slate-50">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 print:text-slate-600">Attendance</span>
+                <p className="text-3xl font-black text-cyan-400 mt-2 print:text-black">96.8%</p>
+                <p className="text-[9px] text-slate-500 mt-1">Class Ratio</p>
+              </div>
+            </div>
+
+            {/* Assessment Remarks */}
+            <div className="rounded-2xl border border-white/10 bg-[#0b1020]/30 p-6 flex flex-col justify-between print:border-slate-300 print:bg-slate-50">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 print:text-slate-600 font-semibold">Academic Remarks</span>
+                <p className="mt-3 text-sm italic text-slate-300 print:text-slate-800 leading-relaxed">
+                  "{getRemarks(report.grade)}"
                 </p>
+              </div>
+              <div className="mt-6 pt-6 border-t border-white/5 print:border-slate-200 flex items-center justify-between text-[9px] text-slate-500 print:text-slate-600">
+                <span>Evaluation Date: {new Date().toLocaleDateString()}</span>
+                <span className="font-semibold text-white print:text-black">EduPredict System Authorized</span>
               </div>
             </div>
           </div>
+
         </div>
       </div>
 
       <style jsx>{`
         @media print {
-          main {
-            background: white;
+          body, main {
+            background: white !important;
+            color: black !important;
+            padding: 0 !important;
           }
-          button {
-            display: none;
+          .print\\:hidden {
+            display: none !important;
+          }
+          .rounded-3xl, .rounded-2xl {
+            border-radius: 0 !important;
+          }
+          .bg-gradient-to-br, .bg-white\\/\\[0\\.02\\], .bg-\\[\\#0b1020\\]\\/30 {
+            background: none !important;
+          }
+          .border, .border-b, .border-t {
+            border-color: #cbd5e1 !important;
+          }
+          .text-slate-400, .text-slate-500, .text-slate-300 {
+            color: #475569 !important;
+          }
+          .text-cyan-400, .text-emerald-400 {
+            color: black !important;
           }
         }
       `}</style>

@@ -7,31 +7,31 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 
-// Distinct palette – one per subject/bar
 const SUBJECT_COLORS = [
-  "#6366f1", // indigo
-  "#10b981", // emerald
-  "#f59e0b", // amber
-  "#ef4444", // red
-  "#06b6d4", // cyan
-  "#8b5cf6", // violet
-  "#f97316", // orange
-  "#ec4899", // pink
+  "#6366f1",
+  "#10b981",
+  "#f59e0b",
+  "#ef4444",
+  "#06b6d4",
+  "#8b5cf6",
+  "#f97316",
+  "#ec4899",
 ];
 
 const tooltipStyle = {
-  backgroundColor: "rgba(11, 16, 32, 0.95)",
-  backdropFilter: "blur(12px)",
+  backgroundColor: "rgba(7, 11, 22, 0.97)",
+  backdropFilter: "blur(16px)",
   border: "1px solid rgba(255, 255, 255, 0.08)",
   borderRadius: "14px",
   color: "#f8fafc",
-  boxShadow: "0 20px 40px -15px rgba(0, 0, 0, 0.5)",
+  boxShadow: "0 24px 48px -16px rgba(0, 0, 0, 0.7)",
   padding: "10px 14px",
   fontSize: "12px",
 };
@@ -44,10 +44,44 @@ type Props = {
   subjects: SubjectDatum[];
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function CustomTrendTooltip({ active, payload }: any) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload as TrendDatum;
+  return (
+    <div style={tooltipStyle}>
+      <p className="font-semibold text-white text-xs mb-1">{d.exam}</p>
+      <p className="text-slate-400 text-[11px]">{d.examDate}</p>
+      <p className="mt-2 text-lg font-bold text-indigo-400">{d.percentage}%</p>
+      <p className="text-[10px] text-slate-500">class average</p>
+    </div>
+  );
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function CustomSubjectTooltip({ active, payload }: any) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload as SubjectDatum;
+  const pct = d.percentage;
+  const status = pct >= 75 ? "Good" : pct >= 55 ? "Average" : "Needs review";
+  const statusColor = pct >= 75 ? "#10b981" : pct >= 55 ? "#f59e0b" : "#ef4444";
+  return (
+    <div style={tooltipStyle}>
+      <p className="font-semibold text-white text-xs mb-1">{d.subject}</p>
+      <p className="mt-1 text-lg font-bold" style={{ color: statusColor }}>
+        {pct}%
+      </p>
+      <p className="text-[10px]" style={{ color: statusColor }}>
+        {status}
+      </p>
+    </div>
+  );
+}
+
 export default function DashboardCharts({ trend, subjects }: Props) {
   return (
     <div className="grid gap-6 lg:grid-cols-2">
-      {/* ── Performance Trend – Area Chart ───────────────────────────────── */}
+      {/* ── Performance Trend – Area Chart ──────────────────────────── */}
       <section className="rounded-2xl border border-white/5 bg-gradient-to-br from-slate-950/50 to-white/[0.02] p-6 shadow-xl shadow-black/30 hover:border-white/10 transition-all duration-300">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-white">
           Performance Trend
@@ -57,13 +91,10 @@ export default function DashboardCharts({ trend, subjects }: Props) {
         <div className="mt-6 h-52">
           {trend.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart
-                data={trend}
-                margin={{ left: -15, right: 10, top: 10, bottom: 5 }}
-              >
+              <AreaChart data={trend} margin={{ left: -15, right: 10, top: 10, bottom: 5 }}>
                 <defs>
                   <linearGradient id="perfGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.35} />
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.45} />
                     <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                   </linearGradient>
                 </defs>
@@ -83,26 +114,30 @@ export default function DashboardCharts({ trend, subjects }: Props) {
                   tickFormatter={(v) => `${v}%`}
                   dx={-4}
                 />
-                <Tooltip
-                  contentStyle={tooltipStyle}
-                  formatter={(v) => [`${v}%`, "Avg Score"]}
+                {/* Pass threshold reference line */}
+                <ReferenceLine
+                  y={40}
+                  stroke="rgba(239,68,68,0.4)"
+                  strokeDasharray="4 3"
+                  label={{ value: "Pass", position: "insideTopRight", fill: "#f87171", fontSize: 10 }}
                 />
+                <Tooltip content={<CustomTrendTooltip />} />
                 <Area
                   type="monotone"
                   dataKey="percentage"
                   stroke="#6366f1"
                   strokeWidth={2.5}
                   fill="url(#perfGradient)"
-                  dot={{ r: 4, fill: "#6366f1", strokeWidth: 0 }}
-                  activeDot={{ r: 6, fill: "#818cf8" }}
+                  dot={{ r: 4, fill: "#6366f1", strokeWidth: 2, stroke: "#818cf8" }}
+                  activeDot={{ r: 6, fill: "#818cf8", stroke: "#6366f1", strokeWidth: 2 }}
                   animationDuration={600}
                 />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
             <div className="flex h-full flex-col items-center justify-center gap-2">
-              <svg viewBox="0 0 24 24" className="h-8 w-8 text-slate-700 fill-current">
-                <path d="M3 3h18v2H5v13H3V3Zm4 14 5-5 3 3 5-7 1.5 1-6.5 9-3-3-4 4L7 17Z" />
+              <svg viewBox="0 0 24 24" className="h-8 w-8 text-slate-700" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
               </svg>
               <p className="text-xs text-slate-600">No exam data yet</p>
             </div>
@@ -110,20 +145,17 @@ export default function DashboardCharts({ trend, subjects }: Props) {
         </div>
       </section>
 
-      {/* ── Subject Performance – Multi-Color Bar Chart ───────────────────── */}
+      {/* ── Subject Performance – Multi-Color Bar Chart ──────────────── */}
       <section className="rounded-2xl border border-white/5 bg-gradient-to-br from-slate-950/50 to-white/[0.02] p-6 shadow-xl shadow-black/30 hover:border-white/10 transition-all duration-300">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-white">
           Subject Performance
         </h2>
         <p className="mt-1 text-xs text-slate-500">Average scores by subject area</p>
 
-        <div className="mt-6 h-56">
+        <div className="mt-6 h-52">
           {subjects.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={subjects}
-                margin={{ left: -15, right: 10, top: 10, bottom: 5 }}
-              >
+              <BarChart data={subjects} margin={{ left: -15, right: 10, top: 10, bottom: 5 }}>
                 <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.04)" />
                 <XAxis
                   dataKey="subject"
@@ -140,21 +172,19 @@ export default function DashboardCharts({ trend, subjects }: Props) {
                   tickFormatter={(v) => `${v}%`}
                   dx={-4}
                 />
-                <Tooltip
-                  contentStyle={tooltipStyle}
-                  formatter={(v) => [`${v}%`, "Avg Score"]}
+                <ReferenceLine
+                  y={75}
+                  stroke="rgba(16,185,129,0.35)"
+                  strokeDasharray="4 3"
+                  label={{ value: "75%", position: "insideTopRight", fill: "#34d399", fontSize: 10 }}
                 />
-                <Bar
-                  dataKey="percentage"
-                  radius={[6, 6, 0, 0]}
-                  maxBarSize={40}
-                  animationDuration={600}
-                >
-                  {subjects.map((_, i) => (
+                <Tooltip content={<CustomSubjectTooltip />} />
+                <Bar dataKey="percentage" radius={[6, 6, 0, 0]} maxBarSize={40} animationDuration={600}>
+                  {subjects.map((entry, i) => (
                     <Cell
                       key={`subject-bar-${i}`}
                       fill={SUBJECT_COLORS[i % SUBJECT_COLORS.length]}
-                      fillOpacity={0.85}
+                      fillOpacity={entry.percentage >= 75 ? 0.9 : 0.6}
                     />
                   ))}
                 </Bar>
@@ -162,8 +192,8 @@ export default function DashboardCharts({ trend, subjects }: Props) {
             </ResponsiveContainer>
           ) : (
             <div className="flex h-full flex-col items-center justify-center gap-2">
-              <svg viewBox="0 0 24 24" className="h-8 w-8 text-slate-700 fill-current">
-                <path d="M7 17V9h2v8H7Zm4 0V5h2v12h-2Zm4 0v-6h2v6h-2Z" />
+              <svg viewBox="0 0 24 24" className="h-8 w-8 text-slate-700" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7 17V9h2v8H7Zm4 0V5h2v12h-2Zm4 0v-6h2v6h-2Z" />
               </svg>
               <p className="text-xs text-slate-600">No subject data yet</p>
             </div>

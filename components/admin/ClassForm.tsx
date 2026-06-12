@@ -19,12 +19,10 @@ type Props = {
 
 export default function ClassForm({ action, initial = {}, submitLabel = 'Save' }: Props) {
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
     setLoading(true);
     const form = event.currentTarget;
     const formData = new FormData(form);
@@ -41,7 +39,7 @@ export default function ClassForm({ action, initial = {}, submitLabel = 'Save' }
         } catch { }
       }
     } catch (err: any) {
-      setError(err?.message || 'Unable to save class.');
+      toast.error(err?.message || 'Unable to save class.');
     } finally {
       setLoading(false);
     }
@@ -79,8 +77,6 @@ export default function ClassForm({ action, initial = {}, submitLabel = 'Save' }
           />
         </div>
       </div>
-
-      {error && <div className="text-red-400 text-sm">{error}</div>}
 
       <button
         type="submit"

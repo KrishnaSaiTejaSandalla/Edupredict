@@ -42,9 +42,10 @@ export default function LoginPage() {
               <Image src={logo} alt="EduPredict" width={44} height={44} priority className="h-full w-full object-contain" />
             </div>
           </div>
-          <h2 className="text-4xl font-semibold tracking-tight">Welcome back</h2>
+          <h2 className="text-4xl font-semibold tracking-tight">Welcome Back</h2>
           <p className="mt-2 text-slate-400">Sign in to your EduPredict account</p>
           <LoginForm />
+
         </div>
       </section>
     </main>

@@ -13,15 +13,21 @@ export default async function NotificationsPage() {
     .where(eq(notifications.userId, user.id))
     .orderBy(desc(notifications.createdAt))
     .limit(50);
-    
-  const items = rows.map(r => ({
+
+  const items = rows.map((r) => ({
     ...r,
-    createdAt: r.createdAt.toISOString(), // safe for client boundary
+    createdAt: r.createdAt.toISOString(),
   }));
+
+  const unreadCount = rows.filter((r) => !r.isRead).length;
 
   return (
     <main className="min-h-screen bg-[#070b16] p-4 sm:p-6 lg:p-8">
-      <NotificationsClient initialItems={items} userId={user.id} />
+      <NotificationsClient
+        initialItems={items}
+        userId={user.id}
+        initialUnreadCount={unreadCount}
+      />
     </main>
   );
 }

@@ -5,20 +5,25 @@ import { users, schools } from './schema';
 import { eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import bcrypt from 'bcryptjs';
+import { parseDbError } from './db-errors';
 
 export async function updateUserProfile(userId: number, data: { name: string; email: string }) {
   if (!data.name || !data.email) {
     throw new Error('Name and email are required');
   }
 
-  await db
-    .update(users)
-    .set({
-      name: data.name,
-      email: data.email,
-      updatedAt: new Date(),
-    })
-    .where(eq(users.id, userId));
+  try {
+    await db
+      .update(users)
+      .set({
+        name: data.name,
+        email: data.email,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+  } catch (err) {
+    throw new Error(parseDbError(err));
+  }
 
   revalidatePath('/admin/settings');
   revalidatePath('/admin');
@@ -41,13 +46,17 @@ export async function updateUserPassword(userId: number, data: { currentPassword
   }
 
   const hashedNewPassword = await bcrypt.hash(data.newPassword, 10);
-  await db
-    .update(users)
-    .set({
-      password: hashedNewPassword,
-      updatedAt: new Date(),
-    })
-    .where(eq(users.id, userId));
+  try {
+    await db
+      .update(users)
+      .set({
+        password: hashedNewPassword,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+  } catch (err) {
+    throw new Error(parseDbError(err));
+  }
 
   revalidatePath('/admin/settings');
   return { success: true };
@@ -67,20 +76,66 @@ export async function updateSchoolProfile(schoolId: number, data: {
     throw new Error('School name is required');
   }
 
-  await db
-    .update(schools)
-    .set({
-      name: data.name,
-      email: data.email,
-      phone: data.phone,
-      address: data.address,
-      city: data.city,
-      state: data.state,
-      pincode: data.pincode,
-      principalName: data.principalName,
-      updatedAt: new Date(),
-    })
-    .where(eq(schools.id, schoolId));
+  try {
+    await db
+      .update(schools)
+      .set({
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        address: data.address,
+        city: data.city,
+        state: data.state,
+        pincode: data.pincode,
+        principalName: data.principalName,
+        updatedAt: new Date(),
+      })
+      .where(eq(schools.id, schoolId));
+  } catch (err) {
+    throw new Error(parseDbError(err));
+  }
+
+  revalidatePath('/admin/settings');
+  return { success: true };
+}
+
+export async function updateUserNotificationPreferences(userId: number, preferences: {
+  email: boolean;
+  inApp: boolean;
+  attendance: boolean;
+  exams: boolean;
+}) {
+  try {
+    await db
+      .update(users)
+      .set({
+        notificationPreferences: JSON.stringify(preferences),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+  } catch (err) {
+    throw new Error(parseDbError(err));
+  }
+
+  revalidatePath('/admin/settings');
+  return { success: true };
+}
+
+export async function updateUserAppearancePreferences(userId: number, preferences: {
+  theme: string;
+  density: string;
+}) {
+  try {
+    await db
+      .update(users)
+      .set({
+        appearancePreferences: JSON.stringify(preferences),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+  } catch (err) {
+    throw new Error(parseDbError(err));
+  }
 
   revalidatePath('/admin/settings');
   return { success: true };

@@ -20,7 +20,21 @@ export default async function SettingsPage() {
   return (
     <main className="min-h-screen bg-[#070b16] p-4 sm:p-6 lg:p-8">
       <SettingsClient
-        user={dbUser ? { id: dbUser.id, name: dbUser.name, email: dbUser.email, schoolId: dbUser.schoolId } : { id: authUser.id, name: authUser.name, email: authUser.email || "", schoolId: null }}
+        user={dbUser ? { 
+          id: dbUser.id, 
+          name: dbUser.name, 
+          email: dbUser.email, 
+          schoolId: dbUser.schoolId,
+          notificationPreferences: dbUser.notificationPreferences,
+          appearancePreferences: dbUser.appearancePreferences
+        } : { 
+          id: authUser.id, 
+          name: authUser.name, 
+          email: authUser.email || "", 
+          schoolId: null,
+          notificationPreferences: null,
+          appearancePreferences: null
+        }}
         school={school}
       />
     </main>

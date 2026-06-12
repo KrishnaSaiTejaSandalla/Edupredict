@@ -7,7 +7,8 @@ import type { Route } from "next";
 import { usePathname } from "next/navigation";
 import logo from "@/branding/logo.png";
 import LogoutButton from "@/components/auth/LogoutButton";
-import GlobalSearch from "./GlobalSearch";
+import WelcomeAnimation from "./WelcomeAnimation";
+import { useNotificationStore } from "@/store/useNotificationStore";
 
 type AdminShellProps = {
   children: React.ReactNode;
@@ -56,6 +57,42 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+
+  // Real-time badge from Zustand — hydrated by NotificationsClient.
+  // Falls back to the server-provided alerts length until client hydration.
+  const storeUnread = useNotificationStore((s) => s.unreadCount);
+  const hydrate = useNotificationStore((s) => s.hydrate);
+
+  // {Added for preference filter}
+  useEffect(() => {
+    const pollNotifications = async () => {
+      try {
+        const res = await fetch("/api/notifications/unread-count");
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+
+        hydrate(data.count);
+      } catch (error) {
+        console.error("Notification polling failed", error);
+      }
+    };
+
+    pollNotifications();
+
+    const interval = setInterval(pollNotifications, 5000);
+
+    return () => clearInterval(interval);
+  }, [hydrate]);
+
+  // Seed the store with the count the server already knows about
+  // (alerts are unread notifs fetched in layout). This runs once.
+  useEffect(() => {
+    const serverCount = alerts.filter((a) => a.id !== "empty").length;
+    hydrate(serverCount);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const isItemActive = (href: string) => {
     if (href === "/admin/marks") {
@@ -185,11 +222,10 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
             <div className="ml-11 mt-1 space-y-1">
               <Link
                 href="/admin/teachers"
-                className={`block rounded-lg px-3 py-2 text-sm transition ${
-                  pathname === "/admin/teachers" || pathname.startsWith("/admin/teachers/")
-                    ? "bg-cyan-400/10 text-white"
-                    : "text-slate-400 hover:bg-white/[0.04] hover:text-white"
-                }`}
+                className={`block rounded-lg px-3 py-2 text-sm transition ${pathname === "/admin/teachers" || pathname.startsWith("/admin/teachers/")
+                  ? "bg-cyan-400/10 text-white"
+                  : "text-slate-400 hover:bg-white/[0.04] hover:text-white"
+                  }`}
               >
                 Teachers
               </Link>
@@ -224,11 +260,10 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
                 <Link
                   key={href}
                   href={href as Route}
-                  className={`block rounded-lg px-3 py-2 text-sm transition ${
-                    isItemActive(href)
-                      ? "bg-cyan-400/10 text-white"
-                      : "text-slate-400 hover:bg-white/[0.04] hover:text-white"
-                  }`}
+                  className={`block rounded-lg px-3 py-2 text-sm transition ${isItemActive(href)
+                    ? "bg-cyan-400/10 text-white"
+                    : "text-slate-400 hover:bg-white/[0.04] hover:text-white"
+                    }`}
                 >
                   {label}
                 </Link>
@@ -256,16 +291,7 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
         <header className="sticky top-0 z-20 border-b border-white/10 bg-[#070b16]/80 backdrop-blur-xl">
           <div className="flex h-[72px] items-center justify-end gap-4 px-4 sm:px-6 lg:px-8">
             <div className="min-w-0 flex-1">
-              <div className="relative block w-[340px]">
-                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500 z-10">
-                  <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-current">
-                    <path d="M10 4a6 6 0 1 0 3.7 10.7l3.6 3.6 1.4-1.4-3.6-3.6A6 6 0 0 0 10 4Zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z" />
-                  </svg>
-                </span>
-                <div className="min-w-0 flex-1">
-                  <GlobalSearch />
-                </div>
-              </div>
+              <WelcomeAnimation name={user.name} />
             </div>
 
             {/* Notification Bell Dropdown Container */}
@@ -279,7 +305,7 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
                 <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-current">
                   <path d="M12 22a2.8 2.8 0 0 0 2.7-2h-5.4A2.8 2.8 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5-6.7V3a2 2 0 0 0-4 0v1.3A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z" />
                 </svg>
-                {alerts.length > 0 && alerts[0].id !== "empty" && (
+                {storeUnread > 0 && (
                   <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-[#070b16]" />
                 )}
               </button>
@@ -302,15 +328,15 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
                         alert.tone === "danger"
                           ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
                           : alert.tone === "warning"
-                          ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                          : "bg-cyan-500/10 text-cyan-400 border-cyan-500/20";
-                      
+                            ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                            : "bg-cyan-500/10 text-cyan-400 border-cyan-500/20";
+
                       const badgeText =
                         alert.tone === "danger"
                           ? "High"
                           : alert.tone === "warning"
-                          ? "Medium"
-                          : "Info";
+                            ? "Medium"
+                            : "Info";
 
                       return (
                         <div
@@ -318,13 +344,12 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
                           className="group rounded-xl p-3 hover:bg-white/[0.04] transition duration-200 border border-transparent"
                         >
                           <div className="flex gap-2.5">
-                            <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
-                              alert.tone === "danger"
-                                ? "bg-rose-500"
-                                : alert.tone === "warning"
+                            <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${alert.tone === "danger"
+                              ? "bg-rose-500"
+                              : alert.tone === "warning"
                                 ? "bg-amber-500"
                                 : "bg-cyan-500"
-                            }`} />
+                              }`} />
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center justify-between gap-1.5">
                                 <p className="text-xs font-semibold text-white group-hover:text-cyan-300 transition duration-150 truncate">
@@ -387,7 +412,7 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
                         <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
                         <path fillRule="evenodd" d="M19.4 15a1.6 1.6 0 0 0 1-1.5v-3a1.6 1.6 0 0 0-1-1.5l-2.2-1.1a8.8 8.8 0 0 0-.7-1.7l1.1-2.2A1.6 1.6 0 0 0 17.1 3h-3a1.6 1.6 0 0 0-1.5 1L11.5 6.2a8.8 8.8 0 0 0-1.7.7L7.6 5.8a1.6 1.6 0 0 0-1.5 1v3a1.6 1.6 0 0 0 1 1.5l2.2 1.1c.2.6.4 1.2.7 1.7l-1.1 2.2a1.6 1.6 0 0 0 .5 2l3 1.5c.5.3 1.1.2 1.5-.2l1.1-2.2c.6-.2 1.2-.4 1.7-.7l2.2 1.1a1.6 1.6 0 0 0 1.5-1v-3ZM12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z" />
                       </svg>
-                      Settings Shortcut
+                      Settings
                     </Link>
                   </div>
                 </div>

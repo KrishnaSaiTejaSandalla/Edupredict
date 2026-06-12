@@ -2,7 +2,7 @@ import AdminShell from "@/components/admin/AdminShell";
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { notifications } from "@/lib/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 
 export default async function AdminLayout({
   children,
@@ -20,7 +20,12 @@ export default async function AdminLayout({
       createdAt: notifications.createdAt,
     })
     .from(notifications)
-    .where(eq(notifications.isRead, false))
+    .where(
+      and(
+        eq(notifications.userId, user.id),
+        eq(notifications.isRead, false)
+      )
+    )
     .orderBy(desc(notifications.createdAt))
     .limit(5);
 

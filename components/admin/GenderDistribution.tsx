@@ -19,15 +19,16 @@ export default function GenderDistribution({
   return (
     <section className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] p-4 shadow-lg shadow-black/20">
       {/* changed p-6 to p-4 */}
-      <div className="mb-6">
+      <div className="mb-4">
         <h2 className="text-base font-semibold tracking-tight text-white">
           Gender Distribution
         </h2>
-        <p className="mt-1 text-sm text-slate-500">Student demographics</p>
+        <p className="mt-1 text-xs text-slate-500">Student demographics</p>
+        {/* mb-6 to mb-4, text-sm to text xs */}
       </div>
 
-      <div className="space-y-3">
-        {/* //reduced to 3 from 5 for better UI */}
+      <div className="space-y-1">
+        {/* //reduced to 1 from 5 for better UI */}
         {sortedData.map((item) => {
           const percentage = total ? Math.round((item.count / total) * 100) : 0;
           const color =

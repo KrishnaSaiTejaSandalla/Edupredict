@@ -25,12 +25,10 @@ export default function AttendanceForm({ students, existingStatus, action, class
     }, {} as Record<number, string>)
   );
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
     setLoading(true);
 
     const formData = new FormData();
@@ -47,64 +45,129 @@ export default function AttendanceForm({ students, existingStatus, action, class
       router.refresh();
       toast.success('Attendance saved successfully');
     } catch (err: any) {
-      setError(err?.message || 'Unable to save attendance.');
+      toast.error(err?.message || 'Unable to save attendance.');
     } finally {
       setLoading(false);
     }
   }
 
+  function markAll(status: 'present' | 'absent') {
+    const updated = { ...statuses };
+    students.forEach((student) => {
+      updated[student.id] = status;
+    });
+    setStatuses(updated);
+    toast.success(`Marked all students as ${status}. Remember to save changes!`);
+  }
+
+  const getStatusStyle = (studentId: number, currentOption: string) => {
+    const isSelected = statuses[studentId] === currentOption;
+    if (!isSelected) {
+      return "border border-white/5 bg-white/[0.02] text-slate-400 hover:bg-white/[0.05] hover:text-white";
+    }
+    switch (currentOption) {
+      case 'present':
+        return "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30";
+      case 'absent':
+        return "bg-rose-500/10 text-rose-400 border border-rose-500/30";
+      case 'late':
+        return "bg-amber-500/10 text-amber-400 border border-amber-500/30";
+      case 'excused':
+        return "bg-blue-500/10 text-blue-400 border border-blue-500/30";
+      default:
+        return "bg-slate-500/10 text-slate-400 border border-slate-500/30";
+    }
+  };
+
   return (
-    <form onSubmit={onSubmit} className="space-y-4 rounded-lg border border-slate-800 bg-slate-900/70 p-4">
-      <div className="overflow-x-auto">
-        <table className="min-w-full border-collapse text-left text-white">
-          <thead className="bg-slate-950/80 text-slate-300">
+    <form onSubmit={onSubmit} className="space-y-6 rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] p-6 shadow-2xl shadow-black/25">
+      {/* BULK ACTIONS & HEADER */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-white/5 pb-5">
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-white">Student Roll Call</h2>
+          <p className="text-xs text-slate-500 mt-1">Review and register daily student logs below.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => markAll('present')}
+            className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-xs font-bold text-emerald-400 hover:bg-emerald-500/20 transition-all active:scale-[0.98]"
+          >
+            ✓ Mark All Present
+          </button>
+          <button
+            type="button"
+            onClick={() => markAll('absent')}
+            className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-2 text-xs font-bold text-rose-400 hover:bg-rose-500/20 transition-all active:scale-[0.98]"
+          >
+            ✕ Mark All Absent
+          </button>
+        </div>
+      </div>
+
+      {/* STUDENT TABLE */}
+      <div className="overflow-auto rounded-xl border border-white/10 bg-gradient-to-br from-slate-950/20 to-white/[0.015]">
+        <table className="w-full text-left text-sm text-slate-300">
+          <thead className="border-b border-white/10 bg-[#070b16]/40 text-xs font-semibold uppercase tracking-wider text-slate-400">
             <tr>
-              <th className="p-3">Student</th>
-              <th className="p-3">Roll</th>
-              <th className="p-3">Attendance</th>
+              <th className="p-4 px-6">Student</th>
+              <th className="p-4 px-6">Roll Number</th>
+              <th className="p-4 px-6 text-right">Attendance Status</th>
             </tr>
           </thead>
-          <tbody>
-            {students.map((student) => (
-              <tr key={student.id} className="border-t border-slate-800">
-                <td className="p-3">{student.name}</td>
-                <td className="p-3">{student.rollNumber || '—'}</td>
-                <td className="p-3 space-x-4">
-                  <label className="inline-flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name={`status-${student.id}`}
-                      value="present"
-                      checked={statuses[student.id] === 'present'}
-                      onChange={() => setStatuses((prev) => ({ ...prev, [student.id]: 'present' }))}
-                    />
-                    Present
-                  </label>
-                  <label className="inline-flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name={`status-${student.id}`}
-                      value="absent"
-                      checked={statuses[student.id] === 'absent'}
-                      onChange={() => setStatuses((prev) => ({ ...prev, [student.id]: 'absent' }))}
-                    />
-                    Absent
-                  </label>
+          <tbody className="divide-y divide-white/5">
+            {students.length === 0 ? (
+              <tr>
+                <td colSpan={3} className="p-12 text-center text-slate-500 font-medium">
+                  No students assigned to this class.
                 </td>
               </tr>
-            ))}
+            ) : (
+              students.map((student) => {
+                const initial = student.name.charAt(0).toUpperCase();
+                return (
+                  <tr key={student.id} className="hover:bg-white/[0.02] transition duration-200">
+                    <td className="p-4 px-6">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-600/20 text-xs font-bold text-cyan-300 border border-cyan-500/10">
+                          {initial}
+                        </div>
+                        <span className="font-semibold text-white">{student.name}</span>
+                      </div>
+                    </td>
+                    <td className="p-4 px-6 font-medium text-slate-400">{student.rollNumber || '—'}</td>
+                    <td className="p-4 px-6 text-right">
+                      <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                        {['present', 'absent', 'late', 'excused'].map((opt) => (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => setStatuses((prev) => ({ ...prev, [student.id]: opt }))}
+                            className={`rounded-lg px-3 py-1.5 text-xs font-bold capitalize transition-all ${getStatusStyle(student.id, opt)}`}
+                          >
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
 
-      {error && <div className="text-red-400 text-sm">{error}</div>}
-      <button
-        type="submit"
-        disabled={loading}
-        className="rounded bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-500 disabled:opacity-50"
-      >
-        {loading ? 'Saving...' : 'Save Attendance'}
-      </button>
+      {/* SAVE BUTTON */}
+      <div className="flex justify-end pt-2 border-t border-white/5">
+        <button
+          type="submit"
+          disabled={loading}
+          className="rounded-xl bg-emerald-500 px-6 py-3 text-xs font-bold text-white shadow-lg shadow-emerald-500/20 hover:bg-emerald-400 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 transition-all duration-200"
+        >
+          {loading ? 'Saving Logs...' : 'Save Attendance Logs'}
+        </button>
+      </div>
     </form>
   );
 }

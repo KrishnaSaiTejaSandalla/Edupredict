@@ -8,6 +8,9 @@ export async function POST(req: Request) {
   const token = match ? match[1] : null;
   if (token) await deleteSessionByToken(token);
   const res = NextResponse.json({ ok: true });
-  res.cookies.set({ name: SESSION_COOKIE_NAME, value: '', httpOnly: true, secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 0 });
+  const expiredOpts = { path: '/', maxAge: 0, secure: process.env.NODE_ENV === 'production' } as const;
+  res.cookies.set({ name: SESSION_COOKIE_NAME, value: '', httpOnly: true, ...expiredOpts });
+  res.cookies.set({ name: 'ep-role', value: '', httpOnly: false, ...expiredOpts });
   return res;
 }
+

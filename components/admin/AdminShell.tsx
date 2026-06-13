@@ -15,6 +15,12 @@ type AdminShellProps = {
   user: {
     name: string;
     email?: string;
+    profileImageUrl?: string | null;
+    school?: {
+      id: number;
+      name: string;
+      logoUrl?: string | null;
+    } | null;
   };
   alerts?: {
     id: string;
@@ -81,7 +87,8 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
 
     pollNotifications();
 
-    const interval = setInterval(pollNotifications, 5000);
+    const interval = setInterval(pollNotifications, 60000);
+    // Change 60000 to 3000 if you want to poll every 3 seconds
 
     return () => clearInterval(interval);
   }, [hydrate]);
@@ -141,13 +148,13 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
   }, [showNotifications, showProfileMenu]);
 
   return (
-    <div className="min-h-screen bg-[#070b16] text-slate-100 antialiased selection:bg-cyan-500/30">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[280px] border-r border-white/10 bg-[#0b1020]/95 px-4 py-5 shadow-2xl shadow-black/30 backdrop-blur-xl lg:block">
+    <div className="min-h-screen bg-base text-primary antialiased selection:bg-cyan-500/30 transition-colors duration-200">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[280px] border-r border-theme bg-surface/95 px-4 py-5 shadow-2xl shadow-black/30 backdrop-blur-xl lg:block transition-colors duration-200">
         <Link
           href="/admin"
-          className="mb-3 flex items-center ml-2 gap-3 rounded-xl px-2 py-2 transition hover:bg-slate-900"
+          className="mb-3 flex items-center ml-2 gap-3 rounded-xl px-2 py-2 transition hover:bg-hover"
         >
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white p-1.5 shadow-lg shadow-cyan-950/30">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-theme bg-white p-1.5 shadow-lg shadow-cyan-950/30">
             <Image
               src={logo}
               alt="EduPredict"
@@ -159,16 +166,16 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
           </span>
 
           <span>
-            <span className="block text-lg font-semibold tracking-wide text-white">
+            <span className="block text-lg font-semibold tracking-wide text-primary">
               EduPredict AI
             </span>
-            <span className="block text-sm font-medium text-slate-500">
+            <span className="block text-sm font-medium text-muted">
               School ERP
             </span>
           </span>
         </Link>
 
-        <div className="mb-2 border-t border-white/10" />
+        <div className="mb-2 border-t border-theme" />
 
         <nav className="space-y-0.5">
           {simpleNavItems.map((item) => {
@@ -181,8 +188,8 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
                 className={[
                   "group relative flex items-center gap-3 rounded-xl px-3 py-2 text-base font-medium transition duration-200",
                   active
-                    ? "bg-cyan-400/10 text-white shadow-lg shadow-cyan-950/20 ring-1 ring-cyan-300/15"
-                    : "text-slate-400 hover:bg-white/[0.04] hover:text-white",
+                    ? "bg-cyan-500/10 text-cyan-400 shadow-lg shadow-cyan-950/20 ring-1 ring-cyan-500/15"
+                    : "text-secondary hover:bg-hover hover:text-primary",
                 ].join(" ")}
               >
                 <span
@@ -190,7 +197,7 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
                     "flex h-8 w-8 items-center justify-center rounded-lg transition duration-200",
                     active
                       ? "bg-cyan-300 text-slate-950"
-                      : "bg-white/[0.04] text-slate-500",
+                      : "bg-hover text-muted",
                   ].join(" ")}
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
@@ -207,9 +214,9 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
         <div>
           <button
             onClick={() => setOpenMenu(openMenu === "Staff" ? null : "Staff")}
-            className="group relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-base font-medium text-slate-400 transition duration-200 hover:bg-white/[0.04] hover:text-white"
+            className="group relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-base font-medium text-secondary transition duration-200 hover:bg-hover hover:text-primary"
           >
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.04] text-slate-500">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-hover text-muted">
               <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
                 <path d="M7 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm10-1a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM1 20a6 6 0 0 1 12 0H1Zm12.6 0a7.5 7.5 0 0 0-2.1-4.9A5 5 0 0 1 22 20h-8.4Z" />
               </svg>
@@ -223,8 +230,8 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
               <Link
                 href="/admin/teachers"
                 className={`block rounded-lg px-3 py-2 text-sm transition ${pathname === "/admin/teachers" || pathname.startsWith("/admin/teachers/")
-                  ? "bg-cyan-400/10 text-white"
-                  : "text-slate-400 hover:bg-white/[0.04] hover:text-white"
+                  ? "bg-cyan-500/10 text-cyan-400"
+                  : "text-secondary hover:bg-hover hover:text-primary"
                   }`}
               >
                 Teachers
@@ -236,9 +243,9 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
         <div>
           <button
             onClick={() => setOpenMenu(openMenu === "Academics" ? null : "Academics")}
-            className="group relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-base font-medium text-slate-400 transition duration-200 hover:bg-white/[0.04] hover:text-white"
+            className="group relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-base font-medium text-secondary transition duration-200 hover:bg-hover hover:text-primary"
           >
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.04] text-slate-500">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-hover text-muted">
               <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
                 <path d="M6 3h12v18H6V3Zm3 4h6V5H9v2Zm0 4h6V9H9v2Zm0 4h4v-2H9v2Z" />
               </svg>
@@ -261,8 +268,8 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
                   key={href}
                   href={href as Route}
                   className={`block rounded-lg px-3 py-2 text-sm transition ${isItemActive(href)
-                    ? "bg-cyan-400/10 text-white"
-                    : "text-slate-400 hover:bg-white/[0.04] hover:text-white"
+                    ? "bg-cyan-500/10 text-cyan-400"
+                    : "text-secondary hover:bg-hover hover:text-primary"
                     }`}
                 >
                   {label}
@@ -272,15 +279,20 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
           )}
         </div>
 
-        <div className="absolute bottom-3 left-4 right-4 rounded-xl p-2">
-          <div className="mb-3 border-t border-white/10" />
+        <div className="absolute bottom-3 left-4 right-4 rounded-xl p-2 bg-surface border border-theme">
           <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-300 text-xs font-bold text-slate-950">
-              {initials || "AD"}
-            </span>
+            {user.profileImageUrl ? (
+              <div className="relative h-10 w-10 overflow-hidden rounded-xl border border-theme bg-white/[0.04] shrink-0">
+                <img src={user.profileImageUrl} alt={user.name} className="h-full w-full object-cover" />
+              </div>
+            ) : (
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-300 text-xs font-bold text-slate-950 shrink-0">
+                {initials || "AD"}
+              </span>
+            )}
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-xs font-semibold text-white">{user.name}</span>
-              <span className="block truncate text-xs text-slate-500">Administrator</span>
+              <span className="block truncate text-xs font-semibold text-primary">{user.name}</span>
+              <span className="block truncate text-xs text-muted">Administrator</span>
             </span>
             <LogoutButton compact />
           </div>
@@ -288,7 +300,7 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
       </aside>
 
       <div className="lg:pl-[280px]">
-        <header className="sticky top-0 z-20 border-b border-white/10 bg-[#070b16]/80 backdrop-blur-xl">
+        <header className="sticky top-0 z-20 border-b border-theme bg-base/80 backdrop-blur-xl transition-colors duration-200">
           <div className="flex h-[72px] items-center justify-end gap-4 px-4 sm:px-6 lg:px-8">
             <div className="min-w-0 flex-1">
               <WelcomeAnimation name={user.name} />
@@ -300,20 +312,20 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
                 type="button"
                 aria-label="Notifications"
                 onClick={() => setShowNotifications(!showNotifications)}
-                className="notif-trigger relative flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-300 transition-all duration-200 hover:bg-white/[0.07] hover:text-white"
+                className="notif-trigger relative flex h-11 w-11 items-center justify-center rounded-xl border border-theme bg-hover text-secondary transition-all duration-200 hover:text-primary"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-current">
                   <path d="M12 22a2.8 2.8 0 0 0 2.7-2h-5.4A2.8 2.8 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5-6.7V3a2 2 0 0 0-4 0v1.3A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z" />
                 </svg>
                 {storeUnread > 0 && (
-                  <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-[#070b16]" />
+                  <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-base" />
                 )}
               </button>
 
               {showNotifications && (
-                <div className="notif-dropdown-container absolute right-0 mt-3 w-80 rounded-2xl border border-white/10 bg-[#0b1020]/95 p-2 shadow-2xl backdrop-blur-xl transition-all duration-200 z-50">
-                  <div className="px-3 py-2 border-b border-white/5 flex items-center justify-between">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Notifications</span>
+                <div className="notif-dropdown-container absolute right-0 mt-3 w-80 rounded-2xl border border-theme bg-surface p-2 shadow-2xl backdrop-blur-xl transition-all duration-200 z-50">
+                  <div className="px-3 py-2 border-b border-subtle flex items-center justify-between">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-secondary">Notifications</span>
                     <Link
                       href="/admin/notifications"
                       className="text-xs text-cyan-400 hover:text-cyan-300"
@@ -322,7 +334,7 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
                       View All
                     </Link>
                   </div>
-                  <div className="mt-1 max-h-72 overflow-y-auto space-y-0.5 custom-scrollbar">
+                  <div className="mt-1 max-h-72 overflow-y-auto space-y-0.5 scrollbar-hide">
                     {alerts.map((alert) => {
                       const toneBg =
                         alert.tone === "danger"
@@ -341,7 +353,7 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
                       return (
                         <div
                           key={alert.id}
-                          className="group rounded-xl p-3 hover:bg-white/[0.04] transition duration-200 border border-transparent"
+                          className="group rounded-xl p-3 hover:bg-hover transition duration-200 border border-transparent"
                         >
                           <div className="flex gap-2.5">
                             <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${alert.tone === "danger"
@@ -352,7 +364,7 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
                               }`} />
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center justify-between gap-1.5">
-                                <p className="text-xs font-semibold text-white group-hover:text-cyan-300 transition duration-150 truncate">
+                                <p className="text-xs font-semibold text-primary group-hover:text-cyan-300 transition duration-150 truncate">
                                   {alert.title}
                                 </p>
                                 {alert.id !== "empty" && (
@@ -361,11 +373,11 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
                                   </span>
                                 )}
                               </div>
-                              <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+                              <p className="mt-1 text-[11px] leading-relaxed text-secondary">
                                 {alert.message}
                               </p>
                               {alert.time && (
-                                <p className="mt-1 text-[9px] text-slate-500">
+                                <p className="mt-1 text-[9px] text-muted">
                                   {alert.time}
                                 </p>
                               )}
@@ -385,30 +397,58 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
             <div className="relative">
               <button
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
-                className="profile-trigger flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-white/[0.04] transition-all duration-200 hover:bg-white/[0.07] hover:scale-105"
+                className="profile-trigger relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border border-theme bg-hover transition-all duration-200 hover:scale-105"
               >
-                <span className="flex h-full w-full items-center justify-center bg-cyan-300 text-sm font-bold text-slate-950">
-                  {initials || "AD"}
-                </span>
+                {user.profileImageUrl ? (
+                  <img src={user.profileImageUrl} alt={user.name} className="h-full w-full object-cover" />
+                ) : (
+                  <span className="flex h-full w-full items-center justify-center bg-cyan-300 text-sm font-bold text-slate-950">
+                    {initials || "AD"}
+                  </span>
+                )}
               </button>
 
               {showProfileMenu && (
-                <div className="profile-dropdown-container absolute right-0 mt-3 w-60 rounded-2xl border border-white/10 bg-[#0b1020]/95 p-2 shadow-2xl backdrop-blur-xl transition-all duration-200 z-50 animate-in fade-in slide-in-from-top-2">
-                  <div className="px-3 py-2.5 border-b border-white/5">
-                    <p className="text-xs font-semibold text-white truncate">{user.name}</p>
-                    {user.email && (
-                      <p className="text-[10px] text-slate-500 truncate mt-0.5">
-                        {user.email}
+                <div className="profile-dropdown-container absolute right-0 mt-3 w-60 rounded-2xl border border-theme bg-surface p-2 shadow-2xl backdrop-blur-md transition-all duration-200 z-50 animate-in fade-in slide-in-from-top-2">
+                  <div className="px-3 py-2.5 border-b border-subtle flex items-center gap-3">
+
+                    {/* School Logo */}
+                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/20 flex items-center justify-center overflow-hidden shrink-0">
+                      {user.school?.logoUrl ? (
+                        <img
+                          src={user.school.logoUrl}
+                          alt="School Logo"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-xs font-bold text-muted">
+                          {(user.school?.name?.[0] || "S").toUpperCase()}
+                        </span>
+                      )}
+
+                    </div>
+
+                    {/* User Info */}
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-primary truncate">
+                        {user.name}
                       </p>
-                    )}
+
+                      {user.email && (
+                        <p className="text-[10px] text-muted truncate mt-0.5">
+                          {user.email}
+                        </p>
+                      )}
+                    </div>
+
                   </div>
                   <div className="mt-1 py-1">
                     <Link
                       href="/admin/settings"
                       onClick={() => setShowProfileMenu(false)}
-                      className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-slate-400 hover:bg-white/[0.04] hover:text-white transition duration-200"
+                      className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-secondary hover:bg-hover hover:text-primary transition duration-200"
                     >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current text-slate-500">
+                      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current text-muted">
                         <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
                         <path fillRule="evenodd" d="M19.4 15a1.6 1.6 0 0 0 1-1.5v-3a1.6 1.6 0 0 0-1-1.5l-2.2-1.1a8.8 8.8 0 0 0-.7-1.7l1.1-2.2A1.6 1.6 0 0 0 17.1 3h-3a1.6 1.6 0 0 0-1.5 1L11.5 6.2a8.8 8.8 0 0 0-1.7.7L7.6 5.8a1.6 1.6 0 0 0-1.5 1v3a1.6 1.6 0 0 0 1 1.5l2.2 1.1c.2.6.4 1.2.7 1.7l-1.1 2.2a1.6 1.6 0 0 0 .5 2l3 1.5c.5.3 1.1.2 1.5-.2l1.1-2.2c.6-.2 1.2-.4 1.7-.7l2.2 1.1a1.6 1.6 0 0 0 1.5-1v-3ZM12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z" />
                       </svg>
@@ -420,7 +460,6 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
             </div>
           </div>
         </header>
-
         <div className="min-h-[calc(100vh-4rem)]">{children}</div>
       </div>
     </div>

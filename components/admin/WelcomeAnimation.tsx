@@ -55,19 +55,37 @@ export default function WelcomeAnimation({ name }: Props) {
 
   return (
     <div className="flex flex-col justify-center">
-      <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-400">
+      {/* <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-400">
         👋 Hello,
       </p>
-      <h1 className="mt-1 text-2xl font-bold tracking-tight text-white">
+      <h1 className="mt-1 text-2xl font-bold tracking-tight text-primary">
         {firstName}{' '}
         <span className="inline-block">
-          <span className="text-slate-300 font-normal">— ready to</span>{' '}
+          <span className="text-secondary font-normal">— ready to</span>{' '}
           <span className="text-cyan-400">
             {displayed}
             <span className="ml-0.5 inline-block h-4 w-0.5 translate-y-0.5 animate-pulse bg-cyan-400 align-middle" />
           </span>
         </span>
+      </h1> */}
+
+      <p className="text-xs font-semibold uppercase tracking-[0.28em] text-accent">
+        👋 Hello,
+      </p>
+
+      <h1 className="mt-1 text-2xl font-bold tracking-tight text-primary">
+        {firstName}{' '}
+        <span className="inline-block">
+          <span className="text-secondary font-normal">
+            — ready to
+          </span>{' '}
+          <span className="text-accent">
+            {displayed}
+            <span className="ml-0.5 inline-block h-4 w-0.5 translate-y-0.5 animate-pulse bg-current align-middle" />
+          </span>
+        </span>
       </h1>
+
     </div>
   );
 }

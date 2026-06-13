@@ -142,106 +142,87 @@ export default function MarksPage() {
   }
 
   return (
-    <main className="min-h-screen p-8 bg-[#070b16]">
+    <main className="min-h-screen p-8 bg-background text-foreground">
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300">Tests</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">Exam Marks Entry</h1>
-          <p className="mt-2 text-sm text-slate-400">Quickly assign marks and keep exam records up to date.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-500 dark:text-cyan-300">Tests</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">Exam Marks Entry</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Quickly assign marks and keep exam records up to date.</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm text-slate-300">
-            <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Selected class</p>
-            <p className="mt-2 font-medium text-white">{classId || 'None'}</p>
+          <div className="rounded-2xl border border-border bg-card p-4 text-sm text-foreground">
+            <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">Selected class</p>
+            <p className="mt-2 font-medium text-foreground">{classId || 'None'}</p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm text-slate-300">
-            <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Selected exam</p>
-            <p className="mt-2 font-medium text-white">{selectedExam?.name || 'None'}</p>
+          <div className="rounded-2xl border border-border bg-card p-4 text-sm text-foreground">
+            <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">Selected exam</p>
+            <p className="mt-2 font-medium text-foreground">{selectedExam?.name || 'None'}</p>
           </div>
         </div>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
-        <section className="rounded-3xl border border-white/10 bg-white/[0.035] p-6 shadow-2xl shadow-black/20">
+        <section className="rounded-3xl border border-border bg-card p-6 shadow-md">
           <div className="mb-5 flex items-center justify-between gap-4">
             <div>
-              <h2 className="text-lg font-semibold text-white">Select Class & Exam</h2>
-              <p className="text-sm text-slate-500">Choose the course and exam before entering student marks.</p>
+              <h2 className="text-lg font-semibold text-foreground">Select Class &amp; Exam</h2>
+              <p className="text-sm text-muted-foreground">Choose the course and exam before entering student marks.</p>
             </div>
-            {loading && <span className="text-sm text-cyan-300">Loading exams…</span>}
+            {loading && <span className="text-sm text-cyan-500 dark:text-cyan-300">Loading exams…</span>}
           </div>
-
           <div className="grid gap-4 md:grid-cols-2">
-            <label className="space-y-2 text-sm text-slate-300">
+            <label className="space-y-2 text-sm text-foreground">
               <span>Class</span>
-              <select
-                value={classId}
-                onChange={(e) => handleClassChange(e.target.value)}
-                className="h-12 w-full rounded-2xl border border-white/10 bg-[#0b1020] px-4 text-white outline-none"
-              >
+              <select value={classId} onChange={(e) => handleClassChange(e.target.value)} className="select-theme">
                 <option value="">Select Class</option>
-                {classes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
+                {classes.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
               </select>
             </label>
-
-            <label className="space-y-2 text-sm text-slate-300">
+            <label className="space-y-2 text-sm text-foreground">
               <span>Exam</span>
-              <select
-                value={examId}
-                onChange={(e) => handleExamSelect(e.target.value)}
-                disabled={!classId || loading}
-                className="h-12 w-full rounded-2xl border border-white/10 bg-[#0b1020] px-4 text-white outline-none disabled:opacity-50"
-              >
+              <select value={examId} onChange={(e) => handleExamSelect(e.target.value)} disabled={!classId || loading} className="select-theme disabled:opacity-50">
                 <option value="">Select Exam</option>
-                {exams.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name}
-                  </option>
-                ))}
+                {exams.map((e) => (<option key={e.id} value={e.id}>{e.name}</option>))}
               </select>
             </label>
           </div>
         </section>
 
-        <aside className="rounded-3xl border border-white/10 bg-white/[0.035] p-6 shadow-2xl shadow-black/20">
-          <h2 className="text-lg font-semibold text-white">Exam Summary</h2>
+        <aside className="rounded-3xl border border-border bg-card p-6 shadow-md">
+          <h2 className="text-lg font-semibold text-foreground">Exam Summary</h2>
           <div className="mt-4 grid gap-4">
-            <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
-              <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Class exams</p>
-              <p className="mt-2 text-2xl font-semibold text-white">{exams.length}</p>
+            <div className="rounded-2xl border border-border bg-background p-4">
+              <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">Class exams</p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">{exams.length}</p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
-              <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Students loaded</p>
-              <p className="mt-2 text-2xl font-semibold text-white">{students.length}</p>
+            <div className="rounded-2xl border border-border bg-background p-4">
+              <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">Students loaded</p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">{students.length}</p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
-              <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Entry step</p>
-              <p className="mt-2 text-2xl font-semibold text-white">{step}</p>
+            <div className="rounded-2xl border border-border bg-background p-4">
+              <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">Entry step</p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">{step}</p>
             </div>
           </div>
         </aside>
       </div>
 
       {step === 2 && (
-        <section className="mt-6 rounded-3xl border border-white/10 bg-white/[0.035] p-6 shadow-2xl shadow-black/20">
+        <section className="mt-6 rounded-3xl border border-border bg-card p-6 shadow-md">
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-white">Enter marks</h2>
-              <p className="text-sm text-slate-400">Update scores for each student in the selected exam.</p>
+              <h2 className="text-xl font-semibold text-foreground">Enter marks</h2>
+              <p className="text-sm text-muted-foreground">Update scores for each student in the selected exam.</p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <span className="rounded-2xl bg-cyan-500/10 px-4 py-2 text-sm text-cyan-200">Max marks: {selectedExam?.maxMarks || '100'}</span>
-              <span className="rounded-2xl bg-white/5 px-4 py-2 text-sm text-slate-300">{students.length} students</span>
+              <span className="rounded-2xl px-4 py-2 bg-slate-200 text-slate-700 dark:bg-cyan-500/10 dark:text-cyan-300">Max marks: {selectedExam?.maxMarks || '100'}</span>
+              <span className="rounded-2xl bg-hover px-4 py-2 text-sm text-foreground border border-border">{students.length} students</span>
             </div>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-300">
-              <thead className="border-b border-white/10 text-slate-400">
+            <table className="w-full text-left text-sm text-foreground">
+              <thead className="border-b border-border text-muted-foreground">
                 <tr>
                   <th className="p-3">Roll No</th>
                   <th className="p-3">Student</th>
@@ -251,14 +232,14 @@ export default function MarksPage() {
               <tbody>
                 {students.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="p-6 text-center text-slate-400">
+                    <td colSpan={3} className="p-6 text-center text-muted-foreground">
                       No students found for this class.
                     </td>
                   </tr>
                 ) : (
                   students.map((student) => (
-                    <tr key={student.id} className="border-t border-white/10 hover:bg-white/[0.03] transition">
-                      <td className="p-3 text-white">{student.rollNumber}</td>
+                    <tr key={student.id} className="border-t border-border hover:bg-hover transition">
+                      <td className="p-3 text-foreground">{student.rollNumber}</td>
                       <td className="p-3">{student.name}</td>
                       <td className="p-3">
                         <input
@@ -266,13 +247,8 @@ export default function MarksPage() {
                           min="0"
                           max={Number(selectedExam?.maxMarks ?? 100)}
                           value={marks[student.id] ?? ''}
-                          onChange={(e) =>
-                            setMarks({
-                              ...marks,
-                              [student.id]: Number(e.target.value),
-                            })
-                          }
-                          className="w-24 rounded-2xl border border-white/10 bg-[#0b1020] px-3 py-2 text-white outline-none"
+                          onChange={(e) => setMarks({ ...marks, [student.id]: Number(e.target.value) })}
+                          className="w-24 rounded-2xl border border-border bg-background px-3 py-2 text-foreground outline-none focus:border-cyan-500"
                           placeholder={`0-${Number(selectedExam?.maxMarks ?? 100)}`}
                         />
                       </td>
@@ -282,24 +258,11 @@ export default function MarksPage() {
               </tbody>
             </table>
           </div>
-
           <div className="mt-6 flex flex-wrap gap-3">
-            <button
-              onClick={handleSaveMarks}
-              disabled={saving}
-              className="rounded-2xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:opacity-50"
-            >
+            <button onClick={handleSaveMarks} disabled={saving} className="rounded-2xl btn-emerald px-5 py-3 text-sm font-semibold disabled:opacity-50">
               {saving ? 'Saving...' : 'Save Marks'}
             </button>
-            <button
-              onClick={() => {
-                setStep(1);
-                setExamId('');
-                setStudents([]);
-                setMarks({});
-              }}
-              className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
-            >
+            <button onClick={() => { setStep(1); setExamId(''); setStudents([]); setMarks({}); }} className="rounded-2xl border border-border bg-card px-5 py-3 text-sm font-semibold text-foreground transition hover:bg-hover">
               Reset
             </button>
           </div>

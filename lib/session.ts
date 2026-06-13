@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto';
 import { db } from './db';
-import { sessions, users } from './schema';
+import { sessions, users, schools } from './schema';
 import { eq } from 'drizzle-orm';
 import { SESSION_COOKIE_NAME } from './env';
 
@@ -27,6 +27,53 @@ export async function getUserBySessionToken(token: string) {
     await deleteSessionByToken(token);
     return null;
   }
-  const [user] = await db.select().from(users).where(eq(users.id, session.userId)).limit(1);
-  return user || null;
+  const result = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      role: users.role,
+      profileImageUrl: users.profileImageUrl,
+
+      schoolId: users.schoolId,
+      schoolName: schools.name,
+      schoolLogoUrl: schools.logoUrl,
+    })
+    .from(users)
+    .leftJoin(schools, eq(users.schoolId, schools.id))
+    .where(eq(users.id, session.userId))
+    .limit(1);
+
+  const row = result[0];
+
+  if (!row) return null;
+
+  // If user has no schoolId (e.g. seeded admin accounts), fall back to first school
+  // This mirrors the same fallback used in the settings page
+  let schoolId = row.schoolId;
+  let schoolName = row.schoolName;
+  let schoolLogoUrl = row.schoolLogoUrl;
+
+  if (!schoolId) {
+    const [fallback] = await db
+      .select({ id: schools.id, name: schools.name, logoUrl: schools.logoUrl })
+      .from(schools)
+      .limit(1);
+    if (fallback) {
+      schoolId = fallback.id;
+      schoolName = fallback.name;
+      schoolLogoUrl = fallback.logoUrl;
+    }
+  }
+
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    role: row.role,
+    profileImageUrl: row.profileImageUrl,
+    schoolId,
+    schoolName,
+    schoolLogoUrl,
+  };
 }

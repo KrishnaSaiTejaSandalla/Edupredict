@@ -32,6 +32,7 @@ type StudentRow = {
 
   parentName: string | null;
   parentPhone: string | null;
+  parentEmail: string | null;
 };
 
 type FormState = {
@@ -43,6 +44,7 @@ type FormState = {
   dateOfBirth: string;
   parentName: string;
   parentPhone: string;
+  parentEmail: string;
 };
 
 const emptyForm: FormState = {
@@ -54,6 +56,7 @@ const emptyForm: FormState = {
   dateOfBirth: '',
   parentName: '',
   parentPhone: '',
+  parentEmail: '',
 };
 
 type Props = {
@@ -69,12 +72,10 @@ type Props = {
 
 // ─── Input style ─────────────────────────────────────────────────────────────
 
-const inputCls =
-  'h-11 w-full rounded-xl border border-white/10 bg-[#0b1020]/60 px-3 text-sm text-white outline-none focus:border-cyan-400/50 transition placeholder:text-slate-600';
+const inputCls = 'input-theme';
 const labelCls =
-  'block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5';
-const selectCls =
-  'h-11 w-full rounded-xl border border-white/10 bg-[#0b1020] px-3 text-sm text-white outline-none focus:border-cyan-400/50 cursor-pointer';
+  'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5';
+const selectCls = 'select-theme';
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -123,6 +124,7 @@ export default function StudentsClient({
       dateOfBirth: dob,
       parentName: row.parentName ?? '',
       parentPhone: row.parentPhone ?? '',
+      parentEmail: row.parentEmail ?? '',
     });
     setShowForm(true);
   }
@@ -180,9 +182,9 @@ export default function StudentsClient({
       {/* ── Header Row ──────────────────────────────────────────────── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-400">Database</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">Students</h1>
-          <p className="mt-2 text-sm text-slate-400">
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-500 dark:text-cyan-400">Database</p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Students</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
             Manage student records, enrollment status, and class mappings.
           </p>
         </div>
@@ -191,7 +193,7 @@ export default function StudentsClient({
           <AdminSearch placeholder="Search students..." />
           <button
             onClick={() => (showForm && !editingId ? closePanel() : openCreate())}
-            className="rounded-xl bg-blue-500 px-5 py-3 text-xs font-bold text-white shadow-lg shadow-blue-500/20 hover:bg-blue-400 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 whitespace-nowrap"
+            className="rounded-xl btn-blue px-5 py-3 text-xs font-bold whitespace-nowrap"
           >
             {showForm && !editingId ? 'Close Editor' : '+ Create Student'}
           </button>
@@ -200,8 +202,8 @@ export default function StudentsClient({
 
       {/* ── Inline Editor Panel (Exams-style) ──────────────────────── */}
       {showForm && (
-        <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] p-6 shadow-2xl shadow-black/25 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6">
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-md animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground mb-6">
             {editingId ? 'Edit Student Record' : 'Create New Student'}
           </h2>
 
@@ -286,7 +288,7 @@ export default function StudentsClient({
 
             {/* Parent divider */}
             <div className="md:col-span-2">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 border-t border-white/5 pt-4">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground border-t border-subtle pt-4">
                 Parent / Guardian
               </p>
             </div>
@@ -313,19 +315,31 @@ export default function StudentsClient({
               />
             </div>
 
+            {/* Parent Email */}
+            <div>
+              <label className={labelCls}>Parent Email</label>
+              <input
+                type="email"
+                value={formData.parentEmail}
+                onChange={(e) => setFormData({ ...formData, parentEmail: e.target.value })}
+                placeholder="parent@example.com"
+                className={inputCls}
+              />
+            </div>
+
             {/* Action buttons */}
             <div className="md:col-span-2 flex gap-3 mt-2">
               <button
                 type="submit"
                 disabled={isPending}
-                className="rounded-xl bg-emerald-500 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-emerald-500/20 hover:bg-emerald-400 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                className="rounded-xl btn-emerald px-5 py-2.5 text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isPending ? 'Saving…' : editingId ? 'Update Student' : 'Save Student Record'}
               </button>
               <button
                 type="button"
                 onClick={closePanel}
-                className="rounded-xl border border-white/10 bg-white/[0.04] px-5 py-2.5 text-xs font-bold text-white hover:bg-white/[0.08] transition duration-200"
+                className="rounded-xl border border-border bg-background px-5 py-2.5 text-xs font-bold text-foreground hover:bg-hover transition duration-200"
               >
                 Cancel
               </button>
@@ -335,9 +349,9 @@ export default function StudentsClient({
       )}
 
       {/* ── Students Table ──────────────────────────────────────────── */}
-      <div className="overflow-auto rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] shadow-xl shadow-black/25">
-        <table className="w-full text-left text-sm text-slate-300">
-          <thead className="border-b border-white/10 bg-[#070b16]/40 text-xs font-semibold uppercase tracking-wider text-slate-400">
+      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-md">
+        <table className="w-full text-left text-sm text-foreground">
+          <thead className="border-b border-border bg-background/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             <tr>
               <th className="p-4 px-6">#</th>
               <th className="p-4 px-6">Name</th>
@@ -347,16 +361,16 @@ export default function StudentsClient({
               <th className="p-4 px-6 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/5">
+          <tbody className="divide-y divide-subtle">
             {studentRows.length === 0 ? (
               <tr>
                 <td colSpan={6} className="p-12 text-center">
                   <div className="flex flex-col items-center gap-3">
-                    <svg viewBox="0 0 24 24" className="h-10 w-10 text-slate-700" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <svg viewBox="0 0 24 24" className="h-10 w-10 text-muted-foreground/30" fill="none" stroke="currentColor" strokeWidth="1.5">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
                     </svg>
-                    <p className="text-sm font-medium text-slate-500">No students currently enrolled.</p>
-                    <p className="text-xs text-slate-600">Click + Create Student to add one.</p>
+                    <p className="text-sm font-medium text-muted-foreground">No students currently enrolled.</p>
+                    <p className="text-xs text-muted-foreground/80">Click + Create Student to add one.</p>
                   </div>
                 </td>
               </tr>
@@ -370,12 +384,12 @@ export default function StudentsClient({
                 return (
                   <tr
                     key={row.s.id}
-                    className="hover:bg-white/[0.02] transition duration-200"
+                    className="hover:bg-hover transition duration-200"
                   >
-                    <td className="p-4 px-6 text-xs font-semibold text-slate-500">#{row.s.id}</td>
-                    <td className="p-4 px-6 font-semibold text-white">{row.u.name}</td>
-                    <td className="p-4 px-6 font-medium text-slate-400">{row.s.rollNumber || '—'}</td>
-                    <td className="p-4 px-6 font-medium text-slate-300">{className}</td>
+                    <td className="p-4 px-6 text-xs font-semibold text-muted-foreground">#{row.s.id}</td>
+                    <td className="p-4 px-6 font-semibold text-foreground">{row.u.name}</td>
+                    <td className="p-4 px-6 font-medium text-muted-foreground">{row.s.rollNumber || '—'}</td>
+                    <td className="p-4 px-6 font-medium text-foreground">{className}</td>
                     <td className="p-4 px-6">
                       {row.s.gender ? (
                         <span
@@ -389,7 +403,7 @@ export default function StudentsClient({
                           {row.s.gender}
                         </span>
                       ) : (
-                        <span className="text-slate-600">—</span>
+                        <span className="text-muted-foreground/50">—</span>
                       )}
                     </td>
                     <td className="p-4 px-6 text-right">
@@ -399,7 +413,7 @@ export default function StudentsClient({
                         <button
                           onClick={() => setViewingStudent(row)}
                           title="View Student"
-                          className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/5 bg-white/[0.04] text-slate-400 hover:text-cyan-400 hover:border-cyan-400/30 transition duration-150"
+                          className="flex h-8 w-8 items-center justify-center rounded-xl border border-subtle bg-hover text-muted-foreground hover:text-cyan-500 hover:border-cyan-400/30 transition duration-150"
                         >
                           <svg
                             viewBox="0 0 24 24"
@@ -417,7 +431,7 @@ export default function StudentsClient({
                         <button
                           onClick={() => openEdit(row)}
                           title="Edit student"
-                          className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/5 bg-white/[0.04] text-slate-400 hover:text-amber-400 hover:border-amber-400/30 transition duration-150"
+                          className="flex h-8 w-8 items-center justify-center rounded-xl border border-subtle bg-hover text-muted-foreground hover:text-amber-400 hover:border-amber-400/30 transition duration-150"
                         >
                           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
                             <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5Z" />
@@ -429,7 +443,7 @@ export default function StudentsClient({
                           onClick={() => handleDelete(row.s.id, row.u.name)}
                           disabled={isDeleting}
                           title="Delete student"
-                          className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/5 bg-white/[0.04] text-slate-400 hover:text-rose-400 hover:border-rose-400/30 disabled:opacity-40 transition duration-150"
+                          className="flex h-8 w-8 items-center justify-center rounded-xl border border-subtle bg-hover text-muted-foreground hover:text-rose-400 hover:border-rose-400/30 disabled:opacity-40 transition duration-150"
                         >
                           {isDeleting ? (
                             <svg viewBox="0 0 24 24" className="h-4 w-4 animate-spin" fill="none" stroke="currentColor" strokeWidth="2">
@@ -453,17 +467,17 @@ export default function StudentsClient({
       </div>
 
       {/* ── Pagination ──────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between text-xs font-semibold text-slate-400">
+      <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
         <a
           href={`/admin/students${baseQueryStr}${sortParam}&page=${Math.max(1, page - 1)}`}
-          className="rounded-xl border border-white/10 bg-slate-900/80 px-4 py-2.5 hover:bg-slate-800 transition duration-150"
+          className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150"
         >
           ← Previous
         </a>
-        <span className="text-slate-500 tabular-nums">Page {page}</span>
+        <span className="tabular-nums">Page {page}</span>
         <a
           href={`/admin/students${baseQueryStr}${sortParam}&page=${page + 1}`}
-          className="rounded-xl border border-white/10 bg-slate-900/80 px-4 py-2.5 hover:bg-slate-800 transition duration-150"
+          className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150"
         >
           Next →
         </a>
@@ -473,34 +487,34 @@ export default function StudentsClient({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
           <div
             onClick={(e) => e.stopPropagation()}
-            className="pointer-events-auto relative w-full max-w-2xl overflow-hidden rounded-2xl border border-white/10 bg-[#070b16] shadow-[0_10px_30px_rgba(0,0,0,0.5)]"
+            className="pointer-events-auto relative w-full max-w-2xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-black/30"
           >
             {/* Close */}
             <button
               onClick={() => setViewingStudent(null)}
-              className="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-400 hover:text-white hover:bg-white/[0.08]"
+              className="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-xl border border-border bg-hover text-muted-foreground hover:text-foreground hover:bg-background transition"
             >
               ✕
             </button>
 
             {/* Header */}
-            <div className="relative border-b border-white/10 px-6 py-6 flex items-center gap-4">
+            <div className="relative border-b border-border px-6 py-6 flex items-center gap-4">
               <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 text-2xl font-bold text-white shadow-lg shadow-cyan-500/25">
                 {viewingStudent.u.name.charAt(0)}
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-white">{viewingStudent.u.name}</h2>
-                <p className="mt-1 text-sm text-slate-400">
+                <h2 className="text-2xl font-bold text-foreground">{viewingStudent.u.name}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
                   Roll No: {viewingStudent.s.rollNumber || '—'}
                 </p>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <span className="rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-2 py-1 text-xs font-semibold text-cyan-300">
+                  <span className="rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-2 py-1 text-xs font-semibold text-cyan-500 dark:text-cyan-300">
                     {viewingStudent.c
                       ? `${viewingStudent.c.name}${viewingStudent.c.section ? ` ${viewingStudent.c.section}` : ''}`
                       : `Class ${viewingStudent.s.classId}`}
                   </span>
                   {viewingStudent.s.gender && (
-                    <span className="rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-xs text-slate-300 capitalize">
+                    <span className="rounded-lg border border-border bg-hover px-2 py-1 text-xs text-foreground capitalize">
                       {viewingStudent.s.gender}
                     </span>
                   )}
@@ -511,35 +525,39 @@ export default function StudentsClient({
             {/* Body */}
             <div className="grid gap-4 p-6 md:grid-cols-2">
               {/* Student Details */}
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-cyan-400">Student Details</h3>
-                <div className="space-y-3 text-sm text-white">
+              <div className="rounded-xl border border-border bg-background p-4">
+                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-cyan-500 dark:text-cyan-400">Student Details</h3>
+                <div className="space-y-3 text-sm text-foreground">
                   <div>
-                    <p className="text-slate-500">Email</p>
+                    <p className="text-muted-foreground">Email</p>
                     <p>{viewingStudent.u.email}</p>
                   </div>
                   <div>
-                    <p className="text-slate-500">Date of Birth</p>
+                    <p className="text-muted-foreground">Date of Birth</p>
                     <p>{viewingStudent.s.dateOfBirth ? new Date(viewingStudent.s.dateOfBirth).toLocaleDateString() : 'Not Available'}</p>
                   </div>
                   <div>
-                    <p className="text-slate-500">Gender</p>
+                    <p className="text-muted-foreground">Gender</p>
                     <p className="capitalize">{viewingStudent.s.gender || 'Not Available'}</p>
                   </div>
                 </div>
               </div>
 
               {/* Parent Details */}
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-cyan-400">Parent / Guardian</h3>
-                <div className="space-y-3 text-sm text-white">
+              <div className="rounded-xl border border-border bg-background p-4">
+                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-cyan-500 dark:text-cyan-400">Parent / Guardian</h3>
+                <div className="space-y-3 text-sm text-foreground">
                   <div>
-                    <p className="text-slate-500">Parent Name</p>
+                    <p className="text-muted-foreground">Parent Name</p>
                     <p>{viewingStudent.parentName || 'Not Available'}</p>
                   </div>
                   <div>
-                    <p className="text-slate-500">Phone</p>
+                    <p className="text-muted-foreground">Phone</p>
                     <p>{viewingStudent.parentPhone || 'Not Available'}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Email</p>
+                    <p>{viewingStudent.parentEmail || 'Not Available'}</p>
                   </div>
                 </div>
               </div>

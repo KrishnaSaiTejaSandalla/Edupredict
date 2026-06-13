@@ -170,17 +170,17 @@ export default async function AttendancePage({
     revalidatePath('/admin/attendance/summary');
   }
 
-  const activeTabCls = "rounded-xl bg-cyan-500/10 border border-cyan-500/30 px-4 py-2.5 text-cyan-400 font-bold shadow-md shadow-cyan-500/5 transition";
-  const inactiveTabCls = "rounded-xl border border-white/5 bg-white/[0.02] px-4 py-2.5 text-slate-400 hover:text-white hover:bg-white/[0.06] transition";
+  const activeTabCls = "rounded-xl bg-cyan-500/10 border border-cyan-500/30 px-4 py-2.5 text-cyan-500 dark:text-cyan-400 font-bold shadow-sm shadow-cyan-500/5 transition";
+  const inactiveTabCls = "rounded-xl border border-border bg-background px-4 py-2.5 text-muted-foreground hover:text-foreground hover:bg-hover transition";
 
   return (
-    <main className="min-h-screen bg-[#070b16] p-4 sm:p-6 lg:p-8 space-y-8">
+    <main className="min-h-screen bg-background text-foreground p-4 sm:p-6 lg:p-8 space-y-8">
       {/* HEADER */}
       <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-400">Database</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">Attendance</h1>
-          <p className="mt-2 text-sm text-slate-400">Track, monitor, and manage student attendance records.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-500 dark:text-cyan-400">Database</p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Attendance</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Track, monitor, and manage student attendance records.</p>
         </div>
         <nav className="flex flex-wrap gap-2 text-xs">
           <a href="/admin/attendance" className={activeTabCls}>Take Attendance</a>
@@ -192,40 +192,40 @@ export default async function AttendancePage({
 
       {/* DASHBOARD METRICS */}
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] p-5 shadow-xl shadow-black/25">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Students</p>
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-md">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Students</p>
           <div className="flex items-baseline justify-between mt-3">
-            <p className="text-3xl font-bold text-white">{classId ? totalStudents : '—'}</p>
-            <span className="text-xs font-medium text-slate-400">Enrolled</span>
+            <p className="text-3xl font-bold text-foreground">{classId ? totalStudents : '—'}</p>
+            <span className="text-xs font-medium text-muted-foreground">Enrolled</span>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] p-5 shadow-xl shadow-black/25">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Present Today</p>
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-md">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Present Today</p>
           <div className="flex items-baseline justify-between mt-3">
-            <p className="text-3xl font-bold text-emerald-400">{classId ? presentCount : '—'}</p>
-            <span className="text-xs font-medium text-emerald-400/80">Active</span>
+            <p className="text-3xl font-bold text-emerald-500 dark:text-emerald-400">{classId ? presentCount : '—'}</p>
+            <span className="text-xs font-medium text-emerald-500/80 dark:text-emerald-400/80">Active</span>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] p-5 shadow-xl shadow-black/25">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Absent Today</p>
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-md">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Absent Today</p>
           <div className="flex items-baseline justify-between mt-3">
             <p className="text-3xl font-bold text-rose-500">{classId ? absentCount : '—'}</p>
             <span className="text-xs font-medium text-rose-500/80">Leave/Absent</span>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] p-5 shadow-xl shadow-black/25">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Attendance Rate</p>
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-md">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Attendance Rate</p>
           <div className="flex items-baseline justify-between mt-3">
-            <p className="text-3xl font-bold text-cyan-400">{classId ? `${attendanceRate}%` : '—'}</p>
-            <span className="text-xs font-medium text-cyan-400/80">Overall</span>
+            <p className="text-3xl font-bold text-cyan-500 dark:text-cyan-400">{classId ? `${attendanceRate}%` : '—'}</p>
+            <span className="text-xs font-medium text-cyan-500/80 dark:text-cyan-400/80">Overall</span>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] p-5 shadow-xl shadow-black/25">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">At-Risk Students</p>
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-md">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">At-Risk Students</p>
           <div className="flex items-baseline justify-between mt-3">
             <p className="text-3xl font-bold text-amber-500">{classId ? atRiskCount : '—'}</p>
             <span className="text-xs font-medium text-amber-500/80">&lt; 75% Rate</span>
@@ -234,11 +234,11 @@ export default async function AttendancePage({
       </section>
 
       {/* FILTER CONTROLS */}
-      <section className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] p-6 shadow-xl shadow-black/20">
+      <section className="rounded-2xl border border-border bg-card p-6 shadow-md">
         <form className="grid gap-5 sm:grid-cols-3" action="/admin/attendance" method="get">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Class Selection</label>
-            <select name="classId" defaultValue={classId ?? ''} className="h-11 w-full rounded-xl border border-white/10 bg-[#0b1020] px-3.5 text-sm text-white outline-none transition focus:border-cyan-400/50 cursor-pointer">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Class Selection</label>
+            <select name="classId" defaultValue={classId ?? ''} className="h-11 w-full rounded-xl border border-border bg-background px-3.5 text-sm text-foreground outline-none transition focus:border-cyan-500 cursor-pointer">
               <option value="">Choose Class</option>
               {classList.map((cls) => (
                 <option key={cls.id} value={cls.id}>{cls.name} {cls.section ? `(${cls.section})` : ''}</option>
@@ -246,16 +246,16 @@ export default async function AttendancePage({
             </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Date</label>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Date</label>
             <input
               name="date"
               type="date"
               defaultValue={date}
-              className="h-11 w-full rounded-xl border border-white/10 bg-[#0b1020]/60 px-3.5 text-sm text-white outline-none transition focus:border-cyan-400/50 cursor-pointer"
+              className="h-11 w-full rounded-xl border border-border bg-background px-3.5 text-sm text-foreground outline-none transition focus:border-cyan-500 cursor-pointer"
             />
           </div>
           <div className="flex items-end">
-            <button type="submit" className="h-11 w-full rounded-xl bg-blue-500 px-5 text-xs font-bold text-white shadow-lg shadow-blue-500/20 hover:bg-blue-400 hover:scale-[1.02] active:scale-[0.98] transition duration-200">
+            <button type="submit" className="h-11 w-full rounded-xl btn-blue px-5 text-xs font-bold">
               Load Students
             </button>
           </div>
@@ -274,12 +274,12 @@ export default async function AttendancePage({
           />
         </section>
       ) : (
-        <div className="rounded-2xl border border-dashed border-white/15 p-12 text-center shadow-xl shadow-black/25">
-          <svg className="mx-auto h-10 w-10 text-slate-600 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center shadow-md">
+          <svg className="mx-auto h-10 w-10 text-muted-foreground/30 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          <h3 className="mt-4 text-sm font-semibold text-white">No class loaded</h3>
-          <p className="mt-1 text-xs text-slate-500">Choose a class and date from filters to begin tracking attendance.</p>
+          <h3 className="mt-4 text-sm font-semibold text-foreground">No class loaded</h3>
+          <p className="mt-1 text-xs text-muted-foreground">Choose a class and date from filters to begin tracking attendance.</p>
         </div>
       )}
     </main>

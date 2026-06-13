@@ -4,7 +4,7 @@ export const revalidate = 0;
 import { db } from "@/lib/db";
 import { exams, results, subjects, classes, students, attendance } from "@/lib/schema";
 import { eq, sql } from "drizzle-orm";
-import AnalyticsCharts from "@/components/admin/AnalyticsCharts";
+import { DynamicAnalyticsCharts } from "@/components/admin/ClientChartWrappers";
 import { calculateAttendancePercentage } from "@/lib/attendance-utils";
 
 async function getAnalyticsPageData() {
@@ -114,21 +114,21 @@ export default async function AnalyticsPage() {
     await getAnalyticsPageData();
 
   return (
-    <main className="min-h-screen bg-[#070b16] p-4 sm:p-6 lg:p-8 space-y-8">
+    <main className="min-h-screen bg-background text-foreground p-4 sm:p-6 lg:p-8 space-y-8 transition-colors duration-200">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.35em] text-cyan-400">
+        <p className="text-xs font-semibold uppercase tracking-[0.35em] text-cyan-600 dark:text-cyan-400">
           Analytics
         </p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+        <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
           Academic Analytics
         </h1>
-        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
           Analyze historical examination trends, subject performance averages, and student enrollment distributions.
         </p>
       </div>
 
-      <div className="rounded-3xl border border-white/5 bg-white/[0.015] p-1 shadow-2xl">
-        <AnalyticsCharts
+      <div className="rounded-3xl border border-border bg-card/50 p-1 shadow-md">
+        <DynamicAnalyticsCharts
           trend={trend}
           subjects={subjectData}
           classes={classData}

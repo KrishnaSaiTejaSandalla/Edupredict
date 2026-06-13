@@ -73,6 +73,15 @@ export async function POST(req: Request) {
       path: '/',
       expires: expiresAt,
     });
+    // Non-httpOnly role cookie for middleware fast-path
+    res.cookies.set({
+      name: 'ep-role',
+      value: newUser.role ?? 'student',
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      expires: expiresAt,
+    });
 
     return res;
   } catch (error) {

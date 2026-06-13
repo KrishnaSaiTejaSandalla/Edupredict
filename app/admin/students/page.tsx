@@ -54,6 +54,7 @@ export default async function StudentsPage({ searchParams }: Props) {
 
       parentName: parentUsers.name,
       parentPhone: parents.phoneNumber,
+      parentEmail: parents.parentEmail,
     })
     .from(students)
 
@@ -103,7 +104,13 @@ export default async function StudentsPage({ searchParams }: Props) {
     const dateOfBirth = String(formData.get('dateOfBirth') || '').trim();
     const parentName = String(formData.get('parentName') || '').trim();
     const parentPhone = String(formData.get('parentPhone') || '').trim();
+    const parentEmail = String(formData.get('parentEmail') || '').trim();
     const schoolId = 1;
+
+    // Validate parent email format if provided
+    if (parentEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parentEmail)) {
+      throw new Error('Please enter a valid parent email address.');
+    }
 
     if (!fullName || !email) {
       throw new Error('Full name and email are required.');
@@ -148,7 +155,7 @@ export default async function StudentsPage({ searchParams }: Props) {
 
     if (parentName) {
       try {
-        const parentEmail = `parent-${userId}@parents.local`;
+        const parentUserEmail = `parent-${userId}@parents.local`;
         const parentRaw = Math.random().toString(36).slice(2, 10) + 'Pp1!';
         const parentHashed = await bcrypt.hash(parentRaw, 12);
 
@@ -156,7 +163,7 @@ export default async function StudentsPage({ searchParams }: Props) {
           .insert(users)
           .values({
             name: parentName,
-            email: parentEmail,
+            email: parentUserEmail,
             password: parentHashed,
             role: 'parent',
             schoolId,
@@ -166,7 +173,11 @@ export default async function StudentsPage({ searchParams }: Props) {
         if (parentInserted?.id) {
           const [parentRow] = await db
             .insert(parents)
-            .values({ userId: parentInserted.id, phoneNumber: parentPhone || undefined })
+            .values({
+              userId: parentInserted.id,
+              phoneNumber: parentPhone || undefined,
+              parentEmail: parentEmail || undefined,
+            })
             .$returningId();
 
           if (parentRow?.id) {
@@ -213,9 +224,14 @@ export default async function StudentsPage({ searchParams }: Props) {
       dateOfBirth: string;
       parentName: string;
       parentPhone: string;
+      parentEmail: string;
     }
   ) {
     'use server';
+    // Validate parent email format if provided
+    if (data.parentEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.parentEmail)) {
+      throw new Error('Please enter a valid parent email address.');
+    }
 
     const [s] = await db.select().from(students).where(eq(students.id, id)).limit(1);
     if (!s) throw new Error('Student not found.');
@@ -244,24 +260,29 @@ export default async function StudentsPage({ searchParams }: Props) {
           if (data.parentName) {
             await db.update(users).set({ name: data.parentName }).where(eq(users.id, parentRow.userId));
           }
-          if (data.parentPhone) {
-            await db.update(parents).set({ phoneNumber: data.parentPhone }).where(eq(parents.id, parentRow.id));
-          }
+          await db.update(parents).set({
+            ...(data.parentPhone ? { phoneNumber: data.parentPhone } : {}),
+            ...(data.parentEmail !== undefined ? { parentEmail: data.parentEmail || null } : {}),
+          }).where(eq(parents.id, parentRow.id));
         }
       } else if (data.parentName) {
-        const parentEmail = `parent-${s.userId}@parents.local`;
+        const parentUserEmail = `parent-${s.userId}@parents.local`;
         const parentRaw = Math.random().toString(36).slice(2, 10) + 'Pp1!';
         const parentHashed = await bcrypt.hash(parentRaw, 12);
         const [parentInserted] = await db
           .insert(users)
-          .values({ name: data.parentName, email: parentEmail, password: parentHashed, role: 'parent' })
+          .values({ name: data.parentName, email: parentUserEmail, password: parentHashed, role: 'parent' })
           .$returningId();
 
         if (parentInserted?.id) {
           const [parentRow] = await db
-            .insert(parents)
-            .values({ userId: parentInserted.id, phoneNumber: data.parentPhone || undefined })
-            .$returningId();
+          .insert(parents)
+          .values({
+            userId: parentInserted.id,
+            phoneNumber: data.parentPhone || undefined,
+            parentEmail: data.parentEmail || undefined,
+          })
+          .$returningId();
 
           if (parentRow?.id) {
             await db.insert(studentParents).values({ studentId: id, parentId: parentRow.id, relation: 'parent' });
@@ -316,15 +337,15 @@ export default async function StudentsPage({ searchParams }: Props) {
   }
 
   return (
-    <main className="min-h-screen bg-[#070b16] p-4 sm:p-6 lg:p-8">
+    <main className="min-h-screen bg-background text-foreground p-4 sm:p-6 lg:p-8">
       <StudentsClient
-        studentRows={studentRows}
+        studentRows={studentRows as any}
         page={page}
         q={q}
         sort={sort}
         dir={dir}
         createStudent={createStudent}
-        updateStudent={updateStudent}
+        updateStudent={updateStudent as any}
         deleteStudent={deleteStudent}
       />
     </main>

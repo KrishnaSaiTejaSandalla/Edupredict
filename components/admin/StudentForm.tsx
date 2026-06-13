@@ -16,6 +16,7 @@ type Props = {
     gender?: string;
     parentName?: string;
     parentPhone?: string;
+    parentEmail?: string;
   };
   submitLabel?: string;
 };
@@ -145,7 +146,7 @@ export default function StudentForm({ action, initial = {}, submitLabel = 'Save'
       {/* Parent Details */}
       <div className="pt-2 border-t border-white/5">
         <p className="text-xs font-medium text-slate-500 mb-3 uppercase tracking-wide">Parent / Guardian</p>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <div>
             <label className={labelCls}>Parent Name</label>
             <input
@@ -161,6 +162,16 @@ export default function StudentForm({ action, initial = {}, submitLabel = 'Save'
               name="parentPhone"
               defaultValue={initial.parentPhone}
               placeholder="+91 98765 43210"
+              className={inputCls}
+            />
+          </div>
+          <div>
+            <label className={labelCls}>Parent Email</label>
+            <input
+              name="parentEmail"
+              type="email"
+              defaultValue={initial.parentEmail}
+              placeholder="parent@example.com"
               className={inputCls}
             />
           </div>

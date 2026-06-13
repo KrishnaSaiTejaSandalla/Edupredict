@@ -61,10 +61,9 @@ type Props = {
 
 // ─── Input style ─────────────────────────────────────────────────────────────
 
-const inputCls =
-  'h-11 w-full rounded-xl border border-white/10 bg-[#0b1020]/60 px-3 text-sm text-white outline-none focus:border-cyan-400/50 transition placeholder:text-slate-600';
+const inputCls = 'input-theme';
 const labelCls =
-  'block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5';
+  'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5';
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -181,8 +180,8 @@ export default function TeachersClient({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-400">Database</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">Teachers</h1>
-          <p className="mt-2 text-sm text-slate-400">
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Teachers</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
             Manage teacher accounts, credentials, and department assignments.
           </p>
         </div>
@@ -191,7 +190,7 @@ export default function TeachersClient({
           <AdminSearch placeholder="Search teachers..." />
           <button
             onClick={() => (showForm && !editingId ? closePanel() : openCreate())}
-            className="rounded-xl bg-blue-500 px-5 py-3 text-xs font-bold text-white shadow-lg shadow-blue-500/20 hover:bg-blue-400 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 whitespace-nowrap"
+            className="rounded-xl btn-blue px-5 py-3 text-xs font-bold whitespace-nowrap"
           >
             {showForm && !editingId ? 'Close Editor' : '+ Create Teacher'}
           </button>
@@ -200,8 +199,8 @@ export default function TeachersClient({
 
       {/* Inline Editor Panel */}
       {showForm && (
-        <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] p-6 shadow-2xl shadow-black/25 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6">
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-md animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground mb-6">
             {editingId ? 'Edit Teacher Record' : 'Create New Teacher'}
           </h2>
 
@@ -306,14 +305,14 @@ export default function TeachersClient({
               <button
                 type="submit"
                 disabled={isPending}
-                className="rounded-xl bg-emerald-500 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-emerald-500/20 hover:bg-emerald-400 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                className="rounded-xl btn-emerald px-5 py-2.5 text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isPending ? 'Saving…' : editingId ? 'Update Teacher' : 'Save Teacher Record'}
               </button>
               <button
                 type="button"
                 onClick={closePanel}
-                className="rounded-xl border border-white/10 bg-white/[0.04] px-5 py-2.5 text-xs font-bold text-white hover:bg-white/[0.08] transition duration-200"
+                className="rounded-xl border border-border bg-background px-5 py-2.5 text-xs font-bold text-foreground hover:bg-hover transition duration-200"
               >
                 Cancel
               </button>
@@ -323,9 +322,9 @@ export default function TeachersClient({
       )}
 
       {/* Teachers Table */}
-      <div className="overflow-auto rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] shadow-xl shadow-black/25">
-        <table className="w-full text-left text-sm text-slate-300">
-          <thead className="border-b border-white/10 bg-[#070b16]/40 text-xs font-semibold uppercase tracking-wider text-slate-400">
+      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-md">
+        <table className="w-full text-left text-sm text-foreground">
+          <thead className="border-b border-border bg-background/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             <tr>
               <th className="p-4 px-6">ID</th>
               <th className="p-4 px-6">Name</th>
@@ -336,15 +335,15 @@ export default function TeachersClient({
               <th className="p-4 px-6 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/5">
+          <tbody className="divide-y divide-subtle">
             {teacherRows.length === 0 ? (
               <tr>
                 <td colSpan={7} className="p-12 text-center">
                   <div className="flex flex-col items-center gap-3">
-                    <svg viewBox="0 0 24 24" className="h-10 w-10 text-slate-700" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <svg viewBox="0 0 24 24" className="h-10 w-10 text-muted-foreground/30" fill="none" stroke="currentColor" strokeWidth="1.5">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
                     </svg>
-                    <p className="text-sm font-medium text-slate-500">No teachers found.</p>
+                    <p className="text-sm font-medium text-muted-foreground">No teachers found.</p>
                   </div>
                 </td>
               </tr>
@@ -356,19 +355,19 @@ export default function TeachersClient({
                 return (
                   <tr
                     key={row.t.id}
-                    className="hover:bg-white/[0.02] transition duration-200"
+                    className="hover:bg-hover transition duration-200"
                   >
-                    <td className="p-4 px-6 text-xs font-semibold text-slate-500">#{row.t.id}</td>
-                    <td className="p-4 px-6 font-semibold text-white">{row.u.name}</td>
-                    <td className="p-4 px-6 font-medium text-slate-400">{row.u.email}</td>
-                    <td className="p-4 px-6 font-mono text-xs text-slate-300">{row.t.employeeId || '—'}</td>
+                    <td className="p-4 px-6 text-xs font-semibold text-muted-foreground">#{row.t.id}</td>
+                    <td className="p-4 px-6 font-semibold text-foreground">{row.u.name}</td>
+                    <td className="p-4 px-6 font-medium text-muted-foreground">{row.u.email}</td>
+                    <td className="p-4 px-6 font-mono text-xs text-foreground">{row.t.employeeId || '—'}</td>
                     <td className="p-4 px-6">
                       {row.t.department ? (
-                        <span className="inline-flex rounded-lg bg-cyan-500/10 px-2.5 py-1 text-[10px] font-bold text-cyan-300 border border-cyan-500/20 uppercase tracking-wider">
+                        <span className="inline-flex rounded-lg bg-cyan-500/10 px-2.5 py-1 text-[10px] font-bold text-cyan-500 dark:text-cyan-300 border border-cyan-500/20 uppercase tracking-wider">
                           {row.t.department}
                         </span>
                       ) : (
-                        <span className="text-slate-600">—</span>
+                        <span className="text-muted-foreground/50">—</span>
                       )}
                     </td>
                     <td className="p-4 px-6">
@@ -382,7 +381,7 @@ export default function TeachersClient({
                         <button
                           onClick={() => setViewingTeacher(row)}
                           title="View Teacher"
-                          className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/5 bg-white/[0.04] text-slate-400 hover:text-cyan-400 hover:border-cyan-400/30 transition duration-150"
+                          className="flex h-8 w-8 items-center justify-center rounded-xl border border-subtle bg-hover text-muted-foreground hover:text-cyan-500 hover:border-cyan-400/30 transition duration-150"
                         >
                           <svg
                             viewBox="0 0 24 24"
@@ -400,7 +399,7 @@ export default function TeachersClient({
                         <button
                           onClick={() => openEdit(row)}
                           title="Edit Teacher"
-                          className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/5 bg-white/[0.04] text-slate-400 hover:text-amber-400 hover:border-amber-400/30 transition duration-150"
+                          className="flex h-8 w-8 items-center justify-center rounded-xl border border-subtle bg-hover text-muted-foreground hover:text-amber-400 hover:border-amber-400/30 transition duration-150"
                         >
                           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
                             <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5Z" />
@@ -412,7 +411,7 @@ export default function TeachersClient({
                           onClick={() => handleDelete(row.t.id, row.u.name)}
                           disabled={isDeleting}
                           title="Delete Teacher"
-                          className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/5 bg-white/[0.04] text-slate-400 hover:text-rose-400 hover:border-rose-400/30 disabled:opacity-40 transition duration-150"
+                          className="flex h-8 w-8 items-center justify-center rounded-xl border border-subtle bg-hover text-muted-foreground hover:text-rose-400 hover:border-rose-400/30 disabled:opacity-40 transition duration-150"
                         >
                           {isDeleting ? (
                             <svg viewBox="0 0 24 24" className="h-4 w-4 animate-spin" fill="none" stroke="currentColor" strokeWidth="2">
@@ -435,17 +434,17 @@ export default function TeachersClient({
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between text-xs font-semibold text-slate-400">
+      <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
         <a
           href={`/admin/teachers${baseQueryStr}${sortParam}&page=${Math.max(1, page - 1)}`}
-          className="rounded-xl border border-white/10 bg-slate-900/80 px-4 py-2.5 hover:bg-slate-800 transition duration-150"
+          className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150"
         >
           ← Previous
         </a>
-        <span className="text-slate-500 tabular-nums">Page {page}</span>
+        <span className="tabular-nums">Page {page}</span>
         <a
           href={`/admin/teachers${baseQueryStr}${sortParam}&page=${page + 1}`}
-          className="rounded-xl border border-white/10 bg-slate-900/80 px-4 py-2.5 hover:bg-slate-800 transition duration-150"
+          className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150"
         >
           Next →
         </a>
@@ -453,36 +452,36 @@ export default function TeachersClient({
 
       {/* Teacher Profile Modal */}
       {viewingTeacher && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm transition-all duration-300">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm transition-all duration-300">
           <div
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-2xl overflow-hidden rounded-3xl border border-white/10 bg-[#070b16] shadow-[0_20px_50px_rgba(0,0,0,0.6)] animate-in fade-in zoom-in-95 duration-200"
+            className="relative w-full max-w-2xl overflow-hidden rounded-3xl border border-border bg-card shadow-2xl shadow-black/40 animate-in fade-in zoom-in-95 duration-200"
           >
             {/* Close Button */}
             <button
               onClick={() => setViewingTeacher(null)}
-              className="absolute right-5 top-5 z-10 flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-400 hover:text-white hover:bg-white/[0.08] transition duration-200"
+              className="absolute right-5 top-5 z-10 flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-hover text-muted-foreground hover:text-foreground hover:bg-background transition duration-200"
             >
               ✕
             </button>
 
             {/* Header */}
-            <div className="relative border-b border-white/10 px-8 py-8 flex flex-col sm:flex-row items-center gap-6 bg-gradient-to-b from-white/[0.02] to-transparent">
+            <div className="relative border-b border-border px-8 py-8 flex flex-col sm:flex-row items-center gap-6">
               <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 text-3xl font-bold text-white shadow-xl shadow-cyan-500/25">
                 {viewingTeacher.u.name.charAt(0)}
               </div>
               <div className="text-center sm:text-left">
-                <h2 className="text-2xl sm:text-3xl font-bold text-white">{viewingTeacher.u.name}</h2>
-                <p className="mt-1.5 text-sm text-slate-400 flex items-center justify-center sm:justify-start gap-2">
+                <h2 className="text-2xl sm:text-3xl font-bold text-foreground">{viewingTeacher.u.name}</h2>
+                <p className="mt-1.5 text-sm text-muted-foreground flex items-center justify-center sm:justify-start gap-2">
                   <span>Employee ID:</span>
-                  <span className="font-mono bg-white/[0.05] px-2 py-0.5 rounded text-xs text-slate-300">{viewingTeacher.t.employeeId || '—'}</span>
+                  <span className="font-mono bg-hover px-2 py-0.5 rounded text-xs text-foreground border border-border">{viewingTeacher.t.employeeId || '—'}</span>
                 </p>
                 <div className="mt-3.5 flex flex-wrap justify-center sm:justify-start gap-2">
-                  <span className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-300">
+                  <span className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-500 dark:text-cyan-300">
                     {viewingTeacher.t.department || 'General Department'}
                   </span>
                   {viewingTeacher.t.qualification && (
-                    <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-slate-300">
+                    <span className="rounded-xl border border-border bg-hover px-3 py-1 text-xs font-semibold text-foreground">
                       {viewingTeacher.t.qualification}
                     </span>
                   )}
@@ -493,23 +492,23 @@ export default function TeachersClient({
             {/* Body */}
             <div className="grid gap-6 p-8 md:grid-cols-2">
               {/* Teacher Information Card */}
-              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 shadow-inner">
-                <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-cyan-400">Teacher Details</h3>
-                <div className="space-y-3.5 text-sm text-white">
+              <div className="rounded-2xl border border-border bg-background p-5">
+                <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-cyan-500 dark:text-cyan-400">Teacher Details</h3>
+                <div className="space-y-3.5 text-sm text-foreground">
                   <div>
-                    <p className="text-xs font-medium text-slate-500">Email Address</p>
+                    <p className="text-xs font-medium text-muted-foreground">Email Address</p>
                     <p className="mt-0.5 font-medium">{viewingTeacher.u.email}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-slate-500">Phone Number</p>
+                    <p className="text-xs font-medium text-muted-foreground">Phone Number</p>
                     <p className="mt-0.5 font-medium">{viewingTeacher.t.phoneNumber || 'Not Available'}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-slate-500">Qualification</p>
+                    <p className="text-xs font-medium text-muted-foreground">Qualification</p>
                     <p className="mt-0.5 font-medium">{viewingTeacher.t.qualification || 'Not Available'}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-slate-500">Joining Date</p>
+                    <p className="text-xs font-medium text-muted-foreground">Joining Date</p>
                     <p className="mt-0.5 font-medium">
                       {viewingTeacher.t.joinDate ? new Date(viewingTeacher.t.joinDate).toLocaleDateString("en-US", {
                         month: "long",
@@ -521,26 +520,26 @@ export default function TeachersClient({
                 </div>
               </div>
 
-              {/* Performance / LinkedIn-style Card */}
-              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 flex flex-col justify-between">
+              {/* Performance Card */}
+              <div className="rounded-2xl border border-border bg-background p-5 flex flex-col justify-between">
                 <div>
-                  <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-cyan-400">Performance Summary</h3>
-                  <div className="mt-6 flex flex-col items-center justify-center text-center p-4 rounded-xl bg-[#0b1020]/60 border border-white/5">
+                  <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-cyan-500 dark:text-cyan-400">Performance Summary</h3>
+                  <div className="mt-6 flex flex-col items-center justify-center text-center p-4 rounded-xl bg-hover border border-border">
                     <span className="text-3xl text-amber-400 font-black tracking-widest animate-pulse">
                       {getRating(viewingTeacher.t.experience).stars}
                     </span>
-                    <span className="mt-3 text-sm font-bold text-white">
+                    <span className="mt-3 text-sm font-bold text-foreground">
                       {getRating(viewingTeacher.t.experience).label}
                     </span>
-                    <span className="mt-1 text-xs text-slate-400">
+                    <span className="mt-1 text-xs text-muted-foreground">
                       Academic Rating
                     </span>
                   </div>
                 </div>
 
-                <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between text-xs text-slate-400">
+                <div className="mt-4 pt-4 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
                   <span>Professional Experience</span>
-                  <span className="font-semibold text-white bg-white/[0.04] px-2.5 py-1 rounded-lg border border-white/5">
+                  <span className="font-semibold text-foreground bg-hover px-2.5 py-1 rounded-lg border border-border">
                     {viewingTeacher.t.experience !== null ? `${viewingTeacher.t.experience} Years` : '—'}
                   </span>
                 </div>

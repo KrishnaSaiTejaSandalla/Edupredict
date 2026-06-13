@@ -1,12 +1,20 @@
 "use client";
 import React from 'react';
-import { Toaster } from 'sonner';
+import ThemeProvider from './ThemeProvider';
 
-export default function Providers({ children }: { children: React.ReactNode }) {
+interface ProvidersProps {
+  children: React.ReactNode;
+  initialTheme?: string;
+  initialDensity?: string;
+}
+
+export default function Providers({ children, initialTheme, initialDensity }: ProvidersProps) {
   return (
-    <>
+    <ThemeProvider
+      initialTheme={(initialTheme as any) ?? 'dark'}
+      initialDensity={(initialDensity as any) ?? 'comfortable'}
+    >
       {children}
-      <Toaster position="top-right" richColors />
-    </>
+    </ThemeProvider>
   );
 }

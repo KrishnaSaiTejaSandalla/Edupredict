@@ -28,6 +28,11 @@ export const users = mysqlTable(
     lastLoginAt: timestamp('last_login_at'),
     notificationPreferences: text('notification_preferences'),
     appearancePreferences: text('appearance_preferences'),
+    // Extended profile fields
+    bio: text('bio'),
+    profileImageUrl: varchar('profile_image_url', { length: 512 }),
+    designation: varchar('designation', { length: 128 }),
+    phoneNumber: varchar('phone_number', { length: 20 }),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').onUpdateNow().notNull(),
   },
@@ -52,11 +57,86 @@ export const schools = mysqlTable(
     pincode: varchar('pincode', { length: 20 }),
     principalName: varchar('principal_name', { length: 128 }),
     establishedYear: int('established_year'),
+    // Extended school identity
+    motto: varchar('motto', { length: 256 }),
+    website: varchar('website', { length: 256 }),
+    registrationNumber: varchar('registration_number', { length: 128 }),
+    affiliationBoard: varchar('affiliation_board', { length: 128 }),
+    udiseCode: varchar('udise_code', { length: 64 }),
+    // Branding
+    logoUrl: varchar('logo_url', { length: 512 }),
+    primaryColor: varchar('primary_color', { length: 16 }).default('#06b6d4'),
+    accentColor: varchar('accent_color', { length: 16 }).default('#a78bfa'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').onUpdateNow().notNull(),
   },
   (school) => ({
     nameIndex: index('schools_name_index').on(school.name),
+  })
+);
+
+// ==================== User Preferences ====================
+export const userPreferences = mysqlTable(
+  'user_preferences',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    userId: int('user_id').notNull().unique(),
+    theme: varchar('theme', { length: 32 }).default('dark').notNull(),
+    density: varchar('density', { length: 32 }).default('comfortable').notNull(),
+    sidebarCollapsed: boolean('sidebar_collapsed').default(false).notNull(),
+    language: varchar('language', { length: 16 }).default('en').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').onUpdateNow().notNull(),
+  },
+  (pref) => ({
+    userIdIndex: index('user_preferences_user_id_index').on(pref.userId),
+    fk_pref_user: foreignKey({
+      columns: [pref.userId],
+      foreignColumns: [users.id],
+    }),
+  })
+);
+
+// ==================== User Avatars ====================
+export const userAvatars = mysqlTable(
+  'user_avatars',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    userId: int('user_id').notNull(),
+    imageUrl: varchar('image_url', { length: 512 }).notNull(),
+    style: varchar('style', { length: 64 }).notNull(),
+    isSelected: boolean('is_selected').default(false).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (av) => ({
+    userIdIndex: index('user_avatars_user_id_index').on(av.userId),
+    fk_avatar_user: foreignKey({
+      columns: [av.userId],
+      foreignColumns: [users.id],
+    }),
+  })
+);
+
+// ==================== AI Generations ====================
+export const aiGenerations = mysqlTable(
+  'ai_generations',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    userId: int('user_id').notNull(),
+    type: varchar('type', { length: 64 }).notNull(), // AVATAR, PERFORMANCE_PREDICTION, REPORT_GENERATION, etc.
+    prompt: text('prompt'),
+    status: varchar('status', { length: 32 }).default('completed').notNull(), // pending, completed, failed
+    resultUrl: varchar('result_url', { length: 512 }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (gen) => ({
+    userIdIndex: index('ai_generations_user_id_index').on(gen.userId),
+    typeIndex: index('ai_generations_type_index').on(gen.type),
+    statusIndex: index('ai_generations_status_index').on(gen.status),
+    fk_gen_user: foreignKey({
+      columns: [gen.userId],
+      foreignColumns: [users.id],
+    }),
   })
 );
 
@@ -135,6 +215,7 @@ export const parents = mysqlTable(
     id: int('id').autoincrement().primaryKey(),
     userId: int('user_id').notNull().unique(),
     phoneNumber: varchar('phone_number', { length: 20 }),
+    parentEmail: varchar('parent_email', { length: 256 }),
     occupation: varchar('occupation', { length: 128 }),
     address: text('address'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -148,6 +229,7 @@ export const parents = mysqlTable(
     }),
   })
 );
+
 
 // ==================== Student-Parent Relationship ====================
 export const studentParents = mysqlTable(

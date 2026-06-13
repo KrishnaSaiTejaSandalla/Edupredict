@@ -249,18 +249,19 @@ export async function getStudentReportByClass(classId: number) {
         new Set(resultRows.map((r: any) => Number(r.examId)).filter(Boolean))
     );
 
-    const examRows =
-        examIds.length > 0
-            ? await db
-                  .select({ id: exams.id, maxMarks: exams.maxMarks })
-                  .from(exams)
-                  .where(
-                      sql`${exams.id} in (${sql.join(
-                          examIds.map((id) => sql`${id}`),
-                          sql`, `
-                      )})`
-                  )
-            : [];
+    if (examIds.length === 0) {
+        return [];
+    }
+
+    const examRows = await db
+        .select({ id: exams.id, maxMarks: exams.maxMarks })
+        .from(exams)
+        .where(
+            sql`${exams.id} in (${sql.join(
+                examIds.map((id) => sql`${id}`),
+                sql`, `
+            )})`
+        );
 
     const examMap: Record<number, number> = {};
     examRows.forEach((e: any) => {
@@ -314,6 +315,155 @@ export async function getStudentReportByClass(classId: number) {
         });
 }
 
+export async function getStudentReportByClassFiltered(classId: number, timeRange: '3m' | '6m' | '1y') {
+    const days = timeRange === '3m' ? 90 : timeRange === '6m' ? 180 : 365;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    // 1. Get exams for this class within the date range
+    const examList = await db
+        .select({
+            id: exams.id,
+            maxMarks: exams.maxMarks,
+            name: exams.name,
+        })
+        .from(exams)
+        .where(
+            and(
+                eq(exams.classId, classId),
+                sql`${exams.examDate} >= ${cutoffStr}`,
+                sql`${exams.examDate} <= ${todayStr}`
+            )
+        );
+
+    if (examList.length === 0) {
+        return {
+            students: [],
+            noExams: true,
+            examCount: 0,
+        };
+    }
+
+    const examIds = examList.map((e) => e.id);
+    const examMap: Record<number, { maxMarks: number; name: string }> = {};
+    examList.forEach((e: any) => {
+        examMap[e.id] = {
+            maxMarks: Number(e.maxMarks),
+            name: e.name,
+        };
+    });
+
+    // 2. Get students in this class
+    const stdRows = await db
+        .select({
+            student: students,
+            user: users,
+        })
+        .from(students)
+        .leftJoin(users, eq(users.id, students.userId))
+        .where(eq(students.classId, classId));
+
+    if (stdRows.length === 0) {
+        return {
+            students: [],
+            noExams: false,
+            examCount: examList.length,
+        };
+    }
+
+    const studentIds = stdRows.map((r) => r.student.id);
+
+    // 3. Get results for these exams & students
+    const resultRows = await db
+        .select({
+            studentId: results.studentId,
+            marks: results.marks,
+            subjectId: results.subjectId,
+            examId: results.examId,
+        })
+        .from(results)
+        .where(
+            and(
+                sql`${results.examId} in (${sql.join(
+                    examIds.map((id) => sql`${id}`),
+                    sql`, `
+                )})`,
+                sql`${results.studentId} in (${sql.join(
+                    studentIds.map((id) => sql`${id}`),
+                    sql`, `
+                )})`
+            )
+        );
+
+    const resultsByStudent: { [key: number]: any[] } = {};
+    resultRows.forEach((r: any) => {
+        if (!resultsByStudent[r.studentId]) resultsByStudent[r.studentId] = [];
+        resultsByStudent[r.studentId].push({
+            marks: Number(r.marks || 0),
+            subjectId: r.subjectId,
+            examId: Number(r.examId),
+        });
+    });
+
+    const mappedStudents = stdRows
+        .map((r: any) => {
+            const sMarks = resultsByStudent[r.student.id] || [];
+            
+            let weightedSum = 0;
+            let sumWeights = 0;
+            let totalRawMarks = 0;
+
+            sMarks.forEach((m) => {
+                const examInfo = examMap[m.examId];
+                if (examInfo && examInfo.maxMarks > 0) {
+                    const pct = (m.marks / examInfo.maxMarks) * 100;
+                    const isWeekly = examInfo.name.toLowerCase().includes('weekly');
+                    const weight = isWeekly ? 0.3 : 0.7;
+
+                    weightedSum += pct * weight;
+                    sumWeights += weight;
+                    totalRawMarks += m.marks;
+                }
+            });
+
+            const percentage =
+                sumWeights > 0
+                    ? Math.round(weightedSum / sumWeights)
+                    : 0;
+
+            let grade = 'F';
+            if (percentage >= 90) grade = 'A+';
+            else if (percentage >= 80) grade = 'A';
+            else if (percentage >= 70) grade = 'B+';
+            else if (percentage >= 60) grade = 'B';
+            else if (percentage >= 50) grade = 'C';
+            else if (percentage >= 40) grade = 'D';
+
+            return {
+                studentId: r.student.id,
+                name: r.user?.name || 'Unknown',
+                rollNumber: r.student.rollNumber || '',
+                total: totalRawMarks,
+                percentage,
+                grade,
+            };
+        })
+        .sort((a, b) => {
+            const aRoll = parseInt(a.rollNumber || '999', 10);
+            const bRoll = parseInt(b.rollNumber || '999', 10);
+            return aRoll - bRoll;
+        });
+
+    return {
+        students: mappedStudents,
+        noExams: false,
+        examCount: examList.length,
+    };
+}
+
+
 export async function getStudentReport(studentId: number) {
     const stdData = await db
         .select({
@@ -341,7 +491,6 @@ export async function getStudentReport(studentId: number) {
         .from(results)
         .where(eq(results.studentId, studentId));
 
-    const subjectIds = [...new Set(resultRows.map((r: any) => Number(r.subjectId)))].filter(Boolean);
     const subjectsRows = await db
         .select({ id: subjects.id, name: subjects.name })
         .from(subjects);
@@ -351,41 +500,69 @@ export async function getStudentReport(studentId: number) {
         subjectMap[row.id] = row;
     });
 
-    const bySubject: { [key: number]: number[] } = {};
-    resultRows.forEach((r: any) => {
-        if (!bySubject[r.subjectId]) bySubject[r.subjectId] = [];
-        bySubject[r.subjectId].push(Number(r.marks || 0));
+    const examRows = await db
+        .select({ id: exams.id, maxMarks: exams.maxMarks, name: exams.name })
+        .from(exams);
+
+    const examMap: Record<number, { maxMarks: number; name: string }> = {};
+    examRows.forEach((e: any) => {
+        examMap[e.id] = { maxMarks: Number(e.maxMarks), name: e.name };
     });
 
-    const subjectScores = Object.entries(bySubject).map(([sid, marks]: [string, number[]]) => {
-        const avg = marks.reduce((a, b) => a + b, 0) / marks.length;
+    const bySubject: { [key: number]: Array<{ marks: number; examId: number }> } = {};
+    resultRows.forEach((r: any) => {
+        if (!bySubject[r.subjectId]) bySubject[r.subjectId] = [];
+        bySubject[r.subjectId].push({
+            marks: Number(r.marks || 0),
+            examId: Number(r.examId),
+        });
+    });
+
+    const subjectScores = Object.entries(bySubject).map(([sid, sMarks]: [string, any[]]) => {
+        let weightedSum = 0;
+        let sumWeights = 0;
+
+        sMarks.forEach((m) => {
+            const examInfo = examMap[m.examId];
+            if (examInfo && examInfo.maxMarks > 0) {
+                const pct = (m.marks / examInfo.maxMarks) * 100;
+                const isWeekly = examInfo.name.toLowerCase().includes('weekly');
+                const weight = isWeekly ? 0.3 : 0.7;
+
+                weightedSum += pct * weight;
+                sumWeights += weight;
+            }
+        });
+
+        const average = sumWeights > 0 ? Math.round(weightedSum / sumWeights) : 0;
+
         return {
             subjectId: Number(sid),
             subjectName: subjectMap[Number(sid)]?.name || `Subject ${sid}`,
-            marks: marks,
-            average: Math.round(avg),
+            marks: sMarks.map(m => m.marks),
+            average,
         };
     });
 
-    const examRows = await db
-        .select({ id: exams.id, maxMarks: exams.maxMarks })
-        .from(exams);
+    // Compute overall weighted score
+    let overallWeightedSum = 0;
+    let overallSumWeights = 0;
+    let totalMarks = 0;
 
-    const examMap: Record<number, number> = {};
-    examRows.forEach((e: any) => {
-        examMap[e.id] = Number(e.maxMarks);
+    resultRows.forEach((r: any) => {
+        const examInfo = examMap[r.examId];
+        if (examInfo && examInfo.maxMarks > 0) {
+            const pct = (Number(r.marks || 0) / examInfo.maxMarks) * 100;
+            const isWeekly = examInfo.name.toLowerCase().includes('weekly');
+            const weight = isWeekly ? 0.3 : 0.7;
+
+            overallWeightedSum += pct * weight;
+            overallSumWeights += weight;
+            totalMarks += Number(r.marks || 0);
+        }
     });
 
-    const totalMarks = resultRows.reduce((sum, r: any) => sum + Number(r.marks || 0), 0);
-    const totalPossibleMarks = resultRows.reduce(
-        (sum, r: any) => sum + (examMap[r.examId] || 0),
-        0
-    );
-
-    const percentage =
-        totalPossibleMarks > 0
-            ? Math.round((totalMarks / totalPossibleMarks) * 100)
-            : 0;
+    const percentage = overallSumWeights > 0 ? Math.round(overallWeightedSum / overallSumWeights) : 0;
 
     let grade = 'F';
     if (percentage >= 90) grade = 'A+';

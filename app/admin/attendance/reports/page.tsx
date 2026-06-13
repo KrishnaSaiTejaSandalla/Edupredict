@@ -91,17 +91,17 @@ export default async function AttendanceReportsPage({
     };
   });
 
-  const activeTabCls = "rounded-xl bg-cyan-500/10 border border-cyan-500/30 px-4 py-2.5 text-cyan-400 font-bold shadow-md shadow-cyan-500/5 transition";
-  const inactiveTabCls = "rounded-xl border border-white/5 bg-white/[0.02] px-4 py-2.5 text-slate-400 hover:text-white hover:bg-white/[0.06] transition";
+  const activeTabCls = "rounded-xl bg-cyan-500/10 border border-cyan-500/30 px-4 py-2.5 text-cyan-500 dark:text-cyan-400 font-bold shadow-sm shadow-cyan-500/5 transition";
+  const inactiveTabCls = "rounded-xl border border-border bg-background px-4 py-2.5 text-muted-foreground hover:text-foreground hover:bg-hover transition";
 
   return (
-    <main className="min-h-screen bg-[#070b16] p-4 sm:p-6 lg:p-8 space-y-8">
+    <main className="min-h-screen bg-background text-foreground p-4 sm:p-6 lg:p-8 space-y-8">
       {/* HEADER */}
       <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-400">Database</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">Attendance Reports</h1>
-          <p className="mt-2 text-sm text-slate-400">Review class-wise attendance statistics over the last 30 days.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-500 dark:text-cyan-400">Database</p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Attendance Reports</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Review class-wise attendance statistics over the last 30 days.</p>
         </div>
         <nav className="flex flex-wrap gap-2 text-xs">
           <a href="/admin/attendance" className={inactiveTabCls}>Take Attendance</a>
@@ -112,14 +112,14 @@ export default async function AttendanceReportsPage({
       </div>
 
       {/* FILTER SECTION */}
-      <section className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] p-6 shadow-xl shadow-black/20">
+      <section className="rounded-2xl border border-border bg-card p-6 shadow-md">
         <form action="/admin/attendance/reports" method="get" className="flex flex-wrap items-end gap-4">
           <div className="flex-1 min-w-[200px]">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Class Selection</label>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Class Selection</label>
             <select
               name="classId"
               defaultValue={classId ?? ''}
-              className="h-11 w-full rounded-xl border border-white/10 bg-[#0b1020] px-3.5 text-sm text-white outline-none transition focus:border-cyan-400/50 cursor-pointer"
+              className="select-theme"
             >
               <option value="">Select Class</option>
               {classList.map((c) => (
@@ -132,7 +132,7 @@ export default async function AttendanceReportsPage({
           </div>
           <button
             type="submit"
-            className="h-11 rounded-xl bg-blue-500 px-6 text-xs font-bold text-white shadow-lg shadow-blue-500/20 hover:bg-blue-400 hover:scale-[1.02] active:scale-[0.98] transition duration-200"
+            className="h-11 rounded-xl btn-blue px-6 text-xs font-bold"
           >
             Load Report
           </button>
@@ -141,9 +141,9 @@ export default async function AttendanceReportsPage({
 
       {/* REPORT CONTENT */}
       {classId ? (
-        <section className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] shadow-xl shadow-black/25 overflow-hidden animate-in fade-in duration-300">
-          <table className="w-full text-left text-sm text-slate-300">
-            <thead className="border-b border-white/10 bg-[#070b16]/40 text-xs font-semibold uppercase tracking-wider text-slate-400">
+        <section className="rounded-2xl border border-border bg-card shadow-md overflow-hidden animate-in fade-in duration-300">
+          <table className="w-full text-left text-sm text-foreground">
+            <thead className="border-b border-border bg-background/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               <tr>
                 <th className="p-4 px-6">Student</th>
                 <th className="p-4 px-6">Present Days</th>
@@ -152,33 +152,33 @@ export default async function AttendanceReportsPage({
                 <th className="p-4 px-6 text-right">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-subtle">
               {report.map((student) => {
                 const isPassed = student.percentage >= 75;
                 const initials = student.name.charAt(0).toUpperCase();
 
                 return (
-                  <tr key={student.id} className="hover:bg-white/[0.02] transition duration-200">
-                    <td className="p-4 px-6 font-semibold text-white">
+                  <tr key={student.id} className="hover:bg-hover transition duration-200">
+                    <td className="p-4 px-6 font-semibold text-foreground">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.04] text-xs font-bold text-slate-300 border border-white/5">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-hover text-xs font-bold text-foreground border border-border">
                           {initials}
                         </div>
                         <span>{student.name}</span>
                       </div>
                     </td>
-                    <td className="p-4 px-6 font-semibold text-emerald-400">{student.present} Days</td>
-                    <td className="p-4 px-6 font-medium text-slate-400">{student.total} Days</td>
+                    <td className="p-4 px-6 font-semibold text-emerald-500 dark:text-emerald-400">{student.present} Days</td>
+                    <td className="p-4 px-6 font-medium text-muted-foreground">{student.total} Days</td>
                     <td className="p-4 px-6">
                       <div className="flex items-center gap-3">
                         <span className={`text-xs font-bold px-2 py-0.5 rounded-lg border ${
-                          isPassed ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                          isPassed ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
                         }`}>
                           {student.percentage}%
                         </span>
-                        <div className="w-20 h-1.5 rounded-full bg-white/5 overflow-hidden hidden sm:block">
+                        <div className="w-20 h-1.5 rounded-full bg-hover overflow-hidden hidden sm:block">
                           <div
-                            className={`h-full rounded-full ${isPassed ? 'bg-cyan-400' : 'bg-rose-500'}`}
+                            className={`h-full rounded-full ${isPassed ? 'bg-cyan-500 dark:bg-cyan-400' : 'bg-rose-500'}`}
                             style={{ width: `${student.percentage}%` }}
                           />
                         </div>
@@ -187,7 +187,7 @@ export default async function AttendanceReportsPage({
                     <td className="p-4 px-6 text-right">
                       <a
                         href={`/admin/attendance/student/${student.id}`}
-                        className="inline-flex h-8 items-center rounded-lg border border-white/10 bg-white/[0.04] px-3.5 text-xs font-bold text-cyan-400 hover:bg-white/[0.08] hover:text-cyan-300 transition duration-150"
+                        className="inline-flex h-8 items-center rounded-lg border border-border bg-background px-3.5 text-xs font-bold text-cyan-600 dark:text-cyan-400 hover:bg-hover hover:text-cyan-500 transition duration-150"
                       >
                         View Details
                       </a>
@@ -197,7 +197,7 @@ export default async function AttendanceReportsPage({
               })}
               {report.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="p-12 text-center text-slate-500 font-medium">
+                  <td colSpan={5} className="p-12 text-center text-muted-foreground font-medium">
                     No student logs found.
                   </td>
                 </tr>
@@ -206,12 +206,12 @@ export default async function AttendanceReportsPage({
           </table>
         </section>
       ) : (
-        <div className="rounded-2xl border border-dashed border-white/15 p-12 text-center shadow-xl shadow-black/25">
-          <svg className="mx-auto h-10 w-10 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="rounded-2xl border border-dashed border-border p-12 text-center shadow-md">
+          <svg className="mx-auto h-10 w-10 text-muted-foreground/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
-          <h3 className="mt-4 text-sm font-semibold text-white font-bold">No class selected</h3>
-          <p className="mt-1 text-xs text-slate-500">Choose a class from the filters above to load 30-day attendance metrics.</p>
+          <h3 className="mt-4 text-sm font-semibold text-foreground font-bold">No class selected</h3>
+          <p className="mt-1 text-xs text-muted-foreground">Choose a class from the filters above to load 30-day attendance metrics.</p>
         </div>
       )}
     </main>

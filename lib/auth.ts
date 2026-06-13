@@ -22,24 +22,47 @@ type CurrentUser = {
   name: string;
   email?: string;
   role: Role | string;
+  profileImageUrl?: string | null;
+  school?: {
+    id: number;
+    name: string;
+    logoUrl?: string | null;
+  } | null;
 };
 
 export async function getCurrentUser(req?: Request): Promise<CurrentUser | null> {
   let token: string | null = null;
+
   if (req) {
-    const cookie = req.headers.get('cookie') || '';
+    const cookie = req.headers.get("cookie") || "";
     const match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
     token = match ? match[1] : null;
   } else {
     const cookieStore = await cookies();
-    const c = cookieStore.get(SESSION_COOKIE_NAME);
-    token = c?.value || null;
+    token = cookieStore.get(SESSION_COOKIE_NAME)?.value || null;
   }
 
   if (!token) return null;
-  const user = await getUserBySessionToken(token);
-  if (!user) return null;
-  return { id: user.id, name: user.name, email: user.email, role: user.role } as CurrentUser;
+
+  const row = await getUserBySessionToken(token);
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    role: row.role,
+    profileImageUrl: row.profileImageUrl,
+
+    // 🔥 FORCE mapping here (DO NOT rely on nested object from session layer)
+    school: row.schoolId
+      ? {
+        id: row.schoolId,
+        name: row.schoolName ?? "",
+        logoUrl: row.schoolLogoUrl ?? null,
+      }
+      : null,
+  };
 }
 
 export async function requireAuth(req?: Request) {

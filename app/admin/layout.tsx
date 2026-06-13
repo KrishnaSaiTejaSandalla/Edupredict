@@ -4,11 +4,15 @@ import { db } from "@/lib/db";
 import { notifications } from "@/lib/schema";
 import { eq, desc, and } from "drizzle-orm";
 
+export const dynamic = "force-dynamic";
+
+
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // requireRole fetches user + school via LEFT JOIN in a single query
   const user = await requireRole("admin");
 
   const unreadNotifs = await db
@@ -52,8 +56,13 @@ export default async function AdminLayout({
   }];
 
   return (
-    <AdminShell 
-      user={{ name: user.name, email: user.email }}
+    <AdminShell
+      user={{
+        name: user.name,
+        email: user.email,
+        profileImageUrl: user.profileImageUrl ?? null,
+        school: user.school ?? null,
+      }}
       alerts={finalAlerts}
     >
       {children}

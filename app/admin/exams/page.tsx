@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
 import { toast } from "sonner";
 import { createExam, getAllExams, updateExam, deleteExam, getAllClasses, getSubjectsByClass } from '@/lib/actions';
 
@@ -34,6 +35,7 @@ export default function ExamsPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
   const [formData, setFormData] = useState({
     classId: '',
     subjectId: '',
@@ -114,17 +116,18 @@ export default function ExamsPage() {
     }
   }
 
-  async function handleDelete(id: number) {
-    if (confirm('Delete this exam?')) {
-      try {
-        await deleteExam(id);
-        toast.success("Exam deleted successfully");
-        await loadData();
-      } catch (err: any) {
-        toast.error(err?.message || "Cannot delete exam because marks exist.");
-      }
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteExam(deleteTarget.id);
+      toast.success("Exam deleted successfully");
+      await loadData();
+    } catch (err: any) {
+      toast.error(err?.message || "Cannot delete exam because marks exist.");
+    } finally {
+      setDeleteTarget(null);
     }
-  }
+  }, [deleteTarget]);
 
   if (loading) {
     return (
@@ -269,7 +272,7 @@ export default function ExamsPage() {
                         </svg>
                       </button>
                       <button
-                        onClick={() => handleDelete(exam.id)}
+                        onClick={() => setDeleteTarget({ id: exam.id, name: exam.name })}
                         title="Delete"
                         className="flex h-8 w-8 items-center justify-center rounded-xl border border-subtle bg-hover text-muted-foreground hover:text-rose-400 hover:border-rose-400/30 transition duration-150"
                       >
@@ -285,6 +288,13 @@ export default function ExamsPage() {
           </tbody>
         </table>
       </div>
+      <DeleteConfirmModal
+        isOpen={!!deleteTarget}
+        title="Delete Exam?"
+        message={`Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </main>
   );
 }

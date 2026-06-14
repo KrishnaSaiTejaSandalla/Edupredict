@@ -29,14 +29,10 @@ export default function ClassForm({ action, initial = {}, submitLabel = 'Save' }
 
     try {
       await action(formData);
-      // refresh and toast on success
       router.refresh();
       toast.success('Class saved successfully');
-      //  form when creating (no initial id)
       if (!initial.id) {
-        try {
-          event.currentTarget?.reset();
-        } catch { }
+        try { event.currentTarget?.reset(); } catch { }
       }
     } catch (err: any) {
       toast.error(err?.message || 'Unable to save class.');
@@ -46,42 +42,29 @@ export default function ClassForm({ action, initial = {}, submitLabel = 'Save' }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 bg-slate-900/60 p-4 rounded">
+    <form onSubmit={handleSubmit} className="space-y-4 bg-surface p-4 rounded-xl border border-theme">
       {initial.id && <input type="hidden" name="id" value={String(initial.id)} />}
 
       <div>
-        <label className="block text-sm font-medium mb-1">Name</label>
-        <input
-          name="name"
-          defaultValue={initial.name}
-          required
-          className="w-full p-2 rounded border border-slate-700 bg-slate-950 text-white"
-        />
+        <label className="block text-xs font-semibold uppercase tracking-wider text-secondary mb-1.5">Name</label>
+        <input name="name" defaultValue={initial.name} required className="input-theme" />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label className="block text-sm font-medium mb-1">Section</label>
-          <input
-            name="section"
-            defaultValue={initial.section}
-            className="w-full p-2 rounded border border-slate-700 bg-slate-950 text-white"
-          />
+          <label className="block text-xs font-semibold uppercase tracking-wider text-secondary mb-1.5">Section</label>
+          <input name="section" defaultValue={initial.section} className="input-theme" />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Academic Year</label>
-          <input
-            name="academicYear"
-            defaultValue={initial.academicYear}
-            className="w-full p-2 rounded border border-slate-700 bg-slate-950 text-white"
-          />
+          <label className="block text-xs font-semibold uppercase tracking-wider text-secondary mb-1.5">Academic Year</label>
+          <input name="academicYear" defaultValue={initial.academicYear} className="input-theme" />
         </div>
       </div>
 
       <button
         type="submit"
         disabled={loading}
-        className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-500 disabled:opacity-50"
+        className="rounded-xl btn-emerald px-5 py-2.5 text-xs font-bold disabled:opacity-50"
       >
         {loading ? 'Saving...' : submitLabel}
       </button>

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { getAllSubjects, createSubject, updateSubject, deleteSubject } from '@/lib/actions';
+import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
 
 interface SubjectRow {
   id: number;
@@ -20,6 +21,8 @@ export default function SubjectsPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [subjectToDelete, setSubjectToDelete] = useState<{ id: number; name: string } | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     code: '',
@@ -86,14 +89,18 @@ export default function SubjectsPage() {
     }
   }
 
-  async function handleDelete(id: number) {
-    if (!confirm('Delete this subject? This cannot be undone.')) return;
+  async function executeDelete() {
+    if (!subjectToDelete) return;
+    const { id, name } = subjectToDelete;
+    setDeleteModalOpen(false);
     try {
       await deleteSubject(id);
-      toast.success('Subject deleted successfully.');
+      toast.success(`Subject "${name}" deleted successfully.`);
       await loadData();
     } catch (err: any) {
       toast.error(err?.message || 'Failed to delete subject.');
+    } finally {
+      setSubjectToDelete(null);
     }
   }
 
@@ -297,7 +304,10 @@ export default function SubjectsPage() {
                       </button>
                       {/* Delete */}
                       <button
-                        onClick={() => handleDelete(sub.id)}
+                        onClick={() => {
+                          setSubjectToDelete({ id: sub.id, name: sub.name });
+                          setDeleteModalOpen(true);
+                        }}
                         title="Delete"
                         className="flex h-8 w-8 items-center justify-center rounded-xl border border-subtle bg-hover text-muted-foreground hover:text-rose-400 hover:border-rose-400/30 transition duration-150"
                       >
@@ -313,6 +323,16 @@ export default function SubjectsPage() {
           </tbody>
         </table>
       </div>
+      <DeleteConfirmModal
+        isOpen={deleteModalOpen}
+        title="Delete Subject?"
+        message={`Are you sure you want to delete the subject "${subjectToDelete?.name}"? This action cannot be undone.`}
+        onConfirm={executeDelete}
+        onCancel={() => {
+          setDeleteModalOpen(false);
+          setSubjectToDelete(null);
+        }}
+      />
     </main>
   );
 }

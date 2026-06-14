@@ -34,7 +34,7 @@ export const users = mysqlTable(
     designation: varchar('designation', { length: 128 }),
     phoneNumber: varchar('phone_number', { length: 20 }),
     createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at').onUpdateNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
   },
   (user) => ({
     emailIndex: uniqueIndex('users_email_unique').on(user.email),
@@ -154,7 +154,7 @@ export const teachers = mysqlTable(
     joinDate: date('join_date'),
     department: varchar('department', { length: 128 }),
     createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at').onUpdateNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
   },
   (teacher) => ({
     userIdIndex: index('teachers_user_id_index').on(teacher.userId),
@@ -186,7 +186,7 @@ export const students = mysqlTable(
     address: text('address'),
     admissionDate: date('admission_date'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at').onUpdateNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
   },
   (student) => ({
     userIdIndex: index('students_user_id_index').on(student.userId),
@@ -219,7 +219,7 @@ export const parents = mysqlTable(
     occupation: varchar('occupation', { length: 128 }),
     address: text('address'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at').onUpdateNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
   },
   (parent) => ({
     userIdIndex: index('parents_user_id_index').on(parent.userId),
@@ -266,7 +266,7 @@ export const classes = mysqlTable(
     classTeacherId: int('class_teacher_id'),
     academicYear: varchar('academic_year', { length: 64 }),
     createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at').onUpdateNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
   },
   (cls) => ({
     schoolIdIndex: index('classes_school_id_index').on(cls.schoolId),
@@ -290,7 +290,7 @@ export const subjects = mysqlTable(
     maxMarks: decimal('max_marks', { precision: 5, scale: 2 }),
     passingMarks: decimal('passing_marks', { precision: 5, scale: 2 }),
     createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at').onUpdateNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
   },
   (subject) => ({
     schoolIdIndex: index('subjects_school_id_index').on(subject.schoolId),
@@ -376,7 +376,7 @@ export const assignments = mysqlTable(
     dueDate: date('due_date').notNull(),
     maxMarks: decimal('max_marks', { precision: 5, scale: 2 }),
     createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at').onUpdateNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
   },
   (assign) => ({
     classIdIndex: index('assignments_class_id_index').on(assign.classId),
@@ -410,7 +410,7 @@ export const exams = mysqlTable(
     duration: int('duration'),
     maxMarks: decimal('max_marks', { precision: 5, scale: 2 }).notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at').onUpdateNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
   },
   (exam) => ({
     classIdIndex: index('exams_class_id_index').on(exam.classId),
@@ -440,7 +440,7 @@ export const results = mysqlTable(
     remarks: text('remarks'),
     recordedDate: date('recorded_date').notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at').onUpdateNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
   },
   (result) => ({
     studentIdIndex: index('results_student_id_index').on(result.studentId),
@@ -479,7 +479,7 @@ export const predictions = mysqlTable(
     recommendations: text('recommendations'),
     predictionDate: timestamp('prediction_date').defaultNow().notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at').onUpdateNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
   },
   (pred) => ({
     studentIdIndex: index('predictions_student_id_index').on(pred.studentId),
@@ -535,7 +535,7 @@ export const buses = mysqlTable(
     capacity: int('capacity'),
     isActive: boolean('is_active').default(true).notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at').onUpdateNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
   },
   (bus) => ({
     schoolIdIndex: index('buses_school_id_index').on(bus.schoolId),
@@ -567,6 +567,135 @@ export const busLocations = mysqlTable(
       columns: [loc.busId],
       foreignColumns: [buses.id],
     }),
+  })
+);
+
+// ==================== Timetables ====================
+export const timetables = mysqlTable(
+  'timetables',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    schoolId: int('school_id').notNull(),
+    classId: int('class_id').notNull(),
+    subjectId: int('subject_id').notNull(),
+    teacherId: int('teacher_id').notNull(),
+    dayOfWeek: varchar('day_of_week', { length: 20 }).notNull(), // 'Monday', 'Tuesday', etc.
+    startTime: varchar('start_time', { length: 10 }).notNull(),   // '09:00'
+    endTime: varchar('end_time', { length: 10 }).notNull(),       // '09:45'
+    roomNumber: varchar('room_number', { length: 64 }).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    schoolIdIdx: index('timetables_school_id_idx').on(table.schoolId),
+    classIdIdx: index('timetables_class_id_idx').on(table.classId),
+    teacherIdIdx: index('timetables_teacher_id_idx').on(table.teacherId),
+    fk_timetable_school: foreignKey({ columns: [table.schoolId], foreignColumns: [schools.id] }),
+    fk_timetable_class: foreignKey({ columns: [table.classId], foreignColumns: [classes.id] }),
+    fk_timetable_subject: foreignKey({ columns: [table.subjectId], foreignColumns: [subjects.id] }),
+    fk_timetable_teacher: foreignKey({ columns: [table.teacherId], foreignColumns: [teachers.id] }),
+  })
+);
+
+// ==================== Leave Requests ====================
+export const leaveRequests = mysqlTable(
+  'leave_requests',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    schoolId: int('school_id').notNull(),
+    userId: int('user_id').notNull(),              // Requester (parent or teacher)
+    studentId: int('student_id'),                  // Set if student leave requested by parent
+    leaveType: varchar('leave_type', { length: 64 }).notNull(), // 'Sick', 'Casual', etc.
+    startDate: date('start_date', { mode: 'string' }).notNull(),
+    endDate: date('end_date', { mode: 'string' }).notNull(),
+    reason: text('reason').notNull(),
+    status: varchar('status', { length: 20 }).default('pending').notNull(), // 'pending', 'approved', 'rejected'
+    remarks: text('remarks'),                      // Approval/rejection reason
+    actionedBy: int('actioned_by'),                // Admin who approved/rejected
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    schoolIdIdx: index('leave_requests_school_id_idx').on(table.schoolId),
+    userIdIdx: index('leave_requests_user_id_idx').on(table.userId),
+    statusIdx: index('leave_requests_status_idx').on(table.status),
+    fk_leave_school: foreignKey({ columns: [table.schoolId], foreignColumns: [schools.id] }),
+    fk_leave_user: foreignKey({ columns: [table.userId], foreignColumns: [users.id] }),
+    fk_leave_student: foreignKey({ columns: [table.studentId], foreignColumns: [students.id] }),
+    fk_leave_actioned: foreignKey({ columns: [table.actionedBy], foreignColumns: [users.id] }),
+  })
+);
+
+// ==================== Feedback ====================
+export const feedback = mysqlTable(
+  'feedback',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    schoolId: int('school_id').notNull(),
+    userId: int('user_id').notNull(),              // Parent or Student
+    title: varchar('title', { length: 256 }).notNull(),
+    message: text('message').notNull(),
+    category: varchar('category', { length: 64 }).notNull(), // 'Academic', 'Facilities', 'Transport', etc.
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    schoolIdIdx: index('feedback_school_id_idx').on(table.schoolId),
+    userIdIdx: index('feedback_user_id_idx').on(table.userId),
+    fk_feedback_school: foreignKey({ columns: [table.schoolId], foreignColumns: [schools.id] }),
+    fk_feedback_user: foreignKey({ columns: [table.userId], foreignColumns: [users.id] }),
+  })
+);
+
+// ==================== Audit Logs ====================
+export const auditLogs = mysqlTable(
+  'audit_logs',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    schoolId: int('school_id').notNull(),
+    userId: int('user_id').notNull(),              // Actor who made changes
+    action: varchar('action', { length: 128 }).notNull(), // 'CREATE_TIMETABLE', 'APPROVE_LEAVE', etc.
+    entityType: varchar('entity_type', { length: 64 }).notNull(), // 'timetable', 'leave_request', etc.
+    entityId: int('entity_id').notNull(),
+    details: text('details').notNull(),             // Description of actions/changes
+    priority: varchar('priority', { length: 20 }),  // 'high' | 'medium' | 'low'
+    module: varchar('module', { length: 64 }),      // 'Academic' | 'Staff' | 'Timetable' | etc.
+    userRole: varchar('user_role', { length: 32 }), // Denormalized role for fast display
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    schoolIdIdx: index('audit_logs_school_id_idx').on(table.schoolId),
+    userIdIdx: index('audit_logs_user_id_idx').on(table.userId),
+    createdAtIdx: index('audit_logs_created_at_idx').on(table.createdAt),
+    priorityIdx: index('audit_logs_priority_idx').on(table.priority),
+    moduleIdx: index('audit_logs_module_idx').on(table.module),
+    fk_audit_school: foreignKey({ columns: [table.schoolId], foreignColumns: [schools.id] }),
+    fk_audit_user: foreignKey({ columns: [table.userId], foreignColumns: [users.id] }),
+  })
+);
+
+// ==================== Audit Logs Archive ====================
+export const auditLogsArchive = mysqlTable(
+  'audit_logs_archive',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    originalId: int('original_id').notNull(),       // Original audit_logs.id before archive
+    schoolId: int('school_id').notNull(),
+    userId: int('user_id').notNull(),
+    action: varchar('action', { length: 128 }).notNull(),
+    entityType: varchar('entity_type', { length: 64 }).notNull(),
+    entityId: int('entity_id').notNull(),
+    details: text('details').notNull(),
+    priority: varchar('priority', { length: 20 }),
+    module: varchar('module', { length: 64 }),
+    userRole: varchar('user_role', { length: 32 }),
+    createdAt: timestamp('created_at').notNull(),   // Preserved original timestamp
+    archivedAt: timestamp('archived_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    schoolIdIdx: index('audit_archive_school_id_idx').on(table.schoolId),
+    createdAtIdx: index('audit_archive_created_at_idx').on(table.createdAt),
+    originalIdIdx: index('audit_archive_original_id_idx').on(table.originalId),
+    priorityIdx: index('audit_archive_priority_idx').on(table.priority),
   })
 );
 

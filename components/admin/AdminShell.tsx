@@ -123,6 +123,13 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
     pathname.startsWith("/admin/marks") ||
     pathname.startsWith("/admin/attendance");
 
+  const isOperationsRoute =
+    pathname.startsWith("/admin/timetable") ||
+    pathname.startsWith("/admin/leaves") ||
+    pathname.startsWith("/admin/transport") ||
+    pathname.startsWith("/admin/feedback") ||
+    pathname.startsWith("/admin/audit-logs");
+
   const initials = user.name
     .split(" ")
     .filter(Boolean)
@@ -149,35 +156,39 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
 
   return (
     <div className="min-h-screen bg-base text-primary antialiased selection:bg-cyan-500/30 transition-colors duration-200">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[280px] border-r border-theme bg-surface/95 px-4 py-5 shadow-2xl shadow-black/30 backdrop-blur-xl lg:block transition-colors duration-200">
-        <Link
-          href="/admin"
-          className="mb-3 flex items-center ml-2 gap-3 rounded-xl px-2 py-2 transition hover:bg-hover"
-        >
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-theme bg-white p-1.5 shadow-lg shadow-cyan-950/30">
-            <Image
-              src={logo}
-              alt="EduPredict"
-              width={36}
-              height={36}
-              priority
-              className="h-full w-full object-contain"
-            />
-          </span>
-
-          <span>
-            <span className="block text-lg font-semibold tracking-wide text-primary">
-              EduPredict AI
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[280px] border-r border-theme bg-surface/95 shadow-2xl shadow-black/30 backdrop-blur-xl lg:flex flex-col transition-colors duration-200">
+        {/* Fixed Top: Logo + Divider */}
+        <div className="shrink-0 px-4 pt-5">
+          <Link
+            href="/admin"
+            className="mb-3 flex items-center ml-2 gap-3 rounded-xl px-2 py-2 transition hover:bg-hover"
+          >
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-theme bg-white p-1.5 shadow-lg shadow-cyan-950/30">
+              <Image
+                src={logo}
+                alt="EduPredict"
+                width={36}
+                height={36}
+                priority
+                className="h-full w-full object-contain"
+              />
             </span>
-            <span className="block text-sm font-medium text-muted">
-              School ERP
+
+            <span>
+              <span className="block text-lg font-semibold tracking-wide text-primary">
+                EduPredict AI
+              </span>
+              <span className="block text-sm font-medium text-muted">
+                School ERP
+              </span>
             </span>
-          </span>
-        </Link>
+          </Link>
 
-        <div className="mb-2 border-t border-theme" />
+          <div className="mb-2 border-t border-theme" />
+        </div>
 
-        <nav className="space-y-0.5">
+        {/* Scrollable Nav Section */}
+        <nav className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 space-y-0.5 scrollbar-hide">
           {simpleNavItems.map((item) => {
             const active = isActive(pathname, item.href);
 
@@ -209,7 +220,6 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
               </Link>
             );
           })}
-        </nav>
 
         <div>
           <button
@@ -279,22 +289,74 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
           )}
         </div>
 
-        <div className="absolute bottom-3 left-4 right-4 rounded-xl p-2 bg-surface border border-theme">
-          <div className="flex items-center gap-3">
-            {user.profileImageUrl ? (
-              <div className="relative h-10 w-10 overflow-hidden rounded-xl border border-theme bg-white/[0.04] shrink-0">
-                <img src={user.profileImageUrl} alt={user.name} className="h-full w-full object-cover" />
-              </div>
-            ) : (
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-300 text-xs font-bold text-slate-950 shrink-0">
-                {initials || "AD"}
-              </span>
-            )}
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-xs font-semibold text-primary">{user.name}</span>
-              <span className="block truncate text-xs text-muted">Administrator</span>
+        <div>
+          <button
+            onClick={() => setOpenMenu(openMenu === "Operations" ? null : "Operations")}
+            className="group relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-base font-medium text-secondary transition duration-200 hover:bg-hover hover:text-primary"
+          >
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-hover text-muted">
+              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
+                <path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm-7 14H7v-2h5v2Zm5-4H7v-2h10v2Zm0-4H7V7h10v2Z" />
+              </svg>
             </span>
-            <LogoutButton compact />
+
+            Operations
+          </button>
+
+          {(openMenu === "Operations" || isOperationsRoute) && (
+            <div className="ml-11 mt-1 space-y-1">
+              {[
+                ["Timetable", "/admin/timetable"],
+                ["Leaves",    "/admin/leaves"],
+                ["Transport", "/admin/transport"],
+                ["Feedback",  "/admin/feedback"],
+              ].map(([label, href]) => (
+                <Link
+                  key={href}
+                  href={href as Route}
+                  className={`block rounded-lg px-3 py-2 text-sm transition ${isItemActive(href)
+                    ? "bg-cyan-500/10 text-cyan-400"
+                    : "text-secondary hover:bg-hover hover:text-primary"
+                    }`}
+                >
+                  {label}
+                </Link>
+              ))}
+
+              {/* Audit Logs — single link; other views accessible via in-page sub-nav */}
+              <Link
+                href={"/admin/audit-logs" as Route}
+                className={`block rounded-lg px-3 py-2 text-sm transition ${pathname.startsWith("/admin/audit-logs")
+                  ? "bg-cyan-500/10 text-cyan-400"
+                  : "text-secondary hover:bg-hover hover:text-primary"
+                  }`}
+              >
+                Audit Logs
+              </Link>
+            </div>
+          )}
+        </div>
+        </nav>
+
+        {/* Fixed Bottom: Profile Card */}
+        <div className="shrink-0 px-4 pb-3">
+          <div className="rounded-xl p-2 bg-surface border border-theme">
+            <div className="flex items-center gap-3">
+              {user.profileImageUrl ? (
+                <div className="relative h-10 w-10 overflow-hidden rounded-xl border border-theme bg-white/[0.04] shrink-0">
+                  <img src={user.profileImageUrl} alt={user.name} className="h-full w-full object-cover" />
+                </div>
+              ) : (
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-300 text-xs font-bold text-slate-950 shrink-0">
+                  {initials || "AD"}
+                </span>
+              )}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-semibold text-primary">{user.name}</span>
+                <span className="block truncate text-xs text-muted">Administrator</span>
+              </span>
+              <LogoutButton compact />
+            </div>
           </div>
         </div>
       </aside>

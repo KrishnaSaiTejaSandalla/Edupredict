@@ -12,12 +12,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const cookieStore = await cookies();
   const initialTheme = cookieStore.get('ep-theme')?.value || 'dark';
   const initialDensity = cookieStore.get('ep-density')?.value || 'comfortable';
+  const initialPreset = cookieStore.get('ep-color-preset')?.value || 'ocean-blue';
 
   return (
     <html
       lang="en"
       data-theme={initialTheme}
       data-density={initialDensity}
+      data-color-preset={initialPreset}
       className={initialTheme === 'dark' ? 'dark' : ''}
       suppressHydrationWarning
     >
@@ -41,6 +43,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   if (density) {
                     document.documentElement.setAttribute('data-density', density);
                   }
+                  var preset = document.cookie.match(/ep-color-preset=([^;]+)/)?.[1];
+                  if (preset) {
+                    document.documentElement.setAttribute('data-color-preset', preset);
+                  }
                 } catch (e) {}
               })();
             `
@@ -48,7 +54,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body style={{ backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}>
-        <Providers initialTheme={initialTheme} initialDensity={initialDensity}>
+        <Providers initialTheme={initialTheme} initialDensity={initialDensity} initialPreset={initialPreset}>
           {children}
         </Providers>
         <Toaster richColors position="top-right" />
@@ -56,3 +62,4 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     </html>
   );
 }
+

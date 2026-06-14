@@ -21,10 +21,6 @@ type Props = {
   submitLabel?: string;
 };
 
-const inputCls =
-  'w-full rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 transition';
-const labelCls = 'block text-xs font-medium text-slate-400 mb-1';
-
 export default function StudentForm({ action, initial = {}, submitLabel = 'Save' }: Props) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -37,9 +33,7 @@ export default function StudentForm({ action, initial = {}, submitLabel = 'Save'
     try {
       await action(formData);
       toast.success(initial.id ? 'Student updated successfully.' : 'Student created successfully.');
-      if (!initial.id) {
-        form.reset();
-      }
+      if (!initial.id) form.reset();
       router.refresh();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unable to save student.';
@@ -55,23 +49,23 @@ export default function StudentForm({ action, initial = {}, submitLabel = 'Save'
 
       {/* Full Name */}
       <div>
-        <label className={labelCls}>
-          Full Name <span className="text-red-400">*</span>
+        <label className="block text-xs font-semibold uppercase tracking-wider text-secondary mb-1.5">
+          Full Name <span className="text-rose-400">*</span>
         </label>
         <input
           name="fullName"
           defaultValue={initial.fullName}
           required
           placeholder="e.g. Arjun Sharma"
-          className={inputCls}
+          className="input-theme"
         />
       </div>
 
       {/* Email — only shown when creating (no id) */}
       {!initial.id && (
         <div>
-          <label className={labelCls}>
-            Email <span className="text-red-400">*</span>
+          <label className="block text-xs font-semibold uppercase tracking-wider text-secondary mb-1.5">
+            Email <span className="text-rose-400">*</span>
           </label>
           <input
             name="email"
@@ -79,7 +73,7 @@ export default function StudentForm({ action, initial = {}, submitLabel = 'Save'
             defaultValue={initial.email}
             required
             placeholder="student@school.edu"
-            className={inputCls}
+            className="input-theme"
           />
         </div>
       )}
@@ -87,21 +81,21 @@ export default function StudentForm({ action, initial = {}, submitLabel = 'Save'
       {/* Roll & Admission */}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelCls}>Admission No.</label>
+          <label className="block text-xs font-semibold uppercase tracking-wider text-secondary mb-1.5">Admission No.</label>
           <input
             name="admissionNumber"
             defaultValue={initial.admissionNumber}
             placeholder="ADM-001"
-            className={inputCls}
+            className="input-theme"
           />
         </div>
         <div>
-          <label className={labelCls}>Roll Number</label>
+          <label className="block text-xs font-semibold uppercase tracking-wider text-secondary mb-1.5">Roll Number</label>
           <input
             name="rollNumber"
             defaultValue={initial.rollNumber}
             placeholder="01"
-            className={inputCls}
+            className="input-theme"
           />
         </div>
       </div>
@@ -109,32 +103,28 @@ export default function StudentForm({ action, initial = {}, submitLabel = 'Save'
       {/* Class, DOB, Gender */}
       <div className="grid grid-cols-3 gap-3">
         <div>
-          <label className={labelCls}>Class</label>
+          <label className="block text-xs font-semibold uppercase tracking-wider text-secondary mb-1.5">Class</label>
           <input
             name="classId"
             defaultValue={initial.classId ? String(initial.classId) : ''}
             type="number"
             min={1}
             placeholder="1"
-            className={inputCls}
+            className="input-theme"
           />
         </div>
         <div>
-          <label className={labelCls}>Date of Birth</label>
+          <label className="block text-xs font-semibold uppercase tracking-wider text-secondary mb-1.5">Date of Birth</label>
           <input
             name="dateOfBirth"
             defaultValue={initial.dateOfBirth}
             type="date"
-            className={inputCls}
+            className="input-theme"
           />
         </div>
         <div>
-          <label className={labelCls}>Gender</label>
-          <select
-            name="gender"
-            defaultValue={initial.gender || ''}
-            className={inputCls}
-          >
+          <label className="block text-xs font-semibold uppercase tracking-wider text-secondary mb-1.5">Gender</label>
+          <select name="gender" defaultValue={initial.gender || ''} className="input-theme">
             <option value="">Select</option>
             <option value="male">Male</option>
             <option value="female">Female</option>
@@ -144,35 +134,35 @@ export default function StudentForm({ action, initial = {}, submitLabel = 'Save'
       </div>
 
       {/* Parent Details */}
-      <div className="pt-2 border-t border-white/5">
-        <p className="text-xs font-medium text-slate-500 mb-3 uppercase tracking-wide">Parent / Guardian</p>
+      <div className="pt-2 border-t border-theme">
+        <p className="text-xs font-semibold text-muted mb-3 uppercase tracking-wide">Parent / Guardian</p>
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className={labelCls}>Parent Name</label>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-secondary mb-1.5">Parent Name</label>
             <input
               name="parentName"
               defaultValue={initial.parentName}
               placeholder="Parent full name"
-              className={inputCls}
+              className="input-theme"
             />
           </div>
           <div>
-            <label className={labelCls}>Parent Phone</label>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-secondary mb-1.5">Parent Phone</label>
             <input
               name="parentPhone"
               defaultValue={initial.parentPhone}
               placeholder="+91 98765 43210"
-              className={inputCls}
+              className="input-theme"
             />
           </div>
           <div>
-            <label className={labelCls}>Parent Email</label>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-secondary mb-1.5">Parent Email</label>
             <input
               name="parentEmail"
               type="email"
               defaultValue={initial.parentEmail}
               placeholder="parent@example.com"
-              className={inputCls}
+              className="input-theme"
             />
           </div>
         </div>
@@ -181,7 +171,7 @@ export default function StudentForm({ action, initial = {}, submitLabel = 'Save'
       <button
         type="submit"
         disabled={loading}
-        className="w-full rounded-xl bg-gradient-to-r from-cyan-600 to-cyan-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20 hover:from-cyan-500 hover:to-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition duration-150"
+        className="w-full rounded-xl btn-cyan px-4 py-2.5 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {loading ? 'Saving…' : submitLabel}
       </button>

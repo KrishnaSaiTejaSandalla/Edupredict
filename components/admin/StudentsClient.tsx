@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import AdminSearch from '@/components/admin/AdminSearch';
+import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -96,6 +97,8 @@ export default function StudentsClient({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState<FormState>(emptyForm);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState<{ id: number; name: string } | null>(null);
   const [viewingStudent, setViewingStudent] = useState<StudentRow | null>(null);
 
   // ── Pagination helpers ────────────────────────────────────────────────────
@@ -161,8 +164,10 @@ export default function StudentsClient({
   }
 
   // ── Delete ────────────────────────────────────────────────────────────────
-  async function handleDelete(id: number, name: string) {
-    if (!confirm(`Delete student "${name}"? This cannot be undone.`)) return;
+  async function executeDelete() {
+    if (!studentToDelete) return;
+    const { id, name } = studentToDelete;
+    setDeleteModalOpen(false);
     setDeletingId(id);
     try {
       await deleteStudent(id, name);
@@ -172,6 +177,7 @@ export default function StudentsClient({
       toast.error(err instanceof Error ? err.message : 'Failed to delete student.');
     } finally {
       setDeletingId(null);
+      setStudentToDelete(null);
     }
   }
 
@@ -394,10 +400,10 @@ export default function StudentsClient({
                       {row.s.gender ? (
                         <span
                           className={`inline-flex items-center rounded-lg px-2.5 py-1 text-[10px] font-semibold capitalize border ${row.s.gender?.toLowerCase() === 'male'
-                            ? 'bg-blue-500/10 text-blue-300 border-blue-500/20'
+                            ? 'bg-blue-500/10 text-blue-500 border-blue-500/20'
                             : row.s.gender?.toLowerCase() === 'female'
-                              ? 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/20'
-                              : 'bg-slate-500/10 text-slate-400 border-slate-500/20'
+                              ? 'bg-fuchsia-500/10 text-fuchsia-500 border-fuchsia-500/20'
+                              : 'bg-slate-500/10 text-slate-500 border-slate-500/20'
                             }`}
                         >
                           {row.s.gender}
@@ -440,7 +446,10 @@ export default function StudentsClient({
 
                         {/* Delete */}
                         <button
-                          onClick={() => handleDelete(row.s.id, row.u.name)}
+                          onClick={() => {
+                            setStudentToDelete({ id: row.s.id, name: row.u.name });
+                            setDeleteModalOpen(true);
+                          }}
                           disabled={isDeleting}
                           title="Delete student"
                           className="flex h-8 w-8 items-center justify-center rounded-xl border border-subtle bg-hover text-muted-foreground hover:text-rose-400 hover:border-rose-400/30 disabled:opacity-40 transition duration-150"
@@ -565,6 +574,17 @@ export default function StudentsClient({
           </div>
         </div>
       )}
+
+      <DeleteConfirmModal
+        isOpen={deleteModalOpen}
+        title="Delete Student?"
+        message={`Are you sure you want to delete the student "${studentToDelete?.name}"? This action cannot be undone.`}
+        onConfirm={executeDelete}
+        onCancel={() => {
+          setDeleteModalOpen(false);
+          setStudentToDelete(null);
+        }}
+      />
     </div>
   );
 }

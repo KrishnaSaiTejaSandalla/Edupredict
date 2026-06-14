@@ -82,27 +82,27 @@ function matchesCategory(item: NotificationItem, category: string): boolean {
 
 function getPriorityStyle(priority: string) {
   if (priority === "high")
-    return "border-l-4 border-l-rose-500 bg-rose-500/5 border border-white/5";
+    return "border-l-4 border-l-rose-500 bg-rose-500/5 border border-theme";
   if (priority === "medium")
-    return "border-l-4 border-l-amber-500 bg-amber-500/5 border border-white/5";
-  return "border-l-4 border-l-cyan-500 bg-cyan-500/5 border border-white/5";
+    return "border-l-4 border-l-amber-500 bg-amber-500/5 border border-theme";
+  return "border-l-4 border-l-accent bg-accent-bg border border-theme";
 }
 
 function getPriorityBadge(priority: string) {
   if (priority === "high")
     return (
-      <span className="rounded-full bg-rose-500/20 px-2 py-0.5 text-[10px] font-bold text-rose-300">
+      <span className="rounded-full bg-rose-500/10 dark:bg-rose-500/20 px-2 py-0.5 text-[10px] font-bold text-rose-600 dark:text-rose-400">
         High
       </span>
     );
   if (priority === "medium")
     return (
-      <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-300">
+      <span className="rounded-full bg-amber-500/10 dark:bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-400">
         Medium
       </span>
     );
   return (
-    <span className="rounded-full bg-cyan-500/20 px-2 py-0.5 text-[10px] font-bold text-cyan-300">
+    <span className="rounded-full bg-accent-bg px-2 py-0.5 text-[10px] font-bold text-accent">
       Low
     </span>
   );
@@ -275,19 +275,19 @@ export default function NotificationsClient({
       {/* ── Header ───────────────────────────────────────────────────── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-400">
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-accent">
             Notifications
           </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-primary sm:text-4xl">
             Notification Center
           </h1>
-          <p className="mt-2 text-sm leading-6 text-slate-400">
+          <p className="mt-2 text-sm leading-6 text-secondary">
             School updates, alerts, and system messages in one place.
           </p>
         </div>
         <button
           onClick={handleMarkAllRead}
-          className="rounded-xl border border-white/10 bg-slate-900/80 px-5 py-3 text-xs font-semibold text-white shadow-lg shadow-black/20 hover:bg-slate-800 transition-all duration-200"
+          className="rounded-xl border border-theme bg-surface px-5 py-3 text-xs font-semibold text-primary shadow-lg hover:bg-hover transition-all duration-200"
         >
           Mark All Read
         </button>
@@ -298,28 +298,29 @@ export default function NotificationsClient({
         {/* Left: Filter tabs + search + feed */}
         <div className="space-y-6">
           {/* Controls bar */}
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-white/5 bg-gradient-to-br from-slate-950/40 to-white/[0.02] p-4 shadow-md">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-theme bg-surface p-4 shadow-md">
             {/* Priority tabs */}
             <div className="flex flex-wrap gap-2 text-xs font-semibold">
               {TABS.map((tab) => {
                 const isActive = priorityFilter === tab.id;
                 const badgeColor =
                   tab.id === "high"
-                    ? "bg-rose-500/20 text-rose-300"
+                    ? "bg-rose-500/10 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400"
                     : tab.id === "medium"
-                      ? "bg-amber-500/20 text-amber-300"
+                      ? "bg-amber-500/10 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400"
                       : tab.id === "low"
-                        ? "bg-cyan-500/20 text-cyan-300"
-                        : "bg-white/10 text-slate-300";
+                        ? "bg-accent-bg text-accent"
+                        : "bg-hover text-secondary";
 
                 return (
                   <button
                     key={tab.id}
                     onClick={() => setPriorityFilter(tab.id)}
-                    className={`flex items-center gap-2 rounded-xl px-4 py-2.5 transition duration-200 ${isActive
-                      ? "bg-cyan-400/10 text-white ring-1 ring-cyan-400/25 border border-cyan-400/10"
-                      : "text-slate-400 hover:bg-white/[0.03] hover:text-white"
-                      }`}
+                    className={`flex items-center gap-2 rounded-xl px-4 py-2.5 transition duration-200 ${
+                      isActive
+                        ? "bg-accent-bg text-primary ring-1 ring-accent border border-accent-bg"
+                        : "text-secondary hover:bg-hover hover:text-primary"
+                    }`}
                   >
                     {tab.label}
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${badgeColor}`}>
@@ -331,48 +332,48 @@ export default function NotificationsClient({
             </div>
 
             {/* Search */}
-            <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
-                <svg viewBox="0 0 24 24" className="h-4.5 w-4.5 fill-current">
-                  <path d="M10 4a6 6 0 1 0 3.7 10.7l3.6 3.6 1.4-1.4-3.6-3.6A6 6 0 0 0 10 4Zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z" />
-                </svg>
-              </span>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                placeholder="Search alerts..."
-                className="h-10 w-full sm:w-60 rounded-xl border border-white/10 bg-[#0b1020]/80 pl-9 pr-4 text-xs text-white outline-none focus:border-cyan-400/50"
-              />
-            </div>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
+                  <svg viewBox="0 0 24 24" className="h-4.5 w-4.5 fill-current">
+                    <path d="M10 4a6 6 0 1 0 3.7 10.7l3.6 3.6 1.4-1.4-3.6-3.6A6 6 0 0 0 10 4Zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z" />
+                  </svg>
+                </span>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  placeholder="Search alerts..."
+                  className="input-theme h-10 w-full sm:w-60 pl-9"
+                />
+              </div>
           </div>
 
           {/* Feed */}
-          <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] p-6 shadow-xl shadow-black/20">
+          <div className="rounded-2xl border border-theme bg-surface p-6 shadow-xl">
             <div className="space-y-3.5">
               {visibleItems.map((item) => (
                 <article
                   key={item.id}
                   onClick={() => handleMarkRead(item.id)}
-                  className={`flex gap-4 rounded-xl p-4 transition-all duration-300 cursor-pointer hover:bg-white/[0.01] ${getPriorityStyle(item.priority)} hover:border-cyan-500/35`}
+                  className={`flex gap-4 rounded-xl p-4 transition-all duration-300 cursor-pointer hover:bg-hover ${getPriorityStyle(item.priority)} hover:border-accent`}
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-3">
-                      <h2 className="text-sm font-semibold text-white truncate">
+                      <h2 className="text-sm font-semibold text-primary truncate">
                         {item.title}
                       </h2>
                       <div className="flex items-center gap-2 shrink-0">
                         {getPriorityBadge(item.priority)}
-                        <span className="rounded-full bg-white/[0.05] px-2.5 py-0.5 text-[10px] font-semibold text-slate-400 capitalize">
+                        <span className="rounded-full bg-hover px-2.5 py-0.5 text-[10px] font-semibold text-secondary capitalize">
                           {item.type}
                         </span>
-                        <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-md shadow-cyan-400/50" />
+                        <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-md" />
                       </div>
                     </div>
-                    <p className="mt-2 text-xs leading-relaxed text-slate-400">
+                    <p className="mt-2 text-xs leading-relaxed text-secondary">
                       {item.message}
                     </p>
-                    <p className="mt-3 text-[10px] text-slate-500 font-medium">
+                    <p className="mt-3 text-[10px] text-muted font-medium">
                       {timeAgo(item.createdAt)}
                     </p>
                   </div>
@@ -382,7 +383,7 @@ export default function NotificationsClient({
               {visibleItems.length === 0 && (
                 <div className="text-center py-12">
                   <svg
-                    className="mx-auto h-10 w-10 text-slate-700"
+                    className="mx-auto h-10 w-10 text-muted"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -394,12 +395,12 @@ export default function NotificationsClient({
                       d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
                     />
                   </svg>
-                  <p className="mt-4 text-sm font-semibold text-slate-500">
+                  <p className="mt-4 text-sm font-semibold text-secondary">
                     {items.length === 0
                       ? "No unread notifications"
                       : "No matching notifications found"}
                   </p>
-                  <p className="mt-1 text-xs text-slate-600">
+                  <p className="mt-1 text-xs text-muted">
                     {items.length === 0
                       ? "You're all caught up!"
                       : "Try adjusting your filters or search keywords."}
@@ -411,27 +412,28 @@ export default function NotificationsClient({
         </div>
 
         {/* Right: Preferences (UI filter panel only — no DB writes) */}
-        <aside className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] p-6 shadow-xl shadow-black/20 self-start">
-          <div className="border-b border-white/5 pb-4">
-            <h2 className="text-sm font-semibold text-white uppercase tracking-wider">
+        <aside className="rounded-2xl border border-theme bg-surface p-6 shadow-xl self-start">
+          <div className="border-b border-theme pb-4">
+            <h2 className="text-sm font-semibold text-primary uppercase tracking-wider">
               Preferences
             </h2>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-secondary mt-1">
               Configure channels for local alerts feeds.
             </p>
           </div>
-          <div className="mt-6 space-y-3 text-xs font-semibold text-slate-300">
+          <div className="mt-6 space-y-3 text-xs font-semibold text-primary">
             {PREF_FILTERS.map(({ key, label }) => (
               <label
                 key={key}
-                className="flex items-center justify-between rounded-xl border border-white/5 bg-[#0b1020]/40 px-4 py-4 cursor-pointer hover:bg-[#0b1020]/60 transition"
+                className="flex items-center justify-between rounded-xl border border-theme bg-elevated px-4 py-4 cursor-pointer hover:bg-hover transition"
               >
                 <span>{label}</span>
                 <input
                   type="checkbox"
                   checked={activePrefs[key]}
                   onChange={() => togglePref(key)}
-                  className="h-4 w-4 accent-cyan-400 cursor-pointer rounded border-white/10"
+                  className="h-4 w-4 cursor-pointer rounded border-theme"
+                  style={{ accentColor: 'var(--accent-primary)' }}
                 />
               </label>
             ))}

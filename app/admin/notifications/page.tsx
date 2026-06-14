@@ -22,7 +22,7 @@ export default async function NotificationsPage() {
   const unreadCount = rows.filter((r) => !r.isRead).length;
 
   return (
-    <main className="min-h-screen bg-[#070b16] p-4 sm:p-6 lg:p-8">
+    <main className="min-h-screen bg-background p-4 sm:p-6 lg:p-8">
       <NotificationsClient
         initialItems={items}
         userId={user.id}

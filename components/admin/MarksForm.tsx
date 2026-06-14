@@ -50,30 +50,32 @@ export default function MarksForm({ students, examId, action }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-slate-800 bg-slate-900/70 p-4">
+    <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-theme bg-surface p-4">
       <div className="overflow-x-auto">
-        <table className="min-w-full border-collapse text-left text-white">
-          <thead className="bg-slate-950/80 text-slate-300">
+        <table className="min-w-full border-collapse text-left">
+          <thead className="bg-elevated">
             <tr>
-              <th className="p-3">Student</th>
-              <th className="p-3">Roll</th>
-              <th className="p-3">Marks</th>
+              <th className="p-3 text-xs font-semibold uppercase tracking-wider text-secondary">Student</th>
+              <th className="p-3 text-xs font-semibold uppercase tracking-wider text-secondary">Roll</th>
+              <th className="p-3 text-xs font-semibold uppercase tracking-wider text-secondary">Marks</th>
             </tr>
           </thead>
           <tbody>
             {students.map((student) => (
-              <tr key={student.id} className="border-t border-slate-800">
-                <td className="p-3">{student.name}</td>
-                <td className="p-3">{student.rollNumber || '—'}</td>
+              <tr key={student.id} className="border-t border-theme">
+                <td className="p-3 text-sm text-primary">{student.name}</td>
+                <td className="p-3 text-sm text-secondary">{student.rollNumber || '—'}</td>
                 <td className="p-3">
                   <input
                     name={`marks-${student.id}`}
                     value={marks[student.id]}
-                    onChange={(event) => setMarks((prev) => ({ ...prev, [student.id]: event.target.value }))}
+                    onChange={(event) =>
+                      setMarks((prev) => ({ ...prev, [student.id]: event.target.value }))
+                    }
                     type="number"
                     min="0"
                     step="0.01"
-                    className="w-24 rounded border border-slate-700 bg-slate-950 px-2 py-1 text-white"
+                    className="input-theme w-24"
                   />
                 </td>
               </tr>
@@ -85,7 +87,7 @@ export default function MarksForm({ students, examId, action }: Props) {
       <button
         type="submit"
         disabled={loading}
-        className="rounded bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-500 disabled:opacity-50"
+        className="rounded-xl btn-emerald px-5 py-2.5 text-xs font-bold disabled:opacity-50"
       >
         {loading ? 'Saving...' : 'Save Marks'}
       </button>

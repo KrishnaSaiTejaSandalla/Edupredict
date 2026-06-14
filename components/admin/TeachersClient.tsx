@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import AdminSearch from '@/components/admin/AdminSearch';
+import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -84,6 +85,8 @@ export default function TeachersClient({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState<FormState>(emptyForm);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [teacherToDelete, setTeacherToDelete] = useState<{ id: number; name: string } | null>(null);
   const [viewingTeacher, setViewingTeacher] = useState<TeacherRow | null>(null);
 
   // ── Pagination helpers ────────────────────────────────────────────────────
@@ -148,8 +151,10 @@ export default function TeachersClient({
   }
 
   // ── Delete ────────────────────────────────────────────────────────────────
-  async function handleDelete(id: number, name: string) {
-    if (!confirm(`Delete teacher "${name}"? This cannot be undone.`)) return;
+  async function executeDelete() {
+    if (!teacherToDelete) return;
+    const { id, name } = teacherToDelete;
+    setDeleteModalOpen(false);
     setDeletingId(id);
     try {
       await deleteTeacher(id, name);
@@ -159,6 +164,7 @@ export default function TeachersClient({
       toast.error(err instanceof Error ? err.message : 'Failed to delete teacher.');
     } finally {
       setDeletingId(null);
+      setTeacherToDelete(null);
     }
   }
 
@@ -408,7 +414,10 @@ export default function TeachersClient({
 
                         {/* Delete */}
                         <button
-                          onClick={() => handleDelete(row.t.id, row.u.name)}
+                          onClick={() => {
+                            setTeacherToDelete({ id: row.t.id, name: row.u.name });
+                            setDeleteModalOpen(true);
+                          }}
                           disabled={isDeleting}
                           title="Delete Teacher"
                           className="flex h-8 w-8 items-center justify-center rounded-xl border border-subtle bg-hover text-muted-foreground hover:text-rose-400 hover:border-rose-400/30 disabled:opacity-40 transition duration-150"
@@ -548,6 +557,17 @@ export default function TeachersClient({
           </div>
         </div>
       )}
+
+      <DeleteConfirmModal
+        isOpen={deleteModalOpen}
+        title="Delete Teacher?"
+        message={`Are you sure you want to delete the teacher "${teacherToDelete?.name}"? This action cannot be undone.`}
+        onConfirm={executeDelete}
+        onCancel={() => {
+          setDeleteModalOpen(false);
+          setTeacherToDelete(null);
+        }}
+      />
     </div>
   );
 }

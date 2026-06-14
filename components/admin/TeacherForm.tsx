@@ -34,13 +34,8 @@ export default function TeacherForm({ action, initial = {}, submitLabel = 'Save'
 
     try {
       await action(formData);
-
       toast.success("Teacher created successfully");
-
-      if (!initial.id) {
-        form.reset();
-      }
-
+      if (!initial.id) form.reset();
       router.refresh();
     } catch (err: any) {
       toast.error(err?.message || 'Unable to save teacher.');
@@ -50,104 +45,60 @@ export default function TeacherForm({ action, initial = {}, submitLabel = 'Save'
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 bg-slate-900/60 p-4 rounded">
+    <form onSubmit={handleSubmit} className="space-y-4 bg-surface p-4 rounded-xl border border-theme">
       {initial.id && <input type="hidden" name="id" value={String(initial.id)} />}
 
       <div>
-        <label className="block text-sm font-medium mb-1">Full Name</label>
-        <input
-          name="fullName"
-          defaultValue={initial.fullName}
-          required
-          className="w-full p-2 rounded border border-slate-700 bg-slate-950 text-white"
-        />
+        <label className="block text-xs font-semibold uppercase tracking-wider text-secondary mb-1.5">Full Name</label>
+        <input name="fullName" defaultValue={initial.fullName} required className="input-theme" />
       </div>
 
       <div>
-        <label className="block text-sm font-medium mb-1">Email</label>
-        <input
-          name="email"
-          type="email"
-          defaultValue={initial.email}
-          required
-          className="w-full p-2 rounded border border-slate-700 bg-slate-950 text-white"
-        />
+        <label className="block text-xs font-semibold uppercase tracking-wider text-secondary mb-1.5">Email</label>
+        <input name="email" type="email" defaultValue={initial.email} required className="input-theme" />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label className="block text-sm font-medium mb-1">Phone Number</label>
-          <input
-            name="phoneNumber"
-            defaultValue={initial.phoneNumber}
-            className="w-full p-2 rounded border border-slate-700 bg-slate-950 text-white"
-          />
+          <label className="block text-xs font-semibold uppercase tracking-wider text-secondary mb-1.5">Phone Number</label>
+          <input name="phoneNumber" defaultValue={initial.phoneNumber} className="input-theme" />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Employee ID</label>
-          <input
-            name="employeeId"
-            defaultValue={initial.employeeId}
-            className="w-full p-2 rounded border border-slate-700 bg-slate-950 text-white"
-          />
+          <label className="block text-xs font-semibold uppercase tracking-wider text-secondary mb-1.5">Employee ID</label>
+          <input name="employeeId" defaultValue={initial.employeeId} className="input-theme" />
         </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label className="block text-sm font-medium mb-1">Qualification</label>
-          <input
-            name="qualification"
-            defaultValue={initial.qualification}
-            className="w-full p-2 rounded border border-slate-700 bg-slate-950 text-white"
-          />
+          <label className="block text-xs font-semibold uppercase tracking-wider text-secondary mb-1.5">Qualification</label>
+          <input name="qualification" defaultValue={initial.qualification} className="input-theme" />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Department</label>
-          <input
-            name="department"
-            defaultValue={initial.department}
-            className="w-full p-2 rounded border border-slate-700 bg-slate-950 text-white"
-          />
+          <label className="block text-xs font-semibold uppercase tracking-wider text-secondary mb-1.5">Department</label>
+          <input name="department" defaultValue={initial.department} className="input-theme" />
         </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
         <div>
-          <label className="block text-sm font-medium mb-1">Experience</label>
-          <input
-            name="experience"
-            type="number"
-            min="0"
-            defaultValue={initial.experience ?? ''}
-            className="w-full p-2 rounded border border-slate-700 bg-slate-950 text-white"
-          />
+          <label className="block text-xs font-semibold uppercase tracking-wider text-secondary mb-1.5">Experience (yrs)</label>
+          <input name="experience" type="number" min="0" defaultValue={initial.experience ?? ''} className="input-theme" />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Join Date</label>
-          <input
-            name="joinDate"
-            type="date"
-            defaultValue={initial.joinDate}
-            className="w-full p-2 rounded border border-slate-700 bg-slate-950 text-white"
-          />
+          <label className="block text-xs font-semibold uppercase tracking-wider text-secondary mb-1.5">Join Date</label>
+          <input name="joinDate" type="date" defaultValue={initial.joinDate} className="input-theme" />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">School ID</label>
-          <input
-            name="schoolId"
-            type="number"
-            defaultValue={initial.schoolId ?? 1}
-            className="w-full p-2 rounded border border-slate-700 bg-slate-950 text-white"
-            readOnly
-          />
+          <label className="block text-xs font-semibold uppercase tracking-wider text-secondary mb-1.5">School ID</label>
+          <input name="schoolId" type="number" defaultValue={initial.schoolId ?? 1} className="input-theme" readOnly />
         </div>
       </div>
 
       <button
         type="submit"
         disabled={loading}
-        className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-500 disabled:opacity-50"
+        className="rounded-xl btn-emerald px-5 py-2.5 text-xs font-bold disabled:opacity-50"
       >
         {loading ? 'Saving...' : submitLabel}
       </button>

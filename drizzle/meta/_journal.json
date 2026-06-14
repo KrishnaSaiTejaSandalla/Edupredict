@@ -29,6 +29,20 @@
       "when": 1781330555769,
       "tag": "0003_flippant_bloodstorm",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1781432901290,
+      "tag": "0004_curly_calypso",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1781439926263,
+      "tag": "0005_redundant_dorian_gray",
+      "breakpoints": true
     }
   ]
 }

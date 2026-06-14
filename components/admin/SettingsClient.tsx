@@ -80,6 +80,56 @@ interface SettingsClientProps {
   userAvatars: UserAvatarProps[];
 }
 
+/* ── 5 Built-in Color Presets ── */
+const THEME_PRESETS = [
+  {
+    id: "ocean-blue",
+    name: "Ocean Blue",
+    description: "Cool cyan with a dark oceanic feel",
+    primary: "#22d3ee",
+    secondary: "#0891b2",
+    gradient: "linear-gradient(135deg, #22d3ee 0%, #0891b2 100%)",
+    emoji: "🌊",
+  },
+  {
+    id: "royal-purple",
+    name: "Royal Purple",
+    description: "Deep violet with a premium SaaS look",
+    primary: "#a78bfa",
+    secondary: "#7c3aed",
+    gradient: "linear-gradient(135deg, #a78bfa 0%, #7c3aed 100%)",
+    emoji: "👑",
+  },
+  {
+    id: "emerald-green",
+    name: "Emerald Green",
+    description: "Vibrant green, great for growth & data",
+    primary: "#34d399",
+    secondary: "#059669",
+    gradient: "linear-gradient(135deg, #34d399 0%, #059669 100%)",
+    emoji: "🌿",
+  },
+  {
+    id: "sunset-orange",
+    name: "Sunset Orange",
+    description: "Warm orange, energetic and welcoming",
+    primary: "#fb923c",
+    secondary: "#ea580c",
+    gradient: "linear-gradient(135deg, #fb923c 0%, #ea580c 100%)",
+    emoji: "🌅",
+  },
+  {
+    id: "crimson-red",
+    name: "Crimson Red",
+    description: "Bold red, confident and authoritative",
+    primary: "#f87171",
+    secondary: "#dc2626",
+    gradient: "linear-gradient(135deg, #f87171 0%, #dc2626 100%)",
+    emoji: "🔴",
+  },
+];
+
+/* Legacy hex swatches kept for backward compat with branding DB field */
 const COLOR_PRESETS = [
   { name: "Cyan", value: "#06b6d4" },
   { name: "Indigo", value: "#6366f1" },
@@ -96,9 +146,11 @@ export default function SettingsClient({
   userAvatars: initialAvatars,
 }: SettingsClientProps) {
   const router = useRouter();
-  const { theme: currentTheme, density: currentDensity, setTheme, setDensity } = useTheme();
+  const { theme: currentTheme, density: currentDensity, colorPreset: currentPreset, setTheme, setDensity, setColorPreset } = useTheme();
   const [activeTab, setActiveTab] = useState<string>("profile");
   const [isPending, startTransition] = useTransition();
+  const [selectedPreset, setSelectedPreset] = useState<string>(currentPreset || "ocean-blue");
+  const [hoveredPreset, setHoveredPreset] = useState<string | null>(null);
 
   // Avatar states
   const [avatars, setAvatars] = useState<UserAvatarProps[]>(initialAvatars);
@@ -224,6 +276,8 @@ export default function SettingsClient({
           accentColor,
           logoUrl: logoPreview,
         });
+        const matchedPreset = THEME_PRESETS.find(p => p.primary === primaryColor)?.id || 'ocean-blue';
+        setColorPreset(matchedPreset, true);
         toast.success("School branding saved successfully!");
       } else if (activeTab === "notifications") {
         const email = formData.get("email") === "on";
@@ -233,6 +287,13 @@ export default function SettingsClient({
 
         await updateUserNotificationPreferences(user.id, { email, inApp, attendance, exams });
         toast.success("Notification preferences saved successfully!");
+      } else if (activeTab === "appearance") {
+        // Persist the currently selected preset via ThemeProvider cookie
+        setColorPreset(selectedPreset, true);
+        // Also persist density
+        const newDensity = formData.get("density") as string | null;
+        if (newDensity) setDensity(newDensity as any);
+        toast.success("Appearance saved! Your color preset is now active.");
       } else if (activeTab === "security") {
         const currentPassword = formData.get("currentPassword") as string;
         const newPassword = formData.get("newPassword") as string;
@@ -850,115 +911,99 @@ export default function SettingsClient({
                     </div>
                   </div>
 
-                  {/* Primary Color Picker */}
-                  <div className="space-y-3">
+                  {/* Theme Presets Selection (with Live Preview Cards) */}
+                  <div className="space-y-4">
                     <div>
                       <span className="block text-xs font-semibold uppercase tracking-wider text-secondary">
-                        Primary Brand Color
+                        School Color Theme Preset
                       </span>
                       <p className="text-[11px] text-muted mt-0.5">
-                        Controls primary button actions, active items, and highlighted indicators.
+                        Choose a cohesive color system for your school's dashboard. Hover for a live preview; click to select.
                       </p>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-4">
-                      {/* Swatches */}
-                      <div className="flex flex-wrap gap-2">
-                        {COLOR_PRESETS.map((preset) => (
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                      {THEME_PRESETS.map((preset) => {
+                        const isSelected = primaryColor === preset.primary && accentColor === preset.secondary;
+                        return (
                           <button
-                            key={preset.name}
+                            key={preset.id}
                             type="button"
                             onClick={() => {
-                              setPrimaryColor(preset.value);
+                              setPrimaryColor(preset.primary);
+                              setAccentColor(preset.secondary);
+                              setColorPreset(preset.id, false); // select temporarily/locally
+                              setSelectedPreset(preset.id);
                               handleFieldChange();
                             }}
-                            className={`h-8 w-8 rounded-full border border-theme relative flex items-center justify-center transition-all ${primaryColor === preset.value
-                              ? "scale-110 ring-2 ring-cyan-400 ring-offset-2 ring-offset-base"
-                              : "hover:scale-105"
-                              }`}
-                            style={{ backgroundColor: preset.value }}
-                            title={preset.name}
-                          >
-                            {primaryColor === preset.value && (
-                              <span className="text-[9px] font-bold text-white drop-shadow-md">
-                                ✓
-                              </span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Native wrapper color input */}
-                      <div className="flex items-center gap-2 border border-theme bg-hover px-3 py-1.5 rounded-xl">
-                        <input
-                          type="color"
-                          value={primaryColor}
-                          onChange={(e) => {
-                            setPrimaryColor(e.target.value);
-                            handleFieldChange();
-                          }}
-                          className="h-7 w-7 rounded-lg border border-theme cursor-pointer bg-transparent"
-                        />
-                        <span className="text-xs font-mono font-semibold uppercase text-primary">
-                          {primaryColor}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Accent Color Picker */}
-                  <div className="space-y-3">
-                    <div>
-                      <span className="block text-xs font-semibold uppercase tracking-wider text-secondary">
-                        Accent Secondary Color
-                      </span>
-                      <p className="text-[11px] text-muted mt-0.5">
-                        Used for badges, secondary focus items, notifications, and subtle highlights.
-                      </p>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-4">
-                      {/* Swatches */}
-                      <div className="flex flex-wrap gap-2">
-                        {COLOR_PRESETS.map((preset) => (
-                          <button
-                            key={preset.name}
-                            type="button"
-                            onClick={() => {
-                              setAccentColor(preset.value);
-                              handleFieldChange();
+                            onMouseEnter={() => {
+                              setHoveredPreset(preset.id);
+                              setColorPreset(preset.id, false); // live preview
                             }}
-                            className={`h-8 w-8 rounded-full border border-theme relative flex items-center justify-center transition-all ${accentColor === preset.value
-                              ? "scale-110 ring-2 ring-cyan-400 ring-offset-2 ring-offset-base"
-                              : "hover:scale-105"
-                              }`}
-                            style={{ backgroundColor: preset.value }}
-                            title={preset.name}
+                            onMouseLeave={() => {
+                              setHoveredPreset(null);
+                              // Revert to whatever matches current selected state
+                              const activeId = THEME_PRESETS.find(p => p.primary === primaryColor)?.id || "ocean-blue";
+                              setColorPreset(activeId, false);
+                            }}
+                            className={`flex flex-col items-stretch rounded-xl border p-4 text-left transition-all ${
+                              isSelected
+                                ? "border-cyan-400 bg-cyan-400/5 ring-1 ring-cyan-400"
+                                : "border-theme bg-hover/20 hover:bg-hover hover:border-secondary"
+                            }`}
                           >
-                            {accentColor === preset.value && (
-                              <span className="text-[9px] font-bold text-white drop-shadow-md">
-                                ✓
-                              </span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
+                            {/* Card Header */}
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-sm">{preset.emoji}</span>
+                                <span className="text-xs font-bold text-primary truncate">{preset.name}</span>
+                              </div>
+                              {isSelected && (
+                                <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 shrink-0" />
+                              )}
+                            </div>
 
-                      {/* Native wrapper color input */}
-                      <div className="flex items-center gap-2 border border-theme bg-hover px-3 py-1.5 rounded-xl">
-                        <input
-                          type="color"
-                          value={accentColor}
-                          onChange={(e) => {
-                            setAccentColor(e.target.value);
-                            handleFieldChange();
-                          }}
-                          className="h-7 w-7 rounded-lg border border-theme cursor-pointer bg-transparent"
-                        />
-                        <span className="text-xs font-mono font-semibold uppercase text-primary">
-                          {accentColor}
-                        </span>
-                      </div>
+                            <p className="text-[10px] text-secondary mb-3 leading-relaxed truncate">
+                              {preset.description}
+                            </p>
+
+                            {/* Mini Dashboard Preview */}
+                            <div className="rounded-lg border border-theme bg-background p-2 space-y-1.5 overflow-hidden select-none pointer-events-none">
+                              {/* Topbar */}
+                              <div className="flex items-center justify-between border-b border-subtle pb-1">
+                                <div className="h-1.5 w-8 rounded bg-muted/60" />
+                                <div className="h-2.5 w-2.5 rounded-full bg-cyan-500/20 flex items-center justify-center">
+                                  <div className="h-1 w-1 rounded-full bg-cyan-400" />
+                                </div>
+                              </div>
+                              
+                              {/* Body */}
+                              <div className="flex gap-2">
+                                {/* Sidebar */}
+                                <div className="w-8 border-r border-subtle pr-1 flex flex-col gap-1">
+                                  <div className="h-1.5 w-full rounded bg-cyan-500/15" />
+                                  <div className="h-1 w-2/3 rounded bg-muted/40" />
+                                </div>
+                                
+                                {/* Content */}
+                                <div className="flex-1 flex flex-col gap-1.5">
+                                  <div className="flex items-center justify-between">
+                                    <div className="h-2 w-8 rounded bg-muted/50" />
+                                    <div className="rounded bg-cyan-500/10 border border-cyan-500/20 px-1 py-0.5 text-[6px] font-bold text-cyan-400 uppercase tracking-wider scale-90 origin-right">
+                                      OK
+                                    </div>
+                                  </div>
+                                  <div className="mt-0.5 flex justify-end">
+                                    <div className="rounded bg-cyan-400 px-1.5 py-0.5 text-[6px] font-bold text-slate-950 scale-90 origin-right">
+                                      Go
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -972,7 +1017,12 @@ export default function SettingsClient({
 
           {/* APPEARANCE REDESIGNED - LIVE SWITCHING */}
           {activeTab === "appearance" && (
-            <div className="rounded-2xl border border-theme bg-surface/60 p-6 shadow-sm space-y-6">
+            <form
+              id="appearance-form"
+              onSubmit={executeSave}
+              onChange={handleFieldChange}
+              className="rounded-2xl border border-theme bg-surface/60 p-6 shadow-sm space-y-6"
+            >
               <div className="border-b border-subtle pb-4">
                 <h2 className="text-sm font-semibold text-primary uppercase tracking-wider">
                   Appearance Settings
@@ -986,13 +1036,16 @@ export default function SettingsClient({
                 {/* Theme Options */}
                 <div className="space-y-3">
                   <span className="block text-xs font-bold uppercase tracking-wider text-secondary">
-                    Choose Theme Theme Mode
+                    Choose Theme Mode
                   </span>
                   <div className="grid gap-4 sm:grid-cols-3">
                     {/* Dark Option */}
                     <button
                       type="button"
-                      onClick={() => setTheme("dark")}
+                      onClick={() => {
+                        setTheme("dark");
+                        handleFieldChange();
+                      }}
                       className={`flex flex-col items-start rounded-xl border p-4 text-left transition-all ${currentTheme === "dark"
                         ? "border-cyan-400 bg-cyan-400/5 ring-1 ring-cyan-400"
                         : "border-theme bg-hover/20 hover:bg-hover hover:border-secondary"
@@ -1011,7 +1064,10 @@ export default function SettingsClient({
                     {/* Light Option */}
                     <button
                       type="button"
-                      onClick={() => setTheme("light")}
+                      onClick={() => {
+                        setTheme("light");
+                        handleFieldChange();
+                      }}
                       className={`flex flex-col items-start rounded-xl border p-4 text-left transition-all ${currentTheme === "light"
                         ? "border-cyan-400 bg-cyan-400/5 ring-1 ring-cyan-400"
                         : "border-theme bg-hover/20 hover:bg-hover hover:border-secondary"
@@ -1030,7 +1086,10 @@ export default function SettingsClient({
                     {/* System Option */}
                     <button
                       type="button"
-                      onClick={() => setTheme("system")}
+                      onClick={() => {
+                        setTheme("system");
+                        handleFieldChange();
+                      }}
                       className={`flex flex-col items-start rounded-xl border p-4 text-left transition-all ${currentTheme === "system"
                         ? "border-cyan-400 bg-cyan-400/5 ring-1 ring-cyan-400"
                         : "border-theme bg-hover/20 hover:bg-hover hover:border-secondary"
@@ -1048,16 +1107,21 @@ export default function SettingsClient({
                   </div>
                 </div>
 
+
                 {/* Density Options */}
                 <div className="space-y-3">
                   <span className="block text-xs font-bold uppercase tracking-wider text-secondary">
                     Choose Information Density
                   </span>
+                  <input type="hidden" name="density" value={currentDensity} />
                   <div className="grid gap-4 sm:grid-cols-3">
                     {/* Compact */}
                     <button
                       type="button"
-                      onClick={() => setDensity("compact")}
+                      onClick={() => {
+                        setDensity("compact");
+                        handleFieldChange();
+                      }}
                       className={`flex flex-col items-start rounded-xl border p-4 text-left transition-all ${currentDensity === "compact"
                         ? "border-cyan-400 bg-cyan-400/5 ring-1 ring-cyan-400"
                         : "border-theme bg-hover/20 hover:bg-hover hover:border-secondary"
@@ -1077,7 +1141,10 @@ export default function SettingsClient({
                     {/* Comfortable */}
                     <button
                       type="button"
-                      onClick={() => setDensity("comfortable")}
+                      onClick={() => {
+                        setDensity("comfortable");
+                        handleFieldChange();
+                      }}
                       className={`flex flex-col items-start rounded-xl border p-4 text-left transition-all ${currentDensity === "comfortable"
                         ? "border-cyan-400 bg-cyan-400/5 ring-1 ring-cyan-400"
                         : "border-theme bg-hover/20 hover:bg-hover hover:border-secondary"
@@ -1096,7 +1163,10 @@ export default function SettingsClient({
                     {/* Spacious */}
                     <button
                       type="button"
-                      onClick={() => setDensity("spacious")}
+                      onClick={() => {
+                        setDensity("spacious");
+                        handleFieldChange();
+                      }}
                       className={`flex flex-col items-start rounded-xl border p-4 text-left transition-all ${currentDensity === "spacious"
                         ? "border-cyan-400 bg-cyan-400/5 ring-1 ring-cyan-400"
                         : "border-theme bg-hover/20 hover:bg-hover hover:border-secondary"
@@ -1116,12 +1186,12 @@ export default function SettingsClient({
                 <div className="rounded-xl border border-theme bg-hover/30 p-4 text-xs text-secondary leading-relaxed flex items-start gap-2.5">
                   <span className="text-base">ℹ️</span>
                   <span>
-                    Appearance settings are auto-saved on click. The system persists cookies to
+                    Appearance settings are saved globally. The system persists cookies to
                     prevent layout shifts or theme flashes during page loading.
                   </span>
                 </div>
               </div>
-            </div>
+            </form>
           )}
 
           {/* NOTIFICATIONS FORM */}

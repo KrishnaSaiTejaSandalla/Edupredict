@@ -1,10 +1,11 @@
 "use client";
 
-import {
+import React, {
   createContext,
   useContext,
   useEffect,
   useLayoutEffect,
+  useState,
   useRef,
   useCallback,
 } from "react";
@@ -15,24 +16,28 @@ import {
 } from "@/store/usePreferencesStore";
 
 /* ---------------------------------------------------------------
-   Context — provides setTheme / setDensity to the entire tree.
-   resolvedTheme is derived from the DOM attribute so there is
-   no duplicate source of truth.
+   Context — provides setTheme / setDensity / setColorPreset to the
+   entire tree.
    --------------------------------------------------------------- */
 interface ThemeContextValue {
   theme: Theme;
   density: Density;
+  colorPreset: string;
   resolvedTheme: "dark" | "light";
   setTheme: (t: Theme) => void;
   setDensity: (d: Density) => void;
+  /** Pass persist=true to write the ep-color-preset cookie (on Save). */
+  setColorPreset: (p: string, persist?: boolean) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
   theme: "dark",
   density: "comfortable",
+  colorPreset: "ocean-blue",
   resolvedTheme: "dark",
   setTheme: () => {},
   setDensity: () => {},
+  setColorPreset: () => {},
 });
 
 export function useTheme() {
@@ -53,11 +58,12 @@ function resolveTheme(theme: Theme): "dark" | "light" {
   return theme === "system" ? getSystemTheme() : theme;
 }
 
-function applyToDOM(theme: Theme, density: Density) {
+function applyToDOM(theme: Theme, density: Density, preset?: string) {
   const root = document.documentElement;
   const resolved = resolveTheme(theme);
   root.setAttribute("data-theme", resolved);
   root.setAttribute("data-density", density);
+  if (preset) root.setAttribute("data-color-preset", preset);
   if (resolved === "dark") {
     root.classList.add("dark");
   } else {
@@ -67,57 +73,47 @@ function applyToDOM(theme: Theme, density: Density) {
 
 /* ---------------------------------------------------------------
    ThemeProvider
-   - initialTheme / initialDensity come from SSR cookies.
-   - The <html> tag already has data-theme and data-density set
-     by layout.tsx before any JS runs, so there is NO flash.
-   - We hydrate the Zustand store exactly once via useLayoutEffect
-     (safe — runs after render, not during it).
-   - All subsequent theme changes go through store.setTheme which
-     updates the DOM directly (bypass React state entirely).
+   - initialTheme / initialDensity / initialPreset come from SSR cookies.
+   - The <html> tag already has attributes set by layout.tsx before any
+     JS runs, so there is NO flash.
+   - We hydrate the Zustand store exactly once via useLayoutEffect.
+   - colorPreset uses local React state. setColorPreset(p, true) also
+     writes the cookie for cross-page persistence.
    --------------------------------------------------------------- */
 interface ThemeProviderProps {
   children: React.ReactNode;
   initialTheme?: Theme;
   initialDensity?: Density;
+  initialPreset?: string;
 }
 
 export default function ThemeProvider({
   children,
   initialTheme = "dark",
   initialDensity = "comfortable",
+  initialPreset = "ocean-blue",
 }: ThemeProviderProps) {
   const store = usePreferencesStore();
   const hydrated = useRef(false);
+  const [colorPreset, setColorPresetState] = useState(initialPreset);
 
   // ── Hydrate store from SSR props once, synchronously before paint ──
-  // useLayoutEffect is the correct hook for DOM-synchronous init.
-  // It is NOT called during render, so it never triggers the
-  // "Cannot update a component while rendering" error.
   useLayoutEffect(() => {
     if (hydrated.current) return;
     hydrated.current = true;
 
-    // Only update store if values differ from current store state
-    // (avoids triggering unnecessary re-renders after HMR / Fast Refresh)
     const state = usePreferencesStore.getState();
-    if (
-      state.theme !== initialTheme ||
-      state.density !== initialDensity
-    ) {
+    if (state.theme !== initialTheme || state.density !== initialDensity) {
       state.hydrate({ theme: initialTheme, density: initialDensity });
     }
-
-    // Ensure DOM is in sync with SSR values (it should already be,
-    // but this is a safety net for edge cases like cached pages).
-    applyToDOM(initialTheme, initialDensity);
+    applyToDOM(initialTheme, initialDensity, initialPreset);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // intentionally empty — run once on mount only
+  }, []);
 
-  // ── Keep DOM in sync whenever theme / density changes in the store ──
-  // This handles user-initiated changes after mount.
+  // ── Keep DOM in sync whenever theme / density / preset changes ──
   useEffect(() => {
-    applyToDOM(store.theme, store.density);
-  }, [store.theme, store.density]);
+    applyToDOM(store.theme, store.density, colorPreset);
+  }, [store.theme, store.density, colorPreset]);
 
   // ── Watch OS preference when theme is "system" ──
   useEffect(() => {
@@ -155,11 +151,10 @@ export default function ThemeProvider({
     return () => window.removeEventListener("storage", handler);
   }, []);
 
-  // ── Stable setTheme / setDensity callbacks ──
+  // ── Stable setTheme ──
   const setTheme = useCallback(
     (t: Theme) => {
       store.setTheme(t);
-      // Broadcast to other tabs
       try {
         localStorage.setItem(
           "ep-theme-sync",
@@ -172,6 +167,7 @@ export default function ThemeProvider({
     [store]
   );
 
+  // ── Stable setDensity ──
   const setDensity = useCallback(
     (d: Density) => {
       store.setDensity(d);
@@ -187,7 +183,24 @@ export default function ThemeProvider({
     [store]
   );
 
-  // resolvedTheme is derived from the store — no separate state needed
+  // ── Stable setColorPreset ──
+  const setColorPreset = useCallback(
+    (p: string, persist = false) => {
+      setColorPresetState(p);
+      document.documentElement.setAttribute("data-color-preset", p);
+      if (persist) {
+        try {
+          document.cookie = `ep-color-preset=${p}; path=/; max-age=${
+            60 * 60 * 24 * 365
+          }; SameSite=Lax`;
+        } catch {
+          // ignore
+        }
+      }
+    },
+    []
+  );
+
   const resolvedTheme = resolveTheme(store.theme);
 
   return (
@@ -195,9 +208,11 @@ export default function ThemeProvider({
       value={{
         theme: store.theme,
         density: store.density,
+        colorPreset,
         resolvedTheme,
         setTheme,
         setDensity,
+        setColorPreset,
       }}
     >
       {children}

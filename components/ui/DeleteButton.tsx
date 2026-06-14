@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import DeleteConfirmModal from './DeleteConfirmModal';
 
 type Props = {
   action: (formData: FormData) => Promise<void>;
@@ -10,10 +11,11 @@ type Props = {
 
 export default function DeleteButton({ action, label = 'Delete' }: Props) {
   const [loading, setLoading] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();
 
-  async function handleClick() {
-    if (!confirm('Are you sure? This action cannot be undone.')) return;
+  async function handleConfirm() {
+    setIsOpen(false);
     setLoading(true);
     try {
       const fd = new FormData();
@@ -28,8 +30,23 @@ export default function DeleteButton({ action, label = 'Delete' }: Props) {
   }
 
   return (
-    <button onClick={handleClick} disabled={loading} className="rounded bg-red-600 px-4 py-2 text-white hover:bg-red-500 disabled:opacity-50">
-      {loading ? 'Deleting...' : label}
-    </button>
+    <>
+      <button 
+        type="button"
+        onClick={() => setIsOpen(true)} 
+        disabled={loading} 
+        className="rounded bg-red-600 px-4 py-2 text-white hover:bg-red-500 disabled:opacity-50"
+      >
+        {loading ? 'Deleting...' : label}
+      </button>
+
+      <DeleteConfirmModal
+        isOpen={isOpen}
+        title="Confirm Deletion"
+        message="Are you sure you want to delete this record? This action cannot be undone."
+        onConfirm={handleConfirm}
+        onCancel={() => setIsOpen(false)}
+      />
+    </>
   );
 }

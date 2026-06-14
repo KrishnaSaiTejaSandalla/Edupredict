@@ -108,7 +108,7 @@ export default function DashboardInsights({
 
   return (
     <section className="rounded-2xl border border-border bg-card p-4 shadow-md h-[497px] overflow-y-auto scrollbar-hide transition-colors duration-200">
-      {/* HEADER  custom-scrollbar*/}
+      {/* HEADER */}
       <div className="mb-3">
         <h2 className="text-sm font-semibold text-foreground tracking-tight">School Insights</h2>
         <p className="text-xs text-muted-foreground mt-0.5">Key indicators at a glance</p>

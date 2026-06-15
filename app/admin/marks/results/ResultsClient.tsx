@@ -1,139 +1,120 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
-export default function ResultsClient({ classList }: any) {
-    const router = useRouter();
-    const searchParams = useSearchParams();
+type Props = {
+  classList: { id: number; name: string }[];
+  subjectList: { id: number; name: string }[];
+  examTypeList: string[];
+};
 
-    const [classId, setClassId] = useState("");
-    const [examId, setExamId] = useState("");
-    const [examList, setExamList] = useState<any[]>([]);
-    const [loadingExams, setLoadingExams] = useState(false);
+export default function ResultsClient({ classList, subjectList, examTypeList }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-    // Track whether this is the initial mount hydration
-    const isInitialMount = useRef(true);
+  const [classId, setClassId] = useState("");
+  const [subjectId, setSubjectId] = useState("");
+  const [type, setType] = useState("");
 
-    // Hydrate state from URL on first mount
-    useEffect(() => {
-        const urlClassId = searchParams.get("classId") || "";
-        const urlExamId = searchParams.get("examId") || "";
-        setClassId(urlClassId);
-        setExamId(urlExamId);
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Hydrate state from URL on first mount or searchParams change
+  useEffect(() => {
+    setClassId(searchParams.get("classId") || "");
+    setSubjectId(searchParams.get("subjectId") || "");
+    setType(searchParams.get("type") || "");
+  }, [searchParams]);
 
-    // Fetch exams whenever classId changes
-    useEffect(() => {
-        if (!classId) {
-            setExamList([]);
-            // Only reset examId when user changes class, not on first hydration
-            if (!isInitialMount.current) {
-                setExamId("");
-            }
-            isInitialMount.current = false;
-            return;
-        }
+  const applyFilter = () => {
+    if (!classId) {
+      toast.error("Please Select a Class");
+      return;
+    }
+    if (!subjectId) {
+      toast.error("Please Select a Subject");
+      return;
+    }
+    if (!type) {
+      toast.error("Please Select an Exam Type");
+      return;
+    }
 
-        const load = async () => {
-            setLoadingExams(true);
-            try {
-                const res = await fetch(`/api/exams?classId=${classId}`);
-                const data = await res.json();
-                setExamList(data);
-            } catch {
-                setExamList([]);
-            } finally {
-                setLoadingExams(false);
-            }
-        };
+    const params = new URLSearchParams({ classId, subjectId, type, page: "1" });
+    router.replace(`/admin/marks/results?${params.toString()}`);
+  };
 
-        // On user-driven class change (not initial hydration), reset exam selection
-        if (!isInitialMount.current) {
-            setExamId("");
-        }
-        isInitialMount.current = false;
+  const isReady = !!classId && !!subjectId && !!type;
 
-        load();
-    }, [classId]);
+  return (
+    <div className="grid gap-5 md:grid-cols-4 items-end bg-card p-5 rounded-2xl border border-border">
+      {/* CLASS */}
+      <div>
+        <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+          Class
+        </label>
+        <select
+          value={classId}
+          onChange={(e) => setClassId(e.target.value)}
+          className="select-theme w-full"
+        >
+          <option value="">Select Class</option>
+          {classList.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </div>
 
-    const applyFilter = () => {
-        // CASE 1: neither selected
-        if (!classId && !examId) {
-            toast.error("Please Select Class and Exam");
-            return;
-        }
-        // CASE 2: class selected but exam not selected
-        if (classId && !examId) {
-            toast.error("Please Select an Exam");
-            return;
-        }
-        // CASE 3: exam selected but class not selected (edge case)
-        if (!classId && examId) {
-            toast.error("Please Select a Class");
-            return;
-        }
+      {/* SUBJECT */}
+      <div>
+        <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+          Subject
+        </label>
+        <select
+          value={subjectId}
+          onChange={(e) => setSubjectId(e.target.value)}
+          className="select-theme w-full"
+        >
+          <option value="">Select Subject</option>
+          {subjectList.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      </div>
 
-        const params = new URLSearchParams({ classId, examId });
-        router.replace(`/admin/marks/results?${params.toString()}`);
-    };
+      {/* EXAM TYPE */}
+      <div>
+        <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+          Exam Type
+        </label>
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          className="select-theme w-full"
+        >
+          <option value="">Select Type</option>
+          {examTypeList.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+      </div>
 
-    const isExamDisabled = !classId || loadingExams || (!loadingExams && examList.length === 0);
-    const isReady = !!classId && !!examId;
-
-    return (
-        <div className="grid gap-5 md:grid-cols-3">
-
-            {/* CLASS */}
-            <select
-                value={classId}
-                onChange={(e) => setClassId(e.target.value)}
-                className="select-theme"
-            >
-                <option value="">Select Class</option>
-                {classList.map((c: any) => (
-                    <option key={c.id} value={c.id}>
-                        {c.name}
-                    </option>
-                ))}
-            </select>
-
-            {/* EXAM */}
-            <select
-                value={examId}
-                onChange={(e) => setExamId(e.target.value)}
-                disabled={!classId || loadingExams}
-                className="select-theme disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-                <option value="">
-                    {!classId
-                        ? "Select Class First"
-                        : loadingExams
-                            ? "Loading exams…"
-                            : examList.length === 0
-                                ? "No exams available"
-                                : "Select Exam"}
-                </option>
-                {examList.map((e: any) => (
-                    <option key={e.id} value={e.id}>
-                        {e.name}
-                    </option>
-                ))}
-            </select>
-
-            {/* APPLY — never disabled so toast validation always fires */}
-            <button
-                onClick={applyFilter}
-                className={`h-11 rounded-xl font-bold text-white transition-all duration-200
-                    ${isReady
-                        ? "bg-blue-500 hover:bg-blue-400 active:scale-[0.97]"
-                        : "bg-blue-500/70 cursor-pointer"
-                    }`}
-            >
-                Apply Filter
-            </button>
-
-        </div>
-    );
+      {/* APPLY */}
+      <button
+        onClick={applyFilter}
+        className={`h-11 rounded-xl font-bold text-white transition-all duration-200 w-full
+          ${isReady
+            ? "bg-blue-500 hover:bg-blue-400 active:scale-[0.97]"
+            : "bg-blue-500/70 cursor-pointer"
+          }`}
+      >
+        Apply Filter
+      </button>
+    </div>
+  );
 }

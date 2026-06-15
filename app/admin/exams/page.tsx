@@ -44,6 +44,7 @@ export default function ExamsPage() {
     duration: '60',
     maxMarks: '',
   });
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     loadData();
@@ -128,6 +129,21 @@ export default function ExamsPage() {
       setDeleteTarget(null);
     }
   }, [deleteTarget]);
+
+  // Filter out exams where examDate < today (archives past exams)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const activeExams = exams.filter((exam) => {
+    const examDate = new Date(exam.examDate);
+    return examDate >= today;
+  });
+
+  const itemsPerPage = 10;
+  const totalPages = Math.ceil(activeExams.length / itemsPerPage);
+
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedExams = activeExams.slice(startIndex, startIndex + itemsPerPage);
 
   if (loading) {
     return (
@@ -226,14 +242,14 @@ export default function ExamsPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-subtle">
-            {exams.length === 0 ? (
+            {paginatedExams.length === 0 ? (
               <tr>
                 <td colSpan={7} className="p-12 text-center text-muted-foreground font-medium">
                   No exams currently scheduled. Click + Create Exam to add.
                 </td>
               </tr>
             ) : (
-              exams.map((exam) => (
+              paginatedExams.map((exam) => (
                 <tr key={exam.id} className="hover:bg-hover transition duration-200">
                   <td className="p-4 px-6 font-semibold text-foreground">{exam.name}</td>
                   <td className="p-4 px-6 font-medium text-muted-foreground">{exam.className}</td>
@@ -288,6 +304,34 @@ export default function ExamsPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground pt-4 border-t border-border mt-4 w-full">
+          <div>
+            {currentPage > 1 && (
+              <button
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150 text-foreground"
+              >
+                ← Previous
+              </button>
+            )}
+          </div>
+          <span className="tabular-nums">Page {currentPage} of {totalPages}</span>
+          <div>
+            {currentPage < totalPages && (
+              <button
+                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150 text-foreground"
+              >
+                Next →
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       <DeleteConfirmModal
         isOpen={!!deleteTarget}
         title="Delete Exam?"

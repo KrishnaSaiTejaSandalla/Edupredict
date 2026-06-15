@@ -1,4 +1,4 @@
-import { asc, desc, eq, gte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   attendance,
@@ -61,9 +61,12 @@ export type DashboardPayload = {
   recentStudents: RecentStudent[];
   upcomingExams: UpcomingExam[];
   alerts: DashboardAlert[];
+  classDistribution: { className: string; count: number }[];
   genderDistribution: { gender: string; count: number }[];
   trend: TrendDatum[];
   subjects: SubjectDatum[];
+  attendanceTrend: { day: string; thisWeek: number | null; lastWeek: number | null }[];
+  aiInsights: { id: string; message: string; severity: "high" | "medium" | "low" }[];
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -116,9 +119,10 @@ export async function getAdminDashboardData(): Promise<DashboardPayload> {
     recentStudentsRaw,
     upcomingExamsRaw,
     notificationsRaw,
-    genderDistributionRaw,
+    classDistributionRaw,
     examTrendRaw,
     subjectAvgsRaw,
+    genderDistributionRaw,
   ] = await Promise.all([
     // 1. Total students
     db.select({ count: sql<number>`count(*)` }).from(students),
@@ -186,14 +190,15 @@ export async function getAdminDashboardData(): Promise<DashboardPayload> {
       .orderBy(desc(notifications.createdAt))
       .limit(5),
 
-    // 8. Gender distribution
+    // 8. Class distribution
     db
       .select({
-        gender: sql<string>`coalesce(${students.gender}, 'Unknown')`,
+        className: sql<string>`coalesce(${classes.name}, 'No Class')`,
         count: sql<number>`count(*)`,
       })
       .from(students)
-      .groupBy(students.gender),
+      .leftJoin(classes, eq(classes.id, students.classId))
+      .groupBy(classes.id, classes.name),
 
     // 9. Exam performance trend (last 8 exams, chronological)
     db
@@ -220,6 +225,15 @@ export async function getAdminDashboardData(): Promise<DashboardPayload> {
       .innerJoin(exams, eq(results.examId, exams.id))
       .innerJoin(subjects, eq(exams.subjectId, subjects.id))
       .groupBy(subjects.id, subjects.name, exams.maxMarks),
+ 
+    // 11. Gender distribution
+    db
+      .select({
+        gender: sql<string>`coalesce(${students.gender}, 'Unknown')`,
+        count: sql<number>`count(*)`,
+      })
+      .from(students)
+      .groupBy(students.gender),
   ]);
 
   // ─── KPIs ─────────────────────────────────────────────────────────────────
@@ -345,6 +359,12 @@ export async function getAdminDashboardData(): Promise<DashboardPayload> {
     examDate: formatDateKey(exam.examDate),
   }));
 
+  // ─── Class Distribution ──────────────────────────────────────────────────
+  const classDistribution = classDistributionRaw.map((row) => ({
+    className: row.className || "No Class",
+    count: Number(row.count ?? 0),
+  }));
+ 
   // ─── Gender Distribution ──────────────────────────────────────────────────
   const genderDistribution = genderDistributionRaw.map((row) => ({
     gender: row.gender || "Unknown",
@@ -385,13 +405,103 @@ export async function getAdminDashboardData(): Promise<DashboardPayload> {
     })
   );
 
+  // ─── Attendance Trend (This Week vs Last Week Mon-Sun) ───────────────────
+  const today = new Date();
+  const currentDay = today.getDay(); // 0 is Sunday, 1 is Monday...
+  const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+
+  const startOfThisWeek = new Date(today);
+  startOfThisWeek.setDate(today.getDate() + distanceToMonday);
+  startOfThisWeek.setHours(0, 0, 0, 0);
+
+  const startOfLastWeek = new Date(startOfThisWeek);
+  startOfLastWeek.setDate(startOfThisWeek.getDate() - 7);
+
+  const endOfThisWeek = new Date(startOfThisWeek);
+  endOfThisWeek.setDate(startOfThisWeek.getDate() + 6);
+  endOfThisWeek.setHours(23, 59, 59, 999);
+
+  const endOfLastWeek = new Date(startOfLastWeek);
+  endOfLastWeek.setDate(startOfLastWeek.getDate() + 6);
+  endOfLastWeek.setHours(23, 59, 59, 999);
+
+  const [thisWeekAttendanceRaw, lastWeekAttendanceRaw] = await Promise.all([
+    db
+      .select({
+        date: attendance.attendanceDate,
+        status: attendance.status,
+      })
+      .from(attendance)
+      .where(
+        and(
+          sql`${attendance.attendanceDate} >= ${startOfThisWeek.toISOString().slice(0, 10)}`,
+          sql`${attendance.attendanceDate} <= ${endOfThisWeek.toISOString().slice(0, 10)}`
+        )
+      ),
+    db
+      .select({
+        date: attendance.attendanceDate,
+        status: attendance.status,
+      })
+      .from(attendance)
+      .where(
+        and(
+          sql`${attendance.attendanceDate} >= ${startOfLastWeek.toISOString().slice(0, 10)}`,
+          sql`${attendance.attendanceDate} <= ${endOfLastWeek.toISOString().slice(0, 10)}`
+        )
+      )
+  ]);
+
+  const daysOfWeekNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  const getDailyPercentages = (records: any[]) => {
+    const dailyData: Record<number, { present: number; total: number }> = {};
+    for (let i = 0; i < 7; i++) {
+      dailyData[i] = { present: 0, total: 0 };
+    }
+
+    records.forEach((r) => {
+      const d = new Date(r.date);
+      let dayIndex = d.getDay() - 1;
+      if (dayIndex === -1) dayIndex = 6; // Sunday
+
+      if (dayIndex >= 0 && dayIndex < 7) {
+        dailyData[dayIndex].total += 1;
+        if (r.status === "present") {
+          dailyData[dayIndex].present += 1;
+        }
+      }
+    });
+
+    return daysOfWeekNames.map((name, index) => {
+      const dayData = dailyData[index];
+      const percentage = dayData.total > 0 ? Math.round((dayData.present / dayData.total) * 100) : null;
+      return percentage;
+    });
+  };
+
+  const thisWeekPercentages = getDailyPercentages(thisWeekAttendanceRaw);
+  const lastWeekPercentages = getDailyPercentages(lastWeekAttendanceRaw);
+
+  const attendanceTrend = daysOfWeekNames.map((name, index) => ({
+    day: name,
+    thisWeek: thisWeekPercentages[index],
+    lastWeek: lastWeekPercentages[index],
+  }));
+
+  // ─── AI Insights ──────────────────────────────────────────────────────────
+  const aiInsights: { id: string; message: string; severity: "high" | "medium" | "low" }[] = [];
+ 
   return {
     kpis: { totalStudents, totalTeachers, averageAttendance, passRate },
     recentStudents,
     upcomingExams,
     alerts,
+    classDistribution,
     genderDistribution,
     trend,
     subjects: subjectData,
+    attendanceTrend,
+    aiInsights,
   };
 }

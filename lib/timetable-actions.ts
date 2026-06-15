@@ -96,6 +96,13 @@ export async function createTimetableEntry(data: {
   const user = await getCurrentUser();
   const schoolId = user?.school?.id ?? 1;
 
+  // Validate teacher department matches subject name
+  const [teacherRow] = await db.select().from(teachers).where(eq(teachers.id, data.teacherId)).limit(1);
+  const [subjectRow] = await db.select().from(subjects).where(eq(subjects.id, data.subjectId)).limit(1);
+  if (!teacherRow || !subjectRow || !teacherRow.department || !subjectRow.name || teacherRow.department.trim().toLowerCase() !== subjectRow.name.trim().toLowerCase()) {
+    throw new Error("Teacher not assigned to subject");
+  }
+
   // Check for scheduling conflicts
   const conflicts = await checkTimetableConflicts(
     schoolId,
@@ -108,7 +115,7 @@ export async function createTimetableEntry(data: {
   );
 
   if (conflicts.length > 0) {
-    throw new Error(conflicts.join(' '));
+    throw new Error("Timetable conflict detected for selected period");
   }
 
   let insertedId: number;
@@ -165,6 +172,13 @@ export async function updateTimetableEntry(
   const user = await getCurrentUser();
   const schoolId = user?.school?.id ?? 1;
 
+  // Validate teacher department matches subject name
+  const [teacherRow] = await db.select().from(teachers).where(eq(teachers.id, data.teacherId)).limit(1);
+  const [subjectRow] = await db.select().from(subjects).where(eq(subjects.id, data.subjectId)).limit(1);
+  if (!teacherRow || !subjectRow || !teacherRow.department || !subjectRow.name || teacherRow.department.trim().toLowerCase() !== subjectRow.name.trim().toLowerCase()) {
+    throw new Error("Teacher not assigned to subject");
+  }
+
   // Check for scheduling conflicts, excluding current entry
   const conflicts = await checkTimetableConflicts(
     schoolId,
@@ -178,7 +192,7 @@ export async function updateTimetableEntry(
   );
 
   if (conflicts.length > 0) {
-    throw new Error(conflicts.join(' '));
+    throw new Error("Timetable conflict detected for selected period");
   }
 
   try {

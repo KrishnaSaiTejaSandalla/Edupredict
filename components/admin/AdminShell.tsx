@@ -270,7 +270,6 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
                 ["Classes", "/admin/classes"],
                 ["Subjects", "/admin/subjects"],
                 ["Exams", "/admin/exams"],
-                ["Marks", "/admin/marks"],
                 ["Results", "/admin/marks/results"],
                 ["Attendance", "/admin/attendance"],
               ].map(([label, href]) => (
@@ -336,6 +335,8 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
             </div>
           )}
         </div>
+
+        {/* Remove Notifications & Settings from Sidebar */}
         </nav>
 
         {/* Fixed Bottom: Profile Card */}

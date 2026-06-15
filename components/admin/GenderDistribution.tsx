@@ -1,9 +1,11 @@
 "use client";
 
+import React from "react";
+
 export default function GenderDistribution({
-  data,
+  data = [],
 }: {
-  data: { gender: string; count: number }[];
+  data?: { gender: string; count: number }[];
 }) {
   const total = data.reduce((sum, item) => sum + item.count, 0);
 
@@ -18,17 +20,14 @@ export default function GenderDistribution({
 
   return (
     <section className="rounded-2xl border border-border bg-card p-4 shadow-md transition-colors duration-200">
-      {/* changed p-6 to p-4 */}
       <div className="mb-4">
         <h2 className="text-base font-semibold tracking-tight text-foreground">
           Gender Distribution
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">Student demographics</p>
-        {/* mb-6 to mb-4, text-sm to text xs */}
       </div>
 
       <div className="space-y-1">
-        {/* //reduced to 1 from 5 for better UI */}
         {sortedData.map((item) => {
           const percentage = total ? Math.round((item.count / total) * 100) : 0;
           const color =
@@ -43,22 +42,18 @@ export default function GenderDistribution({
                 <span className="text-sm font-semibold text-foreground">{percentage}%</span>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-hover">
-                {/* changed h-2 to h-1.5 */}
                 <div
                   className={`h-full bg-gradient-to-r ${color} to-slate-500 dark:to-slate-700 rounded-full transition-all duration-500`}
                   style={{ width: `${percentage}%` }}
                 />
               </div>
-              {/* <p className="mt-1 text-xs text-slate-500">{item.count} students</p> */}
               <p className="text-[12px] text-muted-foreground">{item.count} students</p>
-              {/* changed mt-1 text-xs to text-[12px] */}
             </div>
           );
         })}
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-4 rounded-xl bg-hover/30 border border-subtle p-2">
-        {/* changed p-4 to p-2 */}
         {sortedData.map((item) => {
           const percentage = total ? Math.round((item.count / total) * 100) : 0;
           const icon =
@@ -83,8 +78,11 @@ export default function GenderDistribution({
           return (
             <div key={`stat-${item.gender}`} className="text-center">
               <div
-                className={`flex justify-center mb-2 text-${item.gender.toLowerCase() === "male" ? "blue" : "pink"
-                  }-500 dark:text-${item.gender.toLowerCase() === "male" ? "blue" : "pink"}-400`}
+                className={`flex justify-center mb-2 text-${
+                  item.gender.toLowerCase() === "male" ? "blue" : "pink"
+                }-500 dark:text-${
+                  item.gender.toLowerCase() === "male" ? "blue" : "pink"
+                }-400`}
               >
                 {icon}
               </div>

@@ -66,6 +66,7 @@ type Props = {
   q: string;
   sort: string;
   dir: string;
+  totalCount: number;
   createStudent: (formData: FormData) => Promise<void>;
   updateStudent: (id: number, data: FormState) => Promise<void>;
   deleteStudent: (id: number, name: string) => Promise<void>;
@@ -86,6 +87,7 @@ export default function StudentsClient({
   q,
   sort,
   dir,
+  totalCount,
   createStudent,
   updateStudent,
   deleteStudent,
@@ -476,21 +478,31 @@ export default function StudentsClient({
       </div>
 
       {/* ── Pagination ──────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
-        <a
-          href={`/admin/students${baseQueryStr}${sortParam}&page=${Math.max(1, page - 1)}`}
-          className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150"
-        >
-          ← Previous
-        </a>
-        <span className="tabular-nums">Page {page}</span>
-        <a
-          href={`/admin/students${baseQueryStr}${sortParam}&page=${page + 1}`}
-          className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150"
-        >
-          Next →
-        </a>
-      </div>
+      {Math.ceil(totalCount / 10) > 1 && (
+        <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground pt-4 border-t border-border mt-4 w-full">
+          <div>
+            {page > 1 && (
+              <a
+                href={`/admin/students${baseQueryStr}${sortParam}&page=${page - 1}`}
+                className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150"
+              >
+                ← Previous
+              </a>
+            )}
+          </div>
+          <span className="tabular-nums">Page {page} of {Math.ceil(totalCount / 10)}</span>
+          <div>
+            {page < Math.ceil(totalCount / 10) && (
+              <a
+                href={`/admin/students${baseQueryStr}${sortParam}&page=${page + 1}`}
+                className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150"
+              >
+                Next →
+              </a>
+            )}
+          </div>
+        </div>
+      )}
 
       {viewingStudent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">

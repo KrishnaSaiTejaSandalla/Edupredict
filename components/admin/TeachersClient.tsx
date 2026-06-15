@@ -19,6 +19,7 @@ type TeacherRow = {
     experience: number | null;
     joinDate: Date | string | null;
     department: string | null;
+    performanceRating: number | null;
   };
   u: {
     id: number;
@@ -36,6 +37,7 @@ type FormState = {
   department: string;
   experience: string;
   joinDate: string;
+  performanceRating: string;
 };
 
 const emptyForm: FormState = {
@@ -47,6 +49,7 @@ const emptyForm: FormState = {
   department: '',
   experience: '',
   joinDate: '',
+  performanceRating: '',
 };
 
 type Props = {
@@ -55,6 +58,7 @@ type Props = {
   q: string;
   sort: string;
   dir: string;
+  totalCount: number;
   createTeacher: (formData: FormData) => Promise<void>;
   updateTeacher: (id: number, data: FormState) => Promise<void>;
   deleteTeacher: (id: number, name: string) => Promise<void>;
@@ -65,6 +69,7 @@ type Props = {
 const inputCls = 'input-theme';
 const labelCls =
   'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5';
+const selectCls = 'select-theme';
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -74,6 +79,7 @@ export default function TeachersClient({
   q,
   sort,
   dir,
+  totalCount,
   createTeacher,
   updateTeacher,
   deleteTeacher,
@@ -115,6 +121,7 @@ export default function TeachersClient({
       department: row.t.department ?? '',
       experience: row.t.experience !== null ? String(row.t.experience) : '',
       joinDate: jd,
+      performanceRating: row.t.performanceRating !== null && row.t.performanceRating !== undefined ? String(row.t.performanceRating) : '',
     });
     setShowForm(true);
   }
@@ -169,16 +176,31 @@ export default function TeachersClient({
   }
 
   // ── Rating Helper ────────────────────────────────────────────────────────
-  function getRating(experience: number | null) {
+  function getRating(experience: number | null, overrideRating: number | null) {
+    if (overrideRating !== null && overrideRating !== undefined) {
+      const val = Number(overrideRating);
+      if (val >= 1 && val <= 5) {
+        return {
+          stars: '★'.repeat(val) + '☆'.repeat(5 - val),
+          label: 'Manual Override',
+          badgeColor: 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+        };
+      }
+    }
     const exp = experience || 0;
-    if (exp >= 4) {
-      return { stars: '★★★★★', label: 'Outstanding Teacher', badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' };
+    if (exp >= 10) {
+      return { stars: '★★★★★', label: 'Outstanding Veteran', badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' };
     }
-    if (exp >= 2) {
-      return { stars: '★★★★☆', label: 'Experienced Teacher', badgeColor: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' };
+    if (exp >= 6) {
+      return { stars: '★★★★☆', label: 'Highly Experienced', badgeColor: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' };
     }
-    return { stars: '★★★☆☆', label: 'Experienced Teacher', badgeColor: 'bg-slate-500/10 text-slate-400 border-slate-500/20' };
+    if (exp >= 3) {
+      return { stars: '★★★☆☆', label: 'Experienced Teacher', badgeColor: 'bg-slate-500/10 text-slate-400 border-slate-500/20' };
+    }
+    return { stars: '★★☆☆☆', label: 'Junior Teacher', badgeColor: 'bg-slate-500/10 text-slate-400 border-slate-500/20' };
   }
+
+  const totalPages = Math.ceil(totalCount / 10);
 
   return (
     <div className="space-y-8">
@@ -295,6 +317,23 @@ export default function TeachersClient({
               />
             </div>
 
+            {/* Performance Rating Override */}
+            <div>
+              <label className={labelCls}>Performance Rating Override</label>
+              <select
+                value={formData.performanceRating}
+                onChange={(e) => setFormData({ ...formData, performanceRating: e.target.value })}
+                className={selectCls}
+              >
+                <option value="">None (Use Experience-based)</option>
+                <option value="1">1 Star</option>
+                <option value="2">2 Stars</option>
+                <option value="3">3 Stars</option>
+                <option value="4">4 Stars</option>
+                <option value="5">5 Stars</option>
+              </select>
+            </div>
+
             {/* Join Date */}
             <div>
               <label className={labelCls}>Join Date</label>
@@ -356,7 +395,7 @@ export default function TeachersClient({
             ) : (
               teacherRows.map((row) => {
                 const isDeleting = deletingId === row.t.id;
-                const rating = getRating(row.t.experience);
+                const rating = getRating(row.t.experience, row.t.performanceRating);
 
                 return (
                   <tr
@@ -443,21 +482,31 @@ export default function TeachersClient({
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
-        <a
-          href={`/admin/teachers${baseQueryStr}${sortParam}&page=${Math.max(1, page - 1)}`}
-          className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150"
-        >
-          ← Previous
-        </a>
-        <span className="tabular-nums">Page {page}</span>
-        <a
-          href={`/admin/teachers${baseQueryStr}${sortParam}&page=${page + 1}`}
-          className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150"
-        >
-          Next →
-        </a>
-      </div>
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground pt-4 border-t border-border mt-4 w-full">
+          <div>
+            {page > 1 && (
+              <a
+                href={`/admin/teachers${baseQueryStr}${sortParam}&page=${page - 1}`}
+                className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150"
+              >
+                ← Previous
+              </a>
+            )}
+          </div>
+          <span className="tabular-nums">Page {page} of {totalPages}</span>
+          <div>
+            {page < totalPages && (
+              <a
+                href={`/admin/teachers${baseQueryStr}${sortParam}&page=${page + 1}`}
+                className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150"
+              >
+                Next →
+              </a>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Teacher Profile Modal */}
       {viewingTeacher && (
@@ -535,10 +584,10 @@ export default function TeachersClient({
                   <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-cyan-500 dark:text-cyan-400">Performance Summary</h3>
                   <div className="mt-6 flex flex-col items-center justify-center text-center p-4 rounded-xl bg-hover border border-border">
                     <span className="text-3xl text-amber-400 font-black tracking-widest animate-pulse">
-                      {getRating(viewingTeacher.t.experience).stars}
+                      {getRating(viewingTeacher.t.experience, viewingTeacher.t.performanceRating).stars}
                     </span>
                     <span className="mt-3 text-sm font-bold text-foreground">
-                      {getRating(viewingTeacher.t.experience).label}
+                      {getRating(viewingTeacher.t.experience, viewingTeacher.t.performanceRating).label}
                     </span>
                     <span className="mt-1 text-xs text-muted-foreground">
                       Academic Rating

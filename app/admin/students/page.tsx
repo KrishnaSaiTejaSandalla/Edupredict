@@ -2,7 +2,7 @@
 import { requireRole } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { users, students, classes, parents, studentParents } from '@/lib/schema';
-import { asc, desc, eq, like } from 'drizzle-orm';
+import { asc, desc, eq, like, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import bcrypt from 'bcryptjs';
 import StudentsClient from '@/components/admin/StudentsClient';
@@ -83,13 +83,23 @@ export default async function StudentsPage({ searchParams }: Props) {
       eq(parentUsers.id, parents.userId)
     );
 
-  const studentRows = await (q
-    ? baseQuery.where(like(users.name, `%${q}%`))
-    : baseQuery
-  )
-    .orderBy(dir === 'desc' ? desc(orderBy) : asc(orderBy))
-    .limit(limit)
-    .offset(offset);
+  const countQuery = db
+    .select({ count: sql<number>`count(*)` })
+    .from(students)
+    .innerJoin(users, eq(users.id, students.userId));
+
+  const finalQuery = q ? baseQuery.where(like(users.name, `%${q}%`)) : baseQuery;
+  const finalCountQuery = q ? countQuery.where(like(users.name, `%${q}%`)) : countQuery;
+
+  const [studentRows, countResult] = await Promise.all([
+    finalQuery
+      .orderBy(dir === 'desc' ? desc(orderBy) : asc(orderBy))
+      .limit(limit)
+      .offset(offset),
+    finalCountQuery,
+  ]);
+
+  const totalCount = Number(countResult[0]?.count ?? 0);
 
   // ── Server Actions ────────────────────────────────────────────────────────
 
@@ -344,6 +354,7 @@ export default async function StudentsPage({ searchParams }: Props) {
         q={q}
         sort={sort}
         dir={dir}
+        totalCount={totalCount}
         createStudent={createStudent}
         updateStudent={updateStudent as any}
         deleteStudent={deleteStudent}

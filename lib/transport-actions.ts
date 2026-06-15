@@ -71,13 +71,13 @@ export async function assignDriverAndRoute(
   // Check driver conflict
   const driverConflict = await checkDriverConflict(driverName, driverPhone, busId);
   if (driverConflict) {
-    throw new Error(`This driver is already assigned to bus ${driverConflict.registrationNumber}.`);
+    throw new Error("Driver already assigned to another route");
   }
 
   // Check route conflict
   const routeConflict = await checkRouteConflict(routeName, busId);
   if (routeConflict) {
-    throw new Error(`Route "${routeName}" is already assigned to bus ${routeConflict.registrationNumber}.`);
+    throw new Error("Driver already assigned to another route");
   }
 
   try {
@@ -128,7 +128,7 @@ export async function createBus(data: {
   if (data.driverName && data.driverPhone) {
     const driverConflict = await checkDriverConflict(data.driverName, data.driverPhone);
     if (driverConflict) {
-      throw new Error(`This driver is already assigned to bus ${driverConflict.registrationNumber}.`);
+      throw new Error("Driver already assigned to another route");
     }
   }
 
@@ -136,7 +136,7 @@ export async function createBus(data: {
   if (data.routeName) {
     const routeConflict = await checkRouteConflict(data.routeName);
     if (routeConflict) {
-      throw new Error(`Route "${data.routeName}" is already assigned to bus ${routeConflict.registrationNumber}.`);
+      throw new Error("Driver already assigned to another route");
     }
   }
 
@@ -181,7 +181,7 @@ export async function updateBus(
   if (data.driverName && data.driverPhone) {
     const driverConflict = await checkDriverConflict(data.driverName, data.driverPhone, id);
     if (driverConflict) {
-      throw new Error(`This driver is already assigned to bus ${driverConflict.registrationNumber}.`);
+      throw new Error("Driver already assigned to another route");
     }
   }
 
@@ -189,7 +189,7 @@ export async function updateBus(
   if (data.routeName) {
     const routeConflict = await checkRouteConflict(data.routeName, id);
     if (routeConflict) {
-      throw new Error(`Route "${data.routeName}" is already assigned to bus ${routeConflict.registrationNumber}.`);
+      throw new Error("Driver already assigned to another route");
     }
   }
 

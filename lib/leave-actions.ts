@@ -2,7 +2,7 @@
 
 import { db } from './db';
 import { leaveRequests, users, students } from './schema';
-import { eq, and, or, sql } from 'drizzle-orm';
+import { eq, and, or, sql, gte } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { createNotification } from './notification-actions';
 import { parseDbError } from './db-errors';
@@ -171,6 +171,10 @@ export async function deleteLeaveRequest(id: number) {
 }
 
 export async function getAllLeaveRequests() {
+  const oneMonthAgo = new Date();
+  oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+  const oneMonthAgoStr = oneMonthAgo.toISOString().slice(0, 10);
+
   const rows = await db
     .select({
       leave: leaveRequests,
@@ -178,7 +182,8 @@ export async function getAllLeaveRequests() {
       userRole: users.role,
     })
     .from(leaveRequests)
-    .leftJoin(users, eq(leaveRequests.userId, users.id));
+    .leftJoin(users, eq(leaveRequests.userId, users.id))
+    .where(gte(leaveRequests.startDate, oneMonthAgoStr));
 
   // Get student names for student-specific leaves
   const studentIds = rows

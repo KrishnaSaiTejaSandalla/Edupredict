@@ -1,12 +1,14 @@
 import { requireRole } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { classes, exams, results, students, users } from '@/lib/schema';
-import { eq } from 'drizzle-orm';
+import { classes, exams, results, students, users, subjects } from '@/lib/schema';
+import { eq, and, sql } from 'drizzle-orm';
 import ResultsClient from "./ResultsClient";
 
 type SearchParams = {
   classId?: string;
-  examId?: string;
+  subjectId?: string;
+  type?: string;
+  page?: string;
 };
 
 type Props = {
@@ -26,13 +28,38 @@ export default async function ResultsPage({ searchParams }: Props) {
 
   const sp = await searchParams;
   const classId = sp?.classId ? Number(sp.classId) : null;
-  const examId = sp?.examId ? Number(sp.examId) : null;
+  const subjectId = sp?.subjectId ? Number(sp.subjectId) : null;
+  const type = sp?.type || null;
+  const page = Number(sp?.page || '1');
 
   const classList = await db.select().from(classes);
-  const examRows = examId ? await db.select().from(exams).where(eq(exams.id, examId)).limit(1) : [];
+  const subjectList = await db.select().from(subjects);
+
+  const distinctTypes = await db
+    .selectDistinct({ type: exams.type })
+    .from(exams)
+    .where(sql`${exams.type} is not null`);
+  const dbTypes = distinctTypes.map((row) => row.type).filter(Boolean) as string[];
+  const examTypeList = dbTypes.length > 0 ? dbTypes : ["Midterm", "Final", "Quiz", "Class Test"];
+
+  // Find exam matching classId, subjectId, and type
+  const examRows = (classId && subjectId && type)
+    ? await db
+      .select()
+      .from(exams)
+      .where(
+        and(
+          eq(exams.classId, classId),
+          eq(exams.subjectId, subjectId),
+          eq(exams.type, type)
+        )
+      )
+      .limit(1)
+    : [];
+
   const exam = examRows[0] ?? null;
 
-  const resultRows = examId
+  const resultRows = exam
     ? await db
       .select({
         result: results,
@@ -41,7 +68,7 @@ export default async function ResultsPage({ searchParams }: Props) {
       .from(results)
       .leftJoin(students, eq(students.id, results.studentId))
       .leftJoin(users, eq(users.id, students.userId))
-      .where(eq(results.examId, examId))
+      .where(eq(results.examId, exam.id))
     : [];
 
   const maxMarks = exam ? Number(exam.maxMarks) : 0;
@@ -68,42 +95,29 @@ export default async function ResultsPage({ searchParams }: Props) {
     lowest: sorted[sorted.length - 1]?.marks ?? 0,
   };
 
+  const limit = 10;
+  const totalCount = sorted.length;
+  const totalPages = Math.ceil(totalCount / limit);
+  const offset = (page - 1) * limit;
+  const paginated = sorted.slice(offset, offset + limit);
+
   return (
     <main className="min-h-screen bg-background p-4 sm:p-6 lg:p-8 space-y-8 text-foreground">
       {/* Header Row */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-500 dark:text-cyan-300">Results</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Results Allocation</h1>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Results</h1>
           <p className="mt-2 text-sm text-muted-foreground">Review marks, grades, and distribution for each exam.</p>
         </div>
-        <nav className="flex items-center gap-4 text-xs font-semibold">
-
-          <a
-            href="/admin/marks"
-            className="rounded-xl border border-border bg-card px-6 py-3 text-foreground shadow-sm transition-all hover:bg-hover hover:shadow-md hover:-translate-y-[1px]"
-          >
-            Enter Marks
-          </a>
-
-          <a
-            href="/admin/marks/results"
-            className="rounded-xl border border-cyan-500/30 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 px-6 py-3 text-cyan-800 dark:text-cyan-300 shadow-sm transition-all hover:shadow-md hover:-translate-y-[1px] hover:border-cyan-400"
-          >
-            View Results
-          </a>
-
-        </nav>
       </div>
 
-
       {/* Filter Row */}
-      <ResultsClient classList={classList} />
+      <ResultsClient classList={classList} subjectList={subjectList} examTypeList={examTypeList} />
 
       {/* Main Results Display */}
       {exam ? (
         <section className="space-y-6">
-
           {/* Summary KPI Cards Row */}
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="rounded-xl border border-subtle bg-card p-5 shadow-md">
@@ -150,9 +164,9 @@ export default async function ResultsPage({ searchParams }: Props) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-subtle">
-                {sorted.map((result, index) => (
+                {paginated.map((result, index) => (
                   <tr key={result.id} className="hover:bg-hover transition duration-200">
-                    <td className="p-4 px-6 font-semibold text-muted-foreground">{index + 1}</td>
+                    <td className="p-4 px-6 font-semibold text-muted-foreground">{offset + index + 1}</td>
                     <td className="p-4 px-6 font-bold text-foreground">{result.name}</td>
                     <td className="p-4 px-6 font-medium text-muted-foreground">{result.marks} / {maxMarks}</td>
                     <td className="p-4 px-6 font-semibold text-foreground">{result.percentage.toFixed(1)}%</td>
@@ -172,17 +186,57 @@ export default async function ResultsPage({ searchParams }: Props) {
                     </td>
                   </tr>
                 ))}
+                {paginated.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="p-12 text-center text-muted-foreground font-medium">
+                      No results recorded for this exam.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground pt-4 border-t border-border mt-4 w-full">
+              <div>
+                {page > 1 && (
+                  <a
+                    href={`/admin/marks/results?classId=${classId}&subjectId=${subjectId}&type=${type}&page=${page - 1}`}
+                    className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150 text-foreground"
+                  >
+                    ← Previous
+                  </a>
+                )}
+              </div>
+              <span className="tabular-nums">Page {page} of {totalPages}</span>
+              <div>
+                {page < totalPages && (
+                  <a
+                    href={`/admin/marks/results?classId=${classId}&subjectId=${subjectId}&type=${type}&page=${page + 1}`}
+                    className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150 text-foreground"
+                  >
+                    Next →
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
         </section>
       ) : (
         <div className="rounded-2xl border border-dashed border-border bg-transparent p-12 text-center shadow-md">
           <svg className="mx-auto h-10 w-10 text-muted-foreground/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          <h3 className="mt-4 text-sm font-semibold text-foreground">No exam selected</h3>
-          <p className="mt-1 text-xs text-muted-foreground">Select class and exam parameters from the filter row above to review results.</p>
+          <h3 className="mt-4 text-sm font-semibold text-foreground">
+            {classId && subjectId && type ? "No exam scheduled" : "No exam selected"}
+          </h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {classId && subjectId && type 
+              ? "There is no exam scheduled matching the selected Class, Subject, and Exam Type." 
+              : "Select class, subject, and exam type parameters from the filter row above to review results."}
+          </p>
         </div>
       )}
     </main>

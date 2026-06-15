@@ -26,6 +26,7 @@ export default function ClassesPage() {
     section: '',
     academicYear: '',
   });
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     loadData();
@@ -101,6 +102,16 @@ export default function ClassesPage() {
       (cls.academicYear && cls.academicYear.toLowerCase().includes(search))
     );
   });
+
+  const itemsPerPage = 10;
+  const totalPages = Math.ceil(filteredClasses.length / itemsPerPage);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedClasses = filteredClasses.slice(startIndex, startIndex + itemsPerPage);
 
   const inputCls = 'input-theme';
   const labelCls =
@@ -194,7 +205,7 @@ export default function ClassesPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-subtle">
-            {filteredClasses.length === 0 ? (
+            {paginatedClasses.length === 0 ? (
               <tr>
                 <td colSpan={5} className="p-12 text-center text-muted-foreground font-medium">
                   <div className="flex flex-col items-center gap-3">
@@ -206,7 +217,7 @@ export default function ClassesPage() {
                 </td>
               </tr>
             ) : (
-              filteredClasses.map((cls) => (
+              paginatedClasses.map((cls) => (
                 <tr key={cls.id} className="hover:bg-hover transition duration-200">
                   <td className="p-4 px-6 text-xs font-semibold text-muted-foreground">#{cls.id}</td>
                   <td className="p-4 px-6 font-semibold text-foreground">Class {cls.name}</td>
@@ -243,6 +254,34 @@ export default function ClassesPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground pt-4 border-t border-border mt-4 w-full">
+          <div>
+            {currentPage > 1 && (
+              <button
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150 text-foreground"
+              >
+                ← Previous
+              </button>
+            )}
+          </div>
+          <span className="tabular-nums">Page {currentPage} of {totalPages}</span>
+          <div>
+            {currentPage < totalPages && (
+              <button
+                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150 text-foreground"
+              >
+                Next →
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       <DeleteConfirmModal
         isOpen={deleteModalOpen}
         title="Delete Class Group?"

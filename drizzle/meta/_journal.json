@@ -43,6 +43,13 @@
       "when": 1781439926263,
       "tag": "0005_redundant_dorian_gray",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1781519690607,
+      "tag": "0006_flimsy_power_man",
+      "breakpoints": true
     }
   ]
 }

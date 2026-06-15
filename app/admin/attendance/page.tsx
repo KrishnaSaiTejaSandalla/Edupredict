@@ -1,174 +1,69 @@
-import { requireRole, getCurrentUser } from '@/lib/auth';
+import { requireRole } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { attendance, classes, students, users } from '@/lib/schema';
-import { and, eq } from 'drizzle-orm';
-import { revalidatePath } from 'next/cache';
-import { createNotification } from '@/lib/notification-actions';
-import { parseDbError } from '@/lib/db-errors';
-import AttendanceForm from '@/components/admin/AttendanceForm';
+import { attendance, classes, students } from '@/lib/schema';
+import { eq, desc, sql } from 'drizzle-orm';
 
-type SearchParams = {
-  classId?: string;
-  date?: string;
-};
-
-type Props = {
-  searchParams: Promise<{
-    classId?: string;
-    date?: string;
-  }>;
-};
-
-export default async function AttendancePage({
-  searchParams,
-}: Props) {
+export default async function AttendancePage() {
   await requireRole('admin');
 
-  const sp = await searchParams;
+  // Query summary rows by class
+  const summaryRows = await db
+    .select({ a: attendance, c: classes })
+    .from(attendance)
+    .innerJoin(classes, eq(attendance.classId, classes.id))
+    .orderBy(desc(attendance.attendanceDate))
+    .limit(500);
 
-  const classId = sp?.classId ? Number(sp.classId) : null;
-  const date =
-    sp?.date || new Date().toISOString().slice(0, 10);
-
-  const classList = await db
-    .select()
-    .from(classes);
-
-  const studentsForClass = classId
-    ? await db
-      .select({ s: students, u: users })
-      .from(students)
-      .innerJoin(users, eq(users.id, students.userId))
-      .where(eq(students.classId, classId))
-      .orderBy(students.rollNumber)
-    : [];
-
-  const attendanceDate = new Date(date);
-
-  const attendanceRows = classId
-    ? await db
-      .select()
-      .from(attendance)
-      .where(eq(attendance.classId, classId))
-    : [];
-
-  const existingStatus = attendanceRows.reduce((acc, row) => {
-    const rowDate = new Date(row.attendanceDate)
-      .toISOString()
-      .slice(0, 10);
-
-    if (rowDate === date) {
-      acc[row.studentId] = row.status;
-    }
-
+  const summary = summaryRows.reduce((acc, row) => {
+    const classId = row.a.classId;
+    const existing = acc.get(classId) ?? { className: row.c.name, present: 0, absent: 0, total: 0 };
+    if (row.a.status === 'present') existing.present += 1;
+    else existing.absent += 1;
+    existing.total += 1;
+    acc.set(classId, existing);
     return acc;
-  }, {} as Record<number, string>);
+  }, new Map<number, { className: string; present: number; absent: number; total: number }>());
 
-  const totalStudents = studentsForClass.length;
-  const presentCount = Object.values(existingStatus).filter((status) => status === 'present').length;
-  const absentCount = Object.values(existingStatus).filter((status) => status === 'absent').length;
-  const attendanceRate = totalStudents > 0 ? Math.round((presentCount / totalStudents) * 100) : 0;
+  // KPI calculations
+  const [studentCountRow] = await db.select({ count: sql<number>`count(*)` }).from(students);
+  const totalStudents = Number(studentCountRow?.count ?? 0);
 
-  // Calculate At-Risk Students (< 75% overall attendance in this class)
+  const [attendanceStats] = await db
+    .select({
+      total: sql<number>`count(*)`,
+      present: sql<number>`sum(case when ${attendance.status} = 'present' then 1 else 0 end)`,
+      absent: sql<number>`sum(case when ${attendance.status} = 'absent' then 1 else 0 end)`,
+    })
+    .from(attendance);
+
+  const totalAttRecords = Number(attendanceStats?.total ?? 0);
+  const totalPresentRecords = Number(attendanceStats?.present ?? 0);
+  const totalAbsentRecords = Number(attendanceStats?.absent ?? 0);
+
+  const presentPercentage = totalAttRecords > 0 ? Math.round((totalPresentRecords / totalAttRecords) * 100) : 0;
+  const absentPercentage = totalAttRecords > 0 ? Math.round((totalAbsentRecords / totalAttRecords) * 100) : 0;
+
+  // At-risk students (< 75% overall attendance rate)
+  const studentStats = await db
+    .select({
+      studentId: attendance.studentId,
+      total: sql<number>`count(*)`,
+      present: sql<number>`sum(case when ${attendance.status} = 'present' then 1 else 0 end)`,
+    })
+    .from(attendance)
+    .groupBy(attendance.studentId);
+
   let atRiskCount = 0;
-  if (classId && totalStudents > 0) {
-    const studentStats = studentsForClass.reduce((acc, row) => {
-      acc[row.s.id] = { present: 0, total: 0 };
-      return acc;
-    }, {} as Record<number, { present: number; total: number }>);
-
-    attendanceRows.forEach((row) => {
-      if (studentStats[row.studentId]) {
-        studentStats[row.studentId].total += 1;
-        if (row.status === 'present') {
-          studentStats[row.studentId].present += 1;
-        }
+  studentStats.forEach((row) => {
+    if (row.total > 0) {
+      const pct = (row.present / row.total) * 100;
+      if (pct < 75) {
+        atRiskCount++;
       }
-    });
-
-    Object.values(studentStats).forEach((stats) => {
-      if (stats.total > 0) {
-        const pct = (stats.present / stats.total) * 100;
-        if (pct < 75) {
-          atRiskCount++;
-        }
-      }
-    });
-  }
-
-  async function saveAttendance(formData: FormData) {
-    'use server';
-
-    const classIdValue = Number(formData.get('classId'));
-    const dateValue = String(formData.get('date'));
-    const attendanceDate = new Date(dateValue);
-
-    const studentIds = formData
-      .getAll('studentId')
-      .map((value) => Number(value));
-
-    const currentUser = await getCurrentUser();
-    const markedBy = currentUser?.id || null;
-
-    if (!classIdValue || !dateValue) {
-      throw new Error('Class and date are required.');
     }
+  });
 
-    try {
-      const existing = await db
-        .select()
-        .from(attendance)
-        .where(eq(attendance.classId, classIdValue));
-
-      const existingMap = existing
-        .filter(
-          (row) =>
-            new Date(row.attendanceDate)
-              .toISOString()
-              .slice(0, 10) === dateValue
-        )
-        .reduce((acc, row) => {
-          acc[row.studentId] = row;
-          return acc;
-        }, {} as Record<number, (typeof existing)[number]>);
-
-      for (const studentId of studentIds) {
-        const status = String(
-          formData.get(`status-${studentId}`) || 'absent'
-        );
-
-        const record = existingMap[studentId];
-
-        if (record) {
-          await db
-            .update(attendance)
-            .set({
-              status,
-              remarks: null,
-              markedBy,
-            })
-            .where(eq(attendance.id, record.id));
-        } else {
-          await db.insert(attendance).values({
-            studentId,
-            classId: classIdValue,
-            attendanceDate,
-            status,
-            remarks: null,
-            markedBy,
-          });
-        }
-      }
-    } catch (err) {
-      throw new Error(parseDbError(err));
-    }
-
-    await createNotification('Attendance Marked', `Attendance for class has been successfully recorded.`, 'info', 'medium');
-
-    revalidatePath('/admin/attendance');
-    revalidatePath('/admin/attendance/history');
-    revalidatePath('/admin/attendance/summary');
-  }
+  const atRiskPercentage = totalStudents > 0 ? Math.round((atRiskCount / totalStudents) * 100) : 0;
 
   const activeTabCls = "rounded-xl bg-cyan-500/10 border border-cyan-500/30 px-4 py-2.5 text-cyan-500 dark:text-cyan-400 font-bold shadow-sm shadow-cyan-500/5 transition";
   const inactiveTabCls = "rounded-xl border border-border bg-background px-4 py-2.5 text-muted-foreground hover:text-foreground hover:bg-hover transition";
@@ -183,105 +78,98 @@ export default async function AttendancePage({
           <p className="mt-2 text-sm text-muted-foreground">Track, monitor, and manage student attendance records.</p>
         </div>
         <nav className="flex flex-wrap gap-2 text-xs">
-          <a href="/admin/attendance" className={activeTabCls}>Take Attendance</a>
-          <a href="/admin/attendance/history" className={inactiveTabCls}>History</a>
-          <a href="/admin/attendance/summary" className={inactiveTabCls}>Summary</a>
+          <a href="/admin/attendance" className={activeTabCls}>Summary</a>
           <a href="/admin/attendance/reports" className={inactiveTabCls}>Reports</a>
         </nav>
       </div>
 
       {/* DASHBOARD METRICS */}
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-2xl border border-border bg-card p-5 shadow-md">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Students</p>
           <div className="flex items-baseline justify-between mt-3">
-            <p className="text-3xl font-bold text-foreground">{classId ? totalStudents : '—'}</p>
+            <p className="text-3xl font-bold text-foreground">{totalStudents}</p>
             <span className="text-xs font-medium text-muted-foreground">Enrolled</span>
           </div>
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-5 shadow-md">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Present Today</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Present Rate</p>
           <div className="flex items-baseline justify-between mt-3">
-            <p className="text-3xl font-bold text-emerald-500 dark:text-emerald-400">{classId ? presentCount : '—'}</p>
-            <span className="text-xs font-medium text-emerald-500/80 dark:text-emerald-400/80">Active</span>
+            <p className="text-3xl font-bold text-emerald-500 dark:text-emerald-400">{presentPercentage}%</p>
+            <span className="text-xs font-medium text-emerald-500/80 dark:text-emerald-400/80">Overall present</span>
           </div>
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-5 shadow-md">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Absent Today</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Absent Rate</p>
           <div className="flex items-baseline justify-between mt-3">
-            <p className="text-3xl font-bold text-rose-500">{classId ? absentCount : '—'}</p>
-            <span className="text-xs font-medium text-rose-500/80">Leave/Absent</span>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-md">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Attendance Rate</p>
-          <div className="flex items-baseline justify-between mt-3">
-            <p className="text-3xl font-bold text-cyan-500 dark:text-cyan-400">{classId ? `${attendanceRate}%` : '—'}</p>
-            <span className="text-xs font-medium text-cyan-500/80 dark:text-cyan-400/80">Overall</span>
+            <p className="text-3xl font-bold text-rose-500">{absentPercentage}%</p>
+            <span className="text-xs font-medium text-rose-500/80">Overall absent</span>
           </div>
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-5 shadow-md">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">At-Risk Students</p>
           <div className="flex items-baseline justify-between mt-3">
-            <p className="text-3xl font-bold text-amber-500">{classId ? atRiskCount : '—'}</p>
-            <span className="text-xs font-medium text-amber-500/80">&lt; 75% Rate</span>
+            <p className="text-3xl font-bold text-amber-500">{atRiskCount} ({atRiskPercentage}%)</p>
+            <span className="text-xs font-medium text-amber-500/80">&lt; 75% rate</span>
           </div>
         </div>
       </section>
 
-      {/* FILTER CONTROLS */}
-      <section className="rounded-2xl border border-border bg-card p-6 shadow-md">
-        <form className="grid gap-5 sm:grid-cols-3" action="/admin/attendance" method="get">
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Class Selection</label>
-            <select name="classId" defaultValue={classId ?? ''} className="h-11 w-full rounded-xl border border-border bg-background px-3.5 text-sm text-foreground outline-none transition focus:border-cyan-500 cursor-pointer">
-              <option value="">Choose Class</option>
-              {classList.map((cls) => (
-                <option key={cls.id} value={cls.id}>{cls.name} {cls.section ? `(${cls.section})` : ''}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Date</label>
-            <input
-              name="date"
-              type="date"
-              defaultValue={date}
-              className="h-11 w-full rounded-xl border border-border bg-background px-3.5 text-sm text-foreground outline-none transition focus:border-cyan-500 cursor-pointer"
-            />
-          </div>
-          <div className="flex items-end">
-            <button type="submit" className="h-11 w-full rounded-xl btn-blue px-5 text-xs font-bold">
-              Load Students
-            </button>
-          </div>
-        </form>
-      </section>
+      {/* SUMMARY TABLE CONTAINER */}
+      <section className="overflow-x-auto rounded-2xl border border-border bg-card shadow-md">
+        <table className="w-full text-left text-sm text-foreground">
+          <thead className="border-b border-border bg-background/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <tr>
+              <th className="p-4 px-6">Class Name</th>
+              <th className="p-4 px-6">Present Records</th>
+              <th className="p-4 px-6">Absent Records</th>
+              <th className="p-4 px-6">Total Records</th>
+              <th className="p-4 px-6">Attendance Rate</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-subtle">
+            {summary.size === 0 ? (
+              <tr>
+                <td colSpan={5} className="p-12 text-center text-muted-foreground font-medium">
+                  No summary data available yet.
+                </td>
+              </tr>
+            ) : (
+              [...summary.values()].map((row) => {
+                const percentage = row.total ? Math.round((row.present / row.total) * 100) : 0;
+                const isHigh = percentage >= 75;
 
-      {/* ATTENDANCE MARKING TABLE / FORM */}
-      {classId ? (
-        <section className="space-y-6 animate-in fade-in duration-300">
-          <AttendanceForm
-            students={studentsForClass.map((row) => ({ id: row.s.id, name: row.u.name, rollNumber: row.s.rollNumber }))}
-            existingStatus={existingStatus}
-            action={saveAttendance}
-            classId={classId}
-            date={date}
-          />
-        </section>
-      ) : (
-        <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center shadow-md">
-          <svg className="mx-auto h-10 w-10 text-muted-foreground/30 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          <h3 className="mt-4 text-sm font-semibold text-foreground">No class loaded</h3>
-          <p className="mt-1 text-xs text-muted-foreground">Choose a class and date from filters to begin tracking attendance.</p>
-        </div>
-      )}
+                return (
+                  <tr key={row.className} className="hover:bg-hover transition duration-200">
+                    <td className="p-4 px-6 font-semibold text-foreground">Class {row.className}</td>
+                    <td className="p-4 px-6 font-semibold text-emerald-500 dark:text-emerald-400">{row.present}</td>
+                    <td className="p-4 px-6 font-semibold text-rose-500">{row.absent}</td>
+                    <td className="p-4 px-6 text-muted-foreground font-medium">{row.total}</td>
+                    <td className="p-4 px-6">
+                      <div className="flex items-center gap-3">
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-lg border ${
+                          isHigh ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                        }`}>
+                          {percentage}%
+                        </span>
+                        <div className="w-24 h-2 rounded-full bg-hover overflow-hidden hidden sm:block">
+                          <div
+                            className={`h-full rounded-full ${isHigh ? 'bg-cyan-500 dark:bg-cyan-400' : 'bg-amber-500'}`}
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </section>
     </main>
   );
 }

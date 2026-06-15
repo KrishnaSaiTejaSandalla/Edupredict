@@ -1,11 +1,12 @@
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-import DashboardInsights from "@/components/admin/DashboardInsights";
+import AiInsightsCard from "@/components/admin/AiInsightsCard";
 import LatestList from "@/components/admin/LatestList";
 import { getAdminDashboardData } from "@/lib/admin-dashboard";
 import { DynamicDashboardCharts } from "@/components/admin/ClientChartWrappers";
 import GenderDistribution from "@/components/admin/GenderDistribution";
+import StudentsByClass from "@/components/admin/StudentsByClass";
 
 
 const cardIcons = {
@@ -133,15 +134,16 @@ export default async function AdminPage() {
       {/* ── Row 1: Charts + Gender Distribution ────────────────────────── */}
       <section className="grid gap-8 lg:grid-cols-12">
         <div className="lg:col-span-8">
-          <DynamicDashboardCharts trend={dashboard.trend} subjects={dashboard.subjects} />
+          <DynamicDashboardCharts trend={dashboard.trend} attendanceTrend={dashboard.attendanceTrend} />
         </div>
         <div className="lg:col-span-4">
           <GenderDistribution data={dashboard.genderDistribution} />
         </div>
       </section>
 
-      {/* ── Row 2: Recent Students + School Insights ───────────────────── */}
+      {/* ── Recent Students vs Upcoming Exams & System Alerts ────────── */}
       <section className="grid gap-8 lg:grid-cols-12">
+        {/* Left Panel: Recent Students (Large card, scrollable list inside) */}
         <div className="lg:col-span-8">
           <LatestList
             title="Recent Students"
@@ -149,72 +151,49 @@ export default async function AdminPage() {
             viewAllHref="/admin/students"
           />
         </div>
-        <div className="lg:col-span-4">
-          <DashboardInsights
-            totalStudents={dashboard.kpis.totalStudents}
-            totalTeachers={dashboard.kpis.totalTeachers}
-            averageAttendance={dashboard.kpis.averageAttendance}
-            passRate={dashboard.kpis.passRate}
-            upcomingExamCount={dashboard.upcomingExams.length}
-            atRiskCount={atRiskCount}
-          />
-        </div>
-      </section>
 
-      {/* ── Row 3: Upcoming Exams + System Alerts ──────────────────────── */}
-      <section className="grid gap-8 lg:grid-cols-12">
-
-        {/* Upcoming Exams */}
-        <div className="lg:col-span-4">
-          <div className="rounded-2xl border border-border bg-card p-6 shadow-md h-full">
-            <div className="mb-5">
+        {/* Right Panel: Upcoming Exams (top) & System Alerts (below) */}
+        <div className="lg:col-span-4 flex flex-col gap-6">
+          {/* Upcoming Exams */}
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-md h-[213px] flex flex-col transition-colors duration-200">
+            <div className="shrink-0 mb-3">
               <h2 className="text-base font-semibold text-foreground tracking-tight">Upcoming Exams</h2>
               <p className="text-xs text-muted-foreground mt-0.5">Next scheduled assessments</p>
             </div>
-            <div className="space-y-3">
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1 scrollbar-hide space-y-2.5">
               {dashboard.upcomingExams.map((exam) => (
                 <div
                   key={exam.id}
-                  className="group rounded-xl border border-subtle bg-hover/20 p-4 hover:bg-hover hover:border-border transition duration-200"
+                  className="group rounded-xl border border-subtle bg-hover/20 p-3 hover:bg-hover hover:border-border transition duration-200"
                 >
                   <div className="flex justify-between items-start gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-foreground group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition truncate">
+                      <p className="text-xs font-semibold text-foreground group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition truncate">
                         {exam.subjectName}
                       </p>
-                      <p className="mt-1 text-xs text-muted-foreground">{exam.className}</p>
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">{exam.className}</p>
                     </div>
-                    <span className="inline-flex shrink-0 items-center rounded-lg bg-blue-500/10 px-2.5 py-1 text-[10px] font-semibold text-blue-500 dark:text-blue-300 border border-blue-500/20">
+                    <span className="inline-flex shrink-0 items-center rounded-lg bg-blue-500/10 px-2 py-0.5 text-[9px] font-semibold text-blue-500 dark:text-blue-300 border border-blue-500/20">
                       {exam.examDate}
                     </span>
                   </div>
                 </div>
               ))}
               {dashboard.upcomingExams.length === 0 && (
-                <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                <div className="h-full flex items-center justify-center rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
                   No upcoming exams scheduled.
                 </div>
               )}
             </div>
           </div>
-        </div>
 
-        {/* System Alerts */}
-        <div className="lg:col-span-8">
-          <div className="rounded-2xl border border-border bg-card p-6 shadow-md h-full">
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-semibold text-foreground tracking-tight">System Alerts</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">Unread notifications and urgent feeds</p>
-              </div>
-              <a
-                href="/admin/notifications"
-                className="text-xs text-cyan-600 dark:text-cyan-400 hover:text-cyan-500 transition"
-              >
-                View All →
-              </a>
+          {/* System Alerts */}
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-md h-[213px] flex flex-col transition-colors duration-200">
+            <div className="shrink-0 mb-3">
+              <h2 className="text-base font-semibold text-foreground tracking-tight">System Alerts</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Unread notifications and urgent feeds</p>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1 scrollbar-hide space-y-2.5">
               {dashboard.alerts.map((alert) => {
                 const borderTone =
                   alert.tone === "danger"
@@ -226,17 +205,26 @@ export default async function AdminPage() {
                 return (
                   <div
                     key={alert.id}
-                    className={`rounded-xl border p-4 transition hover:bg-hover duration-200 ${borderTone}`}
+                    className={`rounded-xl border p-3 transition hover:bg-hover duration-200 ${borderTone}`}
                   >
-                    <p className="text-sm font-semibold text-foreground">{alert.title}</p>
-                    <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">{alert.message}</p>
+                    <p className="text-xs font-semibold text-foreground">{alert.title}</p>
+                    <p className="mt-1 text-[10px] text-muted-foreground leading-relaxed">{alert.message}</p>
                   </div>
                 );
               })}
             </div>
           </div>
         </div>
+      </section>
 
+      {/* ── AI Insights vs Students by Class ─────────────────────────── */}
+      <section className="grid gap-8 lg:grid-cols-12">
+        <div className="lg:col-span-7">
+          <AiInsightsCard insights={dashboard.aiInsights} />
+        </div>
+        <div className="lg:col-span-5">
+          <StudentsByClass data={dashboard.classDistribution} />
+        </div>
       </section>
     </main>
   );

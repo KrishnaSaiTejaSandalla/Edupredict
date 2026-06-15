@@ -1,7 +1,7 @@
 import { requireRole } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { users, teachers } from '@/lib/schema';
-import { asc, desc, eq, like } from 'drizzle-orm';
+import { asc, desc, eq, like, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { createNotification } from '@/lib/notification-actions';
 import bcrypt from 'bcryptjs';
@@ -38,16 +38,30 @@ export default async function TeachersPage({ searchParams }: Props) {
           ? teachers.department
           : teachers.id;
 
-  const query = db
+  const baseQuery = db
     .select({ t: teachers, u: users })
     .from(teachers)
     .innerJoin(users, eq(users.id, teachers.userId));
 
+  const countQuery = db
+    .select({ count: sql<number>`count(*)` })
+    .from(teachers)
+    .innerJoin(users, eq(users.id, teachers.userId));
+
   if (q) {
-    query.where(like(users.name, `%${q}%`));
+    baseQuery.where(like(users.name, `%${q}%`));
+    countQuery.where(like(users.name, `%${q}%`));
   }
 
-  const teacherRows = await query.orderBy(dir === 'desc' ? desc(orderBy) : asc(orderBy)).limit(limit).offset(offset);
+  const [teacherRows, countResult] = await Promise.all([
+    baseQuery
+      .orderBy(dir === 'desc' ? desc(orderBy) : asc(orderBy))
+      .limit(limit)
+      .offset(offset),
+    countQuery,
+  ]);
+
+  const totalCount = Number(countResult[0]?.count ?? 0);
 
   // ── Server Actions ────────────────────────────────────────────────────────
 
@@ -61,6 +75,7 @@ export default async function TeachersPage({ searchParams }: Props) {
     const department = String(formData.get('department') || '').trim();
     const employeeId = String(formData.get('employeeId') || '').trim();
     const joinDate = String(formData.get('joinDate') || '').trim();
+    const performanceRating = formData.get('performanceRating') ? Number(formData.get('performanceRating')) : null;
     const schoolId = 1;
 
     if (!fullName || !email || !employeeId) {
@@ -101,6 +116,7 @@ export default async function TeachersPage({ searchParams }: Props) {
         department: department || null,
         employeeId,
         joinDate: joinDate ? new Date(joinDate) : null,
+        performanceRating: Number.isNaN(performanceRating) ? null : performanceRating,
       });
     } catch (err) {
       // Clean up orphan user if teacher insert fails
@@ -124,6 +140,7 @@ export default async function TeachersPage({ searchParams }: Props) {
       department: string;
       experience: string;
       joinDate: string;
+      performanceRating?: string;
     }
   ) {
     'use server';
@@ -139,6 +156,7 @@ export default async function TeachersPage({ searchParams }: Props) {
         department: data.department || null,
         employeeId: data.employeeId,
         joinDate: data.joinDate ? new Date(data.joinDate) : null,
+        performanceRating: data.performanceRating ? Number(data.performanceRating) : null,
       }).where(eq(teachers.id, id));
     } catch (err) {
       throw new Error(parseDbError(err));
@@ -174,6 +192,7 @@ export default async function TeachersPage({ searchParams }: Props) {
         q={q}
         sort={sort}
         dir={dir}
+        totalCount={totalCount}
         createTeacher={createTeacher}
         updateTeacher={updateTeacher}
         deleteTeacher={deleteTeacher}

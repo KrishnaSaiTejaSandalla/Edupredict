@@ -339,10 +339,12 @@ export const attendance = mysqlTable(
     id: int('id').autoincrement().primaryKey(),
     studentId: int('student_id').notNull(),
     classId: int('class_id').notNull(),
+    subjectId: int('subject_id'),
     attendanceDate: date('attendance_date').notNull(),
     status: varchar('status', { length: 20 }).notNull(),
     remarks: text('remarks'),
     markedBy: int('marked_by'),
+    topicTaught: varchar('topic_taught', { length: 255 }),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
   },
@@ -360,6 +362,10 @@ export const attendance = mysqlTable(
     fk_attendance_class: foreignKey({
       columns: [att.classId],
       foreignColumns: [classes.id],
+    }),
+    fk_attendance_subject: foreignKey({
+      columns: [att.subjectId],
+      foreignColumns: [subjects.id],
     }),
   })
 );
@@ -739,3 +745,164 @@ export const verificationTokens = mysqlTable('verification_tokens', {
   userIdIndex: index('verification_user_id_index').on(v.userId),
   fk_verification_user: foreignKey({ columns: [v.userId], foreignColumns: [users.id] }),
 }));
+
+// ==================== Assignment Submissions ====================
+export const assignmentSubmissions = mysqlTable(
+  'assignment_submissions',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    assignmentId: int('assignment_id').notNull(),
+    studentId: int('student_id').notNull(),
+    submittedAt: timestamp('submitted_at').defaultNow().notNull(),
+    fileUrl: varchar('file_url', { length: 512 }),
+    content: text('content'),
+    grade: decimal('grade', { precision: 5, scale: 2 }),
+    feedback: text('feedback'),
+    gradedAt: timestamp('graded_at'),
+    gradedBy: int('graded_by'),                 // teacher user id
+    isLate: boolean('is_late').default(false).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (sub) => ({
+    assignmentIdIndex: index('assignment_submissions_assignment_id_idx').on(sub.assignmentId),
+    studentIdIndex: index('assignment_submissions_student_id_idx').on(sub.studentId),
+    gradedByIndex: index('assignment_submissions_graded_by_idx').on(sub.gradedBy),
+    uniqueStudentAssignment: uniqueIndex('assignment_submissions_student_assignment_unique').on(
+      sub.assignmentId,
+      sub.studentId
+    ),
+    fk_submission_assignment: foreignKey({
+      columns: [sub.assignmentId],
+      foreignColumns: [assignments.id],
+    }),
+    fk_submission_student: foreignKey({
+      columns: [sub.studentId],
+      foreignColumns: [students.id],
+    }),
+  })
+);
+
+// ==================== Teacher Resources ====================
+export const teacherResources = mysqlTable(
+  'teacher_resources',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    teacherId: int('teacher_id').notNull(),
+    schoolId: int('school_id').notNull(),
+    title: varchar('title', { length: 256 }).notNull(),
+    description: text('description'),
+    subject: varchar('subject', { length: 128 }),
+    classLevel: varchar('class_level', { length: 64 }),   // e.g. "Class 8A", "Grade 10"
+    resourceType: varchar('resource_type', { length: 64 }).notNull(), // 'notes','quiz','worksheet','lesson_plan','other'
+    fileUrl: varchar('file_url', { length: 512 }),
+    isAIGenerated: boolean('is_ai_generated').default(false).notNull(),
+    aiPrompt: text('ai_prompt'),                // the prompt used to generate it
+    aiContent: text('ai_content'),              // the actual AI-generated text content
+    downloadCount: int('download_count').default(0).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (res) => ({
+    teacherIdIndex: index('teacher_resources_teacher_id_idx').on(res.teacherId),
+    schoolIdIndex: index('teacher_resources_school_id_idx').on(res.schoolId),
+    subjectIndex: index('teacher_resources_subject_idx').on(res.subject),
+    resourceTypeIndex: index('teacher_resources_type_idx').on(res.resourceType),
+    fk_resource_teacher: foreignKey({
+      columns: [res.teacherId],
+      foreignColumns: [teachers.id],
+    }),
+    fk_resource_school: foreignKey({
+      columns: [res.schoolId],
+      foreignColumns: [schools.id],
+    }),
+  })
+);
+
+// ==================== Teacher Feedback (Student Satisfaction) ====================
+export const teacherFeedback = mysqlTable(
+  'teacher_feedback',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    teacherId: int('teacher_id').notNull(),
+    studentId: int('student_id').notNull(),
+    classId: int('class_id').notNull(),
+    rating: int('rating').notNull(),            // 1-5
+    comment: text('comment'),
+    category: varchar('category', { length: 64 }).notNull(), // 'teaching_clarity','engagement','support','overall'
+    academicYear: varchar('academic_year', { length: 64 }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (fb) => ({
+    teacherIdIndex: index('teacher_feedback_teacher_id_idx').on(fb.teacherId),
+    studentIdIndex: index('teacher_feedback_student_id_idx').on(fb.studentId),
+    classIdIndex: index('teacher_feedback_class_id_idx').on(fb.classId),
+    fk_feedback_teacher: foreignKey({
+      columns: [fb.teacherId],
+      foreignColumns: [teachers.id],
+    }),
+    fk_feedback_student: foreignKey({
+      columns: [fb.studentId],
+      foreignColumns: [students.id],
+    }),
+    fk_feedback_class: foreignKey({
+      columns: [fb.classId],
+      foreignColumns: [classes.id],
+    }),
+  })
+);
+
+// ==================== Teacher Subject Assignments ====================
+export const teacherSubjectAssignments = mysqlTable(
+  'teacher_subject_assignments',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    teacherId: int('teacher_id').notNull(),
+    subjectId: int('subject_id').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (tsa) => ({
+    teacherIdIdx: index('tsa_teacher_id_idx').on(tsa.teacherId),
+    subjectIdIdx: index('tsa_subject_id_idx').on(tsa.subjectId),
+    fk_tsa_teacher: foreignKey({ columns: [tsa.teacherId], foreignColumns: [teachers.id] }),
+    fk_tsa_subject: foreignKey({ columns: [tsa.subjectId], foreignColumns: [subjects.id] }),
+  })
+);
+
+// ==================== Teacher Class Assignments ====================
+export const teacherClassAssignments = mysqlTable(
+  'teacher_class_assignments',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    teacherId: int('teacher_id').notNull(),
+    classId: int('class_id').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (tca) => ({
+    teacherIdIdx: index('tca_teacher_id_idx').on(tca.teacherId),
+    classIdIdx: index('tca_class_id_idx').on(tca.classId),
+    fk_tca_teacher: foreignKey({ columns: [tca.teacherId], foreignColumns: [teachers.id] }),
+    fk_tca_class: foreignKey({ columns: [tca.classId], foreignColumns: [classes.id] }),
+  })
+);
+
+// ==================== Class Teacher Assignments ====================
+export const classTeacherAssignments = mysqlTable(
+  'class_teacher_assignments',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    teacherId: int('teacher_id').notNull(),
+    classId: int('class_id').notNull().unique(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (cta) => ({
+    teacherIdIdx: index('cta_teacher_id_idx').on(cta.teacherId),
+    classIdIdx: index('cta_class_id_idx').on(cta.classId),
+    fk_cta_teacher: foreignKey({ columns: [cta.teacherId], foreignColumns: [teachers.id] }),
+    fk_cta_class: foreignKey({ columns: [cta.classId], foreignColumns: [classes.id] }),
+  })
+);
+

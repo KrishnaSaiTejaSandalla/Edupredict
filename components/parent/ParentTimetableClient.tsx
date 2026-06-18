@@ -38,8 +38,6 @@ const DAYS_OF_WEEK = [
   "Wednesday",
   "Thursday",
   "Friday",
-  "Saturday",
-  "Sunday",
 ];
 
 export default function ParentTimetableClient({ childrenList, childTimetables }: Props) {
@@ -119,9 +117,9 @@ export default function ParentTimetableClient({ childrenList, childTimetables }:
               return (
                 <div
                   key={day}
-                  className="rounded-2xl border border-theme bg-surface/50 p-5 space-y-4"
+                  className="flex flex-col h-[400px] rounded-2xl border border-theme bg-surface/50 p-5"
                 >
-                  <div className="flex items-center justify-between border-b border-theme pb-2.5">
+                  <div className="flex items-center justify-between border-b border-theme pb-2.5 shrink-0 mb-4">
                     <h3 className="text-sm font-bold text-primary">{day}</h3>
                     <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-bold text-cyan-400">
                       {dayEntries.length} {dayEntries.length === 1 ? "Period" : "Periods"}
@@ -129,9 +127,11 @@ export default function ParentTimetableClient({ childrenList, childTimetables }:
                   </div>
 
                   {dayEntries.length === 0 ? (
-                    <p className="text-xs text-muted py-4 text-center">No periods scheduled.</p>
+                    <div className="flex-1 flex items-center justify-center">
+                      <p className="text-xs text-muted py-4 text-center">No periods scheduled.</p>
+                    </div>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="flex-1 overflow-y-auto space-y-3 pr-1">
                       {dayEntries.map((entry) => (
                         <div
                           key={entry.id}

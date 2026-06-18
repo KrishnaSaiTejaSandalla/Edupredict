@@ -1,8 +1,8 @@
 'use server';
 
 import { db } from './db';
-import { timetables, classes, subjects, teachers, users } from './schema';
-import { eq, and, or, sql } from 'drizzle-orm';
+import { timetables, classes, subjects, teachers, users, teacherClassAssignments, teacherSubjectAssignments } from './schema';
+import { eq, and, or, sql, inArray } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { createNotification } from './notification-actions';
 import { parseDbError } from './db-errors';
@@ -96,10 +96,19 @@ export async function createTimetableEntry(data: {
   const user = await getCurrentUser();
   const schoolId = user?.school?.id ?? 1;
 
-  // Validate teacher department matches subject name
-  const [teacherRow] = await db.select().from(teachers).where(eq(teachers.id, data.teacherId)).limit(1);
-  const [subjectRow] = await db.select().from(subjects).where(eq(subjects.id, data.subjectId)).limit(1);
-  if (!teacherRow || !subjectRow || !teacherRow.department || !subjectRow.name || teacherRow.department.trim().toLowerCase() !== subjectRow.name.trim().toLowerCase()) {
+  // Validate teacher has been assigned to this subject
+  const assignment = await db
+    .select()
+    .from(teacherSubjectAssignments)
+    .where(
+      and(
+        eq(teacherSubjectAssignments.teacherId, data.teacherId),
+        eq(teacherSubjectAssignments.subjectId, data.subjectId)
+      )
+    )
+    .limit(1);
+
+  if (assignment.length === 0) {
     throw new Error("Teacher not assigned to subject");
   }
 
@@ -172,10 +181,19 @@ export async function updateTimetableEntry(
   const user = await getCurrentUser();
   const schoolId = user?.school?.id ?? 1;
 
-  // Validate teacher department matches subject name
-  const [teacherRow] = await db.select().from(teachers).where(eq(teachers.id, data.teacherId)).limit(1);
-  const [subjectRow] = await db.select().from(subjects).where(eq(subjects.id, data.subjectId)).limit(1);
-  if (!teacherRow || !subjectRow || !teacherRow.department || !subjectRow.name || teacherRow.department.trim().toLowerCase() !== subjectRow.name.trim().toLowerCase()) {
+  // Validate teacher has been assigned to this subject
+  const assignment = await db
+    .select()
+    .from(teacherSubjectAssignments)
+    .where(
+      and(
+        eq(teacherSubjectAssignments.teacherId, data.teacherId),
+        eq(teacherSubjectAssignments.subjectId, data.subjectId)
+      )
+    )
+    .limit(1);
+
+  if (assignment.length === 0) {
     throw new Error("Teacher not assigned to subject");
   }
 
@@ -331,6 +349,23 @@ export async function getTimetableByClass(classId: number) {
 }
 
 export async function getTimetableByTeacher(teacherId: number) {
+  // Get assigned classes and subjects
+  const classRows = await db
+    .select({ classId: teacherClassAssignments.classId })
+    .from(teacherClassAssignments)
+    .where(eq(teacherClassAssignments.teacherId, teacherId));
+  const assignedClassIds = classRows.map((r) => r.classId);
+
+  const subjectRows = await db
+    .select({ subjectId: teacherSubjectAssignments.subjectId })
+    .from(teacherSubjectAssignments)
+    .where(eq(teacherSubjectAssignments.teacherId, teacherId));
+  const assignedSubjectIds = subjectRows.map((r) => r.subjectId);
+
+  if (assignedClassIds.length === 0 || assignedSubjectIds.length === 0) {
+    return [];
+  }
+
   const rows = await db
     .select({
       entry: timetables,
@@ -341,7 +376,13 @@ export async function getTimetableByTeacher(teacherId: number) {
     .from(timetables)
     .leftJoin(classes, eq(timetables.classId, classes.id))
     .leftJoin(subjects, eq(timetables.subjectId, subjects.id))
-    .where(eq(timetables.teacherId, teacherId));
+    .where(
+      and(
+        eq(timetables.teacherId, teacherId),
+        inArray(timetables.classId, assignedClassIds),
+        inArray(timetables.subjectId, assignedSubjectIds)
+      )
+    );
 
   return rows.map((r: any) => ({
     ...r.entry,
@@ -370,16 +411,7 @@ export async function getAllTeachers() {
 export async function getTeachersBySubject(subjectId: number) {
   if (!subjectId) return [];
 
-  // First, get the subject name
-  const [subject] = await db
-    .select({ name: subjects.name })
-    .from(subjects)
-    .where(eq(subjects.id, subjectId))
-    .limit(1);
-
-  if (!subject) return [];
-
-  // Find teachers whose department matches the subject name
+  // Find teachers who are assigned to this subject in teacherSubjectAssignments
   const rows = await db
     .select({
       id: teachers.id,
@@ -388,7 +420,8 @@ export async function getTeachersBySubject(subjectId: number) {
     })
     .from(teachers)
     .innerJoin(users, eq(users.id, teachers.userId))
-    .where(eq(teachers.department, subject.name));
+    .innerJoin(teacherSubjectAssignments, eq(teacherSubjectAssignments.teacherId, teachers.id))
+    .where(eq(teacherSubjectAssignments.subjectId, subjectId));
 
   return rows;
 }

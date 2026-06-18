@@ -4,6 +4,16 @@ import { upsertUserPreferences } from '@/lib/settings-actions';
 export type Theme = 'dark' | 'light' | 'system';
 export type Density = 'compact' | 'comfortable' | 'spacious';
 
+function getRoleSuffix(): string {
+  if (typeof window === "undefined") return "";
+  const path = window.location.pathname;
+  if (path.startsWith("/admin")) return "_admin";
+  if (path.startsWith("/teacher")) return "_teacher";
+  if (path.startsWith("/parent")) return "_parent";
+  if (path.startsWith("/student")) return "_student";
+  return "";
+}
+
 interface PreferencesState {
   theme: Theme;
   density: Density;
@@ -39,7 +49,8 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
       } else {
         document.documentElement.classList.remove('dark');
       }
-      document.cookie = `ep-theme=${theme}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+      const suffix = getRoleSuffix();
+      document.cookie = `ep-theme${suffix}=${theme}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
     }
     if (userId) {
       try {
@@ -54,7 +65,8 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     // Update DOM attribute
     if (typeof document !== 'undefined') {
       document.documentElement.setAttribute('data-density', density);
-      document.cookie = `ep-density=${density}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+      const suffix = getRoleSuffix();
+      document.cookie = `ep-density${suffix}=${density}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
     }
     if (userId) {
       try {

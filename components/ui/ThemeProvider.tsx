@@ -58,6 +58,16 @@ function resolveTheme(theme: Theme): "dark" | "light" {
   return theme === "system" ? getSystemTheme() : theme;
 }
 
+function getRoleSuffix(): string {
+  if (typeof window === "undefined") return "";
+  const path = window.location.pathname;
+  if (path.startsWith("/admin")) return "_admin";
+  if (path.startsWith("/teacher")) return "_teacher";
+  if (path.startsWith("/parent")) return "_parent";
+  if (path.startsWith("/student")) return "_student";
+  return "";
+}
+
 function applyToDOM(theme: Theme, density: Density, preset?: string) {
   const root = document.documentElement;
   const resolved = resolveTheme(theme);
@@ -134,8 +144,9 @@ export default function ThemeProvider({
 
   // ── Cross-tab sync via storage event ──
   useEffect(() => {
+    const suffix = getRoleSuffix();
     const handler = (e: StorageEvent) => {
-      if (e.key === "ep-theme-sync" && e.newValue) {
+      if (e.key === `ep-theme-sync${suffix}` && e.newValue) {
         try {
           const { theme, density } = JSON.parse(e.newValue) as {
             theme: Theme;
@@ -156,8 +167,9 @@ export default function ThemeProvider({
     (t: Theme) => {
       store.setTheme(t);
       try {
+        const suffix = getRoleSuffix();
         localStorage.setItem(
-          "ep-theme-sync",
+          `ep-theme-sync${suffix}`,
           JSON.stringify({ theme: t, density: store.density })
         );
       } catch {
@@ -172,8 +184,9 @@ export default function ThemeProvider({
     (d: Density) => {
       store.setDensity(d);
       try {
+        const suffix = getRoleSuffix();
         localStorage.setItem(
-          "ep-theme-sync",
+          `ep-theme-sync${suffix}`,
           JSON.stringify({ theme: store.theme, density: d })
         );
       } catch {
@@ -190,7 +203,8 @@ export default function ThemeProvider({
       document.documentElement.setAttribute("data-color-preset", p);
       if (persist) {
         try {
-          document.cookie = `ep-color-preset=${p}; path=/; max-age=${
+          const suffix = getRoleSuffix();
+          document.cookie = `ep-color-preset${suffix}=${p}; path=/; max-age=${
             60 * 60 * 24 * 365
           }; SameSite=Lax`;
         } catch {

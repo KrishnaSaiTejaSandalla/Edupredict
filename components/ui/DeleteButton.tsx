@@ -7,9 +7,10 @@ import DeleteConfirmModal from './DeleteConfirmModal';
 type Props = {
   action: (formData: FormData) => Promise<void>;
   label?: string;
+  id?: number;
 };
 
-export default function DeleteButton({ action, label = 'Delete' }: Props) {
+export default function DeleteButton({ action, label = 'Delete', id }: Props) {
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();
@@ -19,6 +20,7 @@ export default function DeleteButton({ action, label = 'Delete' }: Props) {
     setLoading(true);
     try {
       const fd = new FormData();
+      fd.set('id', String(id));
       await action(fd);
       toast.success('Deleted successfully');
       router.refresh();

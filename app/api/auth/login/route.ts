@@ -19,11 +19,9 @@ export async function POST(req: Request) {
   const { token, expiresAt } = await createSession(user.id);
   const res = NextResponse.json({ ok: true });
   const cookieOpts = { path: '/', expires: expiresAt, secure: process.env.NODE_ENV === 'production' } as const;
-  // httpOnly session token — not readable by JS
-  res.cookies.set({ name: SESSION_COOKIE_NAME, value: token, httpOnly: true, ...cookieOpts });
-  // Readable role cookie — allows middleware fast-path without a DB call.
-  // This is NOT a security token; full validation still happens server-side in requireRole().
-  res.cookies.set({ name: 'ep-role', value: user.role ?? 'student', httpOnly: false, ...cookieOpts });
+  const role = user.role ?? 'student';
+  res.cookies.set({ name: `${SESSION_COOKIE_NAME}_${role}`, value: token, httpOnly: true, ...cookieOpts });
+  res.cookies.set({ name: `ep-role_${role}`, value: role, httpOnly: false, ...cookieOpts });
   return res;
 }
 

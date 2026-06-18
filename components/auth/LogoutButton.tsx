@@ -1,21 +1,32 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { createPortal } from "react-dom";
 
 export default function LogoutButton({
   compact = false,
+  variant = "default",
 }: {
   compact?: boolean;
+  variant?: "default" | "menu";
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [showConfirm, setShowConfirm] = useState(false);
 
   async function handleLogout() {
+    let role = "";
+    if (pathname.startsWith("/admin")) role = "admin";
+    else if (pathname.startsWith("/teacher")) role = "teacher";
+    else if (pathname.startsWith("/student")) role = "student";
+    else if (pathname.startsWith("/parent")) role = "parent";
+
     await fetch("/api/auth/logout", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role }),
     });
 
     toast.success("Signed out successfully");
@@ -27,14 +38,27 @@ export default function LogoutButton({
       <button
         onClick={() => setShowConfirm(true)}
         className={
-          compact
+          variant === "menu"
+            ? "flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-rose-400 hover:bg-rose-500/10 hover:text-rose-200 transition duration-150"
+            : compact
             ? "flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-400 transition hover:border-rose-400/40 hover:bg-rose-500/10 hover:text-rose-200"
             : "rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-500"
         }
         aria-label="Sign out"
         title="Sign out"
       >
-        {compact ? (
+        {variant === "menu" ? (
+          <>
+            <svg
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              className="h-4 w-4 fill-current"
+            >
+              <path d="M4 4h8v2H6v12h6v2H4V4Zm11.6 4.4L17 7l5 5-5 5-1.4-1.4 2.6-2.6H10v-2h8.2l-2.6-2.6Z" />
+            </svg>
+            <span>Logout</span>
+          </>
+        ) : compact ? (
           <svg
             viewBox="0 0 24 24"
             aria-hidden="true"

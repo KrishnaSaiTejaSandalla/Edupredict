@@ -65,8 +65,9 @@ export async function POST(req: Request) {
       },
     });
 
+    const userRole = newUser.role ?? 'student';
     res.cookies.set({
-      name: SESSION_COOKIE_NAME,
+      name: `${SESSION_COOKIE_NAME}_${userRole}`,
       value: token,
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -75,8 +76,8 @@ export async function POST(req: Request) {
     });
     // Non-httpOnly role cookie for middleware fast-path
     res.cookies.set({
-      name: 'ep-role',
-      value: newUser.role ?? 'student',
+      name: `ep-role_${userRole}`,
+      value: userRole,
       httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
       path: '/',

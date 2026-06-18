@@ -1,21 +1,8 @@
 import { NextResponse } from 'next/server';
-import { getUserBySessionToken } from '@/lib/session';
-import { SESSION_COOKIE_NAME } from '@/lib/env';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function GET(req: Request) {
-
-  const cookie = req.headers.get('cookie') || '';
-  const match = cookie.match(
-    new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`)
-  );
-
-  const token = match ? match[1] : null;
-
-  if (!token) {
-    return NextResponse.json({ user: null });
-  }
-
-  const user = await getUserBySessionToken(token);
+  const user = await getCurrentUser(req);
 
   if (!user) {
     return NextResponse.json({ user: null });

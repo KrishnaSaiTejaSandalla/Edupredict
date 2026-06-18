@@ -87,8 +87,7 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
 
     pollNotifications();
 
-    const interval = setInterval(pollNotifications, 60000);
-    // Change 60000 to 3000 if you want to poll every 3 seconds
+    const interval = setInterval(pollNotifications, 30000); // poll every 30 seconds
 
     return () => clearInterval(interval);
   }, [hydrate]);

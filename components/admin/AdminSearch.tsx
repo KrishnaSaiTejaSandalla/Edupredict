@@ -53,9 +53,9 @@ export default function AdminSearch({
 
     return (
         <label className="relative block w-[300px]">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
-                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
-                    <path d="M10 4a6 6 0 1 0 3.7 10.7l3.6 3.6 1.4-1.4-3.6-3.6A6 6 0 0 0 10 4Zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z" />
+            <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
+                <svg viewBox="0 0 24 24" className="h-4 w-4 text-muted-foreground" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.602 10.602Z" />
                 </svg>
             </span>
 
@@ -64,7 +64,7 @@ export default function AdminSearch({
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 placeholder={placeholder}
-                className="input-theme h-10 w-full pl-9"
+                className="h-10 w-full rounded-xl border border-border bg-card pl-10 pr-3 text-sm text-foreground outline-none focus:border-cyan-500 placeholder:text-muted-foreground transition-all"
             />
         </label>
     );

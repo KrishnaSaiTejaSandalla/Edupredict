@@ -1,12 +1,12 @@
 function Shimmer({ className = "" }: { className?: string }) {
   return (
-    <div className={`animate-pulse rounded-xl bg-white/[0.06] ${className}`} />
+    <div className={`skeleton ${className}`} />
   );
 }
 
 export default function AdminLoading() {
   return (
-    <main className="min-h-screen bg-[#070b16] p-4 sm:p-6 lg:p-8 space-y-8">
+    <main className="min-h-screen bg-background text-foreground p-4 sm:p-6 lg:p-8 space-y-8 transition-colors duration-200">
       {/* Header */}
       <div className="space-y-3">
         <Shimmer className="h-3 w-24 rounded-full" />
@@ -19,7 +19,7 @@ export default function AdminLoading() {
         {Array.from({ length: 4 }).map((_, i) => (
           <div
             key={i}
-            className="rounded-2xl border border-white/10 bg-white/[0.035] p-6 shadow-xl shadow-black/40"
+            className="rounded-2xl border border-border bg-card p-6 shadow-md transition-colors duration-200"
           >
             <div className="flex items-center justify-between gap-4">
               <div className="space-y-3 flex-1">
@@ -33,7 +33,7 @@ export default function AdminLoading() {
       </section>
 
       {/* Charts Container */}
-      <section className="rounded-3xl border border-white/10 bg-white/[0.015] p-6 shadow-2xl">
+      <section className="rounded-3xl border border-border bg-card p-6 shadow-lg transition-colors duration-200">
         <div className="mb-5 space-y-2">
           <Shimmer className="h-5 w-48" />
           <Shimmer className="h-3 w-64" />
@@ -49,7 +49,7 @@ export default function AdminLoading() {
         {/* Left: Recent Students + Gender */}
         <div className="lg:col-span-8 flex flex-col gap-8">
           {/* Recent Students card */}
-          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-6 shadow-xl shadow-black/20">
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-md transition-colors duration-200">
             <div className="mb-6 flex items-center justify-between">
               <div className="space-y-2">
                 <Shimmer className="h-5 w-36" />
@@ -61,7 +61,7 @@ export default function AdminLoading() {
               {Array.from({ length: 5 }).map((_, i) => (
                 <div
                   key={i}
-                  className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.015] p-4"
+                  className="flex items-center justify-between rounded-xl border border-border/40 bg-hover/20 p-4"
                 >
                   <div className="flex items-center gap-3.5">
                     <Shimmer className="h-10 w-10 rounded-xl shrink-0" />
@@ -87,7 +87,7 @@ export default function AdminLoading() {
           </div>
 
           {/* Gender Distribution card */}
-          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-6 shadow-xl shadow-black/20">
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-md transition-colors duration-200">
             <div className="mb-6 space-y-2">
               <Shimmer className="h-5 w-48" />
               <Shimmer className="h-3 w-36" />
@@ -104,7 +104,7 @@ export default function AdminLoading() {
                 </div>
               ))}
             </div>
-            <div className="mt-6 grid grid-cols-2 gap-4 rounded-xl bg-slate-900/50 p-4">
+            <div className="mt-6 grid grid-cols-2 gap-4 rounded-xl bg-elevated p-4">
               {[0, 1].map((i) => (
                 <div key={i} className="text-center space-y-2">
                   <Shimmer className="h-5 w-5 mx-auto rounded-full" />
@@ -119,7 +119,7 @@ export default function AdminLoading() {
         {/* Right: Exams + Alerts */}
         <div className="lg:col-span-4 flex flex-col gap-8">
           {/* Upcoming Exams */}
-          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-6 shadow-xl shadow-black/20">
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-md transition-colors duration-200">
             <div className="mb-6 space-y-2">
               <Shimmer className="h-5 w-36" />
               <Shimmer className="h-3 w-48" />
@@ -128,7 +128,7 @@ export default function AdminLoading() {
               {Array.from({ length: 4 }).map((_, i) => (
                 <div
                   key={i}
-                  className="rounded-xl border border-white/5 bg-white/[0.02] p-4"
+                  className="rounded-xl border border-border/40 bg-hover/20 p-4"
                 >
                   <div className="flex justify-between items-start gap-3">
                     <div className="space-y-1.5 flex-1">
@@ -143,7 +143,7 @@ export default function AdminLoading() {
           </div>
 
           {/* System Alerts */}
-          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-6 shadow-xl shadow-black/20">
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-md transition-colors duration-200">
             <div className="mb-6 space-y-2">
               <Shimmer className="h-5 w-28" />
               <Shimmer className="h-3 w-44" />
@@ -152,7 +152,7 @@ export default function AdminLoading() {
               {Array.from({ length: 3 }).map((_, i) => (
                 <div
                   key={i}
-                  className="rounded-xl border-l-4 border-l-white/10 border border-white/5 bg-white/[0.015] p-4"
+                  className="rounded-xl border-l-4 border-l-border border border-border bg-hover/10 p-4"
                 >
                   <Shimmer className="h-4 w-40 mb-2" />
                   <Shimmer className="h-3 w-full mb-1" />

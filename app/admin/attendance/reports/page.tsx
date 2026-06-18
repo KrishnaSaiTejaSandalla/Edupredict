@@ -91,6 +91,14 @@ export default async function AttendanceReportsPage({
     };
   });
 
+  // KPI computations
+  const totalStudents = report.length;
+  const avgAttendance =
+    totalStudents > 0
+      ? Math.round(report.reduce((sum, s) => sum + s.percentage, 0) / totalStudents)
+      : 0;
+  const atRiskCount = report.filter((s) => s.percentage < 75).length;
+
   const activeTabCls = "rounded-xl bg-cyan-500/10 border border-cyan-500/30 px-4 py-2.5 text-cyan-500 dark:text-cyan-400 font-bold shadow-sm shadow-cyan-500/5 transition";
   const inactiveTabCls = "rounded-xl border border-border bg-background px-4 py-2.5 text-muted-foreground hover:text-foreground hover:bg-hover transition";
 
@@ -104,9 +112,7 @@ export default async function AttendanceReportsPage({
           <p className="mt-2 text-sm text-muted-foreground">Review class-wise attendance statistics over the last 30 days.</p>
         </div>
         <nav className="flex flex-wrap gap-2 text-xs">
-          <a href="/admin/attendance" className={inactiveTabCls}>Take Attendance</a>
-          <a href="/admin/attendance/history" className={inactiveTabCls}>History</a>
-          <a href="/admin/attendance/summary" className={inactiveTabCls}>Summary</a>
+          <a href="/admin/attendance" className={inactiveTabCls}>Summary</a>
           <a href="/admin/attendance/reports" className={activeTabCls}>Reports</a>
         </nav>
       </div>
@@ -138,6 +144,49 @@ export default async function AttendanceReportsPage({
           </button>
         </form>
       </section>
+
+      {/* KPI STRIP — visible only when a class is selected */}
+      {classId && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[
+            {
+              label: "Total Students",
+              value: totalStudents,
+              suffix: "",
+              color: "text-cyan-500 dark:text-cyan-400",
+              icon: "M7 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm10-1a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM1 20a6 6 0 0 1 12 0H1Zm12.6 0a7.5 7.5 0 0 0-2.1-4.9A5 5 0 0 1 22 20h-8.4Z",
+            },
+            {
+              label: "Avg Attendance",
+              value: avgAttendance,
+              suffix: "%",
+              color: avgAttendance >= 75 ? "text-emerald-500 dark:text-emerald-400" : "text-amber-500 dark:text-amber-400",
+              icon: "M9 11l3 3L22 4M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z",
+            },
+            {
+              label: "At Risk (<75%)",
+              value: atRiskCount,
+              suffix: "",
+              color: atRiskCount > 0 ? "text-rose-500 dark:text-rose-400" : "text-emerald-500 dark:text-emerald-400",
+              icon: "M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z",
+            },
+          ].map(({ label, value, suffix, color, icon }) => (
+            <div key={label} className="rounded-2xl border border-border bg-card p-5 shadow-sm hover:shadow-md transition">
+              <div className="flex items-center gap-3">
+                <span className={`flex h-9 w-9 items-center justify-center rounded-xl bg-background border border-border ${color}`}>
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d={icon} />
+                  </svg>
+                </span>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
+              </div>
+              <p className={`mt-3 text-3xl font-black tabular-nums ${color}`}>
+                {value}<span className="text-lg">{suffix}</span>
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* REPORT CONTENT */}
       {classId ? (

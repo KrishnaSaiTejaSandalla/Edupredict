@@ -1,10 +1,10 @@
 function SkeletonBlock({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded-2xl bg-white/[0.06] ${className}`} />;
+  return <div className={`skeleton ${className}`} />;
 }
 
 export default function SettingsLoading() {
   return (
-    <main className="min-h-screen bg-[#070b16] p-4 sm:p-6 lg:p-8 space-y-8">
+    <main className="min-h-screen bg-background text-foreground p-4 sm:p-6 lg:p-8 space-y-8 transition-colors duration-200">
       {/* Header Row Skeleton */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-3">
@@ -19,8 +19,8 @@ export default function SettingsLoading() {
       <div className="grid gap-8 xl:grid-cols-[280px_1fr]">
         
         {/* Navigation Sidebar Skeleton */}
-        <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5 shadow-xl space-y-6">
-          <div className="rounded-xl border border-white/5 bg-[#0b1020]/40 p-4">
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-md space-y-6 transition-colors duration-200">
+          <div className="rounded-xl border border-border/40 bg-card/40 p-4">
             <div className="flex items-center gap-3">
               <SkeletonBlock className="h-11 w-11 rounded-xl shrink-0" />
               <div className="space-y-2 min-w-0 flex-1">
@@ -37,8 +37,8 @@ export default function SettingsLoading() {
         </div>
 
         {/* Content Pane Skeleton */}
-        <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-6 shadow-xl space-y-6">
-          <div className="flex flex-col gap-5 border-b border-white/5 pb-6 sm:flex-row sm:items-center">
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-md space-y-6 transition-colors duration-200">
+          <div className="flex flex-col gap-5 border-b border-border/40 pb-6 sm:flex-row sm:items-center">
             <SkeletonBlock className="h-16 w-16 rounded-2xl shrink-0" />
             <div className="space-y-2 flex-1">
               <SkeletonBlock className="h-4.5 w-48" />

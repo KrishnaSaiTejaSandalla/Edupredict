@@ -7,6 +7,7 @@ import { createNotification } from '@/lib/notification-actions';
 import bcrypt from 'bcryptjs';
 import { parseDbError } from '@/lib/db-errors';
 import TeachersClient from '@/components/admin/TeachersClient';
+import { deleteTeacherCascading } from '@/lib/teacher-assignment-actions';
 
 type SearchParams = {
   q?: string;
@@ -169,14 +170,10 @@ export default async function TeachersPage({ searchParams }: Props) {
 
   async function deleteTeacher(id: number, name: string) {
     'use server';
-    const [t] = await db.select().from(teachers).where(eq(teachers.id, id)).limit(1);
-    if (!t) throw new Error('Teacher not found.');
-
     try {
-      await db.delete(teachers).where(eq(teachers.id, id));
-      await db.delete(users).where(eq(users.id, t.userId));
-    } catch (err) {
-      throw new Error(parseDbError(err));
+      await deleteTeacherCascading(id);
+    } catch (err: any) {
+      throw new Error(err.message || parseDbError(err));
     }
 
     await createNotification('Teacher Deleted', `Teacher "${name}" was deleted.`, 'info', 'medium');

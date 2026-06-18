@@ -1,14 +1,14 @@
 function Shimmer({ className = "" }: { className?: string }) {
   return (
     <div
-      className={`animate-pulse rounded-xl bg-white/[0.06] ${className}`}
+      className={`skeleton ${className}`}
     />
   );
 }
 
 export default function NotificationsLoading() {
   return (
-    <main className="min-h-screen bg-[#070b16] p-4 sm:p-6 lg:p-8 space-y-8">
+    <main className="min-h-screen bg-background text-foreground p-4 sm:p-6 lg:p-8 space-y-8 transition-colors duration-200">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-3">
@@ -24,7 +24,7 @@ export default function NotificationsLoading() {
         {/* Left: Controls + Feed */}
         <div className="space-y-6">
           {/* Controls bar */}
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-white/5 bg-gradient-to-br from-slate-950/40 to-white/[0.02] p-4 shadow-md">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-border bg-card p-4 shadow-md transition-colors duration-200">
             <div className="flex flex-wrap gap-2">
               {[88, 64, 80, 64].map((w, i) => (
                 <Shimmer key={i} className={`h-9 w-${w === 64 ? "16" : w === 80 ? "20" : w === 88 ? "24" : "20"} rounded-xl`} />
@@ -34,12 +34,12 @@ export default function NotificationsLoading() {
           </div>
 
           {/* Feed list */}
-          <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] p-6 shadow-xl shadow-black/20">
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-md transition-colors duration-200">
             <div className="space-y-3.5">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div
                   key={i}
-                  className="rounded-xl border border-white/5 bg-white/[0.015] p-4"
+                  className="rounded-xl border border-border/40 bg-hover/20 p-4"
                 >
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <Shimmer className="h-4 w-48" />
@@ -58,8 +58,8 @@ export default function NotificationsLoading() {
         </div>
 
         {/* Right: Preferences sidebar */}
-        <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/40 to-white/[0.035] p-6 shadow-xl shadow-black/20 self-start">
-          <div className="border-b border-white/5 pb-4 space-y-2">
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-md transition-colors duration-200 self-start">
+          <div className="border-b border-border/40 pb-4 space-y-2">
             <Shimmer className="h-4 w-28" />
             <Shimmer className="h-3 w-48" />
           </div>

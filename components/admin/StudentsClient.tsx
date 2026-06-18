@@ -116,22 +116,7 @@ export default function StudentsClient({
 
   // ── Open edit panel ───────────────────────────────────────────────────────
   function openEdit(row: StudentRow) {
-    const dob = row.s.dateOfBirth
-      ? new Date(row.s.dateOfBirth).toISOString().slice(0, 10)
-      : '';
-    setEditingId(row.s.id);
-    setFormData({
-      fullName: row.u.name,
-      email: row.u.email,
-      rollNumber: row.s.rollNumber ?? '',
-      classId: String(row.s.classId),
-      gender: row.s.gender ?? '',
-      dateOfBirth: dob,
-      parentName: row.parentName ?? '',
-      parentPhone: row.parentPhone ?? '',
-      parentEmail: row.parentEmail ?? '',
-    });
-    setShowForm(true);
+    router.push(`/admin/students/${row.s.id}`);
   }
 
   // ── Close panel ───────────────────────────────────────────────────────────

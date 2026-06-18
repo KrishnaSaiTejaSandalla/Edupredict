@@ -109,9 +109,9 @@ export default function ResultsClient({ classList, subjectList, examTypeList }: 
         onClick={applyFilter}
         className={`h-11 rounded-xl font-bold text-white transition-all duration-200 w-full
           ${isReady
-            ? "bg-blue-500 hover:bg-blue-400 active:scale-[0.97]"
-            : "bg-blue-500/70 cursor-pointer"
-          }`}
+            ? "btn-cyan"
+            : "bg-cyan-500/70 cursor-pointer"}
+        `}
       >
         Apply Filter
       </button>

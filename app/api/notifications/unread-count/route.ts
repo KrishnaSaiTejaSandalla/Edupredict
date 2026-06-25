@@ -24,6 +24,6 @@ export async function GET() {
         );
 
     return NextResponse.json({
-        count: result.count,
+        count: Number(result.count || 0),
     });
 }

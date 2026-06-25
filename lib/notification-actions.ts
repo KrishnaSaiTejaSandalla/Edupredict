@@ -41,6 +41,8 @@ export async function createNotification(
 
     revalidatePath('/admin');
     revalidatePath('/admin/notifications');
+    revalidatePath('/teacher');
+    revalidatePath('/teacher/notifications');
   } catch (err) {
     console.error('Failed to create notification:', err);
   }
@@ -58,6 +60,12 @@ export async function markNotificationRead(id: number) {
 
     revalidatePath('/admin/notifications');
     revalidatePath('/admin');
+    revalidatePath('/teacher/notifications');
+    revalidatePath('/teacher');
+    revalidatePath('/student/notifications');
+    revalidatePath('/student');
+    revalidatePath('/parent/notifications');
+    revalidatePath('/parent');
   } catch (err) {
     console.error('Failed to mark notification read:', err);
     throw new Error('Failed to mark notification as read');
@@ -81,6 +89,12 @@ export async function markAllNotificationsRead(userId: number) {
 
     revalidatePath('/admin/notifications');
     revalidatePath('/admin');
+    revalidatePath('/teacher/notifications');
+    revalidatePath('/teacher');
+    revalidatePath('/student/notifications');
+    revalidatePath('/student');
+    revalidatePath('/parent/notifications');
+    revalidatePath('/parent');
   } catch (err) {
     console.error('Failed to mark all notifications read:', err);
     throw new Error('Failed to mark all notifications as read');
@@ -121,6 +135,13 @@ export async function saveNotificationPreferences(
       .where(eq(users.id, userId));
 
     revalidatePath('/admin/notifications');
+    revalidatePath('/admin');
+    revalidatePath('/teacher/notifications');
+    revalidatePath('/teacher');
+    revalidatePath('/student/notifications');
+    revalidatePath('/student');
+    revalidatePath('/parent/notifications');
+    revalidatePath('/parent');
   } catch (err) {
     console.error('Failed to save notification preferences:', err);
     throw new Error('Failed to save preferences');

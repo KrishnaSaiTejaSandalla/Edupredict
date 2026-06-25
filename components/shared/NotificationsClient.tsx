@@ -1,19 +1,22 @@
 "use client";
 
 /**
- * Shared NotificationsClient — identical to the admin version.
- * Used across all panels (teacher, parent, student) with the same UI.
- * The notification data is already role-filtered by userId in the server layout.
+ * Shared NotificationsClient — matches Admin panel layout and behavior.
+ * Filters: All | High | Medium | Low (priority-based)
+ * Only displays unread notifications.
+ * Clicking a notification marks it as read, removing it immediately from the feed.
+ * Preferences (academic/attendance/system/reports) saved to DB and filter feed locally.
  */
 
-import { useState, useRef, useTransition } from "react";
+import { useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import {
   markNotificationRead,
   markAllNotificationsRead,
+  saveNotificationPreferences,
+  type NotificationPreferences,
 } from "@/lib/notification-actions";
 import { useNotificationStore } from "@/store/useNotificationStore";
-import { useEffect } from "react";
 
 interface NotificationItem {
   id: number;
@@ -28,6 +31,7 @@ interface NotificationItem {
 
 type PriorityFilter = "all" | "high" | "medium" | "low";
 
+// Map notification types to preference categories
 function matchesCategory(item: NotificationItem, category: string): boolean {
   const t = item.type?.toLowerCase() ?? "";
   const title = item.title?.toLowerCase() ?? "";
@@ -46,6 +50,7 @@ function matchesCategory(item: NotificationItem, category: string): boolean {
         msg.includes("marks") ||
         msg.includes("result")
       );
+
     case "attendance":
       return (
         t.includes("attendance") ||
@@ -54,6 +59,7 @@ function matchesCategory(item: NotificationItem, category: string): boolean {
         msg.includes("attendance") ||
         msg.includes("absent")
       );
+
     case "system":
       return (
         title.includes("student") ||
@@ -67,15 +73,19 @@ function matchesCategory(item: NotificationItem, category: string): boolean {
         msg.includes("deleted") ||
         msg.includes("added")
       );
+
     case "reports":
       return (
         title.includes("report") ||
         title.includes("marks pending") ||
         title.includes("exam finished") ||
+        title.includes("leave") ||
         msg.includes("report") ||
         msg.includes("marks pending") ||
-        msg.includes("exam finished")
+        msg.includes("exam finished") ||
+        msg.includes("leave")
       );
+
     default:
       return true;
   }
@@ -124,7 +134,7 @@ const PREF_FILTERS = [
   { key: "academic", label: "Academic Alerts" },
   { key: "attendance", label: "Attendance Warnings" },
   { key: "system", label: "System Updates" },
-  { key: "reports", label: "Report Reminders" },
+  { key: "reports", label: "Reports & Leaves" },
 ] as const;
 
 type PrefKey = (typeof PREF_FILTERS)[number]["key"];
@@ -133,25 +143,28 @@ export default function SharedNotificationsClient({
   initialItems,
   userId,
   initialUnreadCount,
+  initialPrefs,
 }: {
   initialItems: NotificationItem[];
   userId: number;
   initialUnreadCount: number;
+  initialPrefs?: NotificationPreferences;
 }) {
+  // Only show unread notifications in the feed. When marked read, they disappear immediately.
   const [items, setItems] = useState<NotificationItem[]>(
     initialItems.filter((i) => !i.isRead)
   );
-
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  // Preference checkboxes — loaded from DB and saved on toggle
   const [activePrefs, setActivePrefs] = useState<Record<PrefKey, boolean>>({
-    academic: true,
-    attendance: true,
-    system: true,
-    reports: true,
+    academic: initialPrefs?.academic ?? true,
+    attendance: initialPrefs?.attendance ?? true,
+    system: initialPrefs?.system ?? true,
+    reports: initialPrefs?.reports ?? true,
   });
-  const [, startTransition] = useTransition();
 
   const { hydrate, decrement, clearAll } = useNotificationStore();
 
@@ -159,6 +172,7 @@ export default function SharedNotificationsClient({
     hydrate(initialUnreadCount);
   }, [hydrate, initialUnreadCount]);
 
+  // Debounce search
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
   const handleSearchChange = (val: string) => {
     setSearchQuery(val);
@@ -166,7 +180,9 @@ export default function SharedNotificationsClient({
     debounceTimer.current = setTimeout(() => setDebouncedSearch(val), 300);
   };
 
+  // ── Compute visible items ──────────────────────────────────────────────
   const visibleItems = items.filter((item) => {
+    // Priority tab filter
     if (priorityFilter !== "all") {
       const p = item.priority?.toLowerCase();
       if (priorityFilter === "low") {
@@ -176,16 +192,22 @@ export default function SharedNotificationsClient({
       }
     }
 
+    // Preference category filter (UI only — AND logic across enabled categories)
     const enabledPrefs = (Object.keys(activePrefs) as PrefKey[]).filter(
       (k) => activePrefs[k]
     );
 
     if (enabledPrefs.length === 0) return false;
 
-    if (!enabledPrefs.some((k) => matchesCategory(item, k))) {
+    if (
+      !enabledPrefs.some((k) =>
+        matchesCategory(item, k)
+      )
+    ) {
       return false;
     }
 
+    // Search
     const q = debouncedSearch.toLowerCase();
     if (q) {
       const matchSearch =
@@ -197,31 +219,33 @@ export default function SharedNotificationsClient({
     return true;
   });
 
+  // Count items by priority for badge
   const countByPriority = (p: PriorityFilter) => {
     if (p === "all") return items.length;
-    if (p === "low")
-      return items.filter(
-        (i) => i.priority === "low" || i.priority === "info"
-      ).length;
+    if (p === "low") return items.filter((i) => i.priority === "low" || i.priority === "info").length;
     return items.filter((i) => i.priority === p).length;
   };
 
+  // ── Mark single read ───────────────────────────────────────────────────
   const handleMarkRead = async (id: number) => {
+    // Optimistically update local state by removing from view
     setItems((prev) => prev.filter((i) => i.id !== id));
     decrement(1);
 
     try {
       await markNotificationRead(id);
     } catch {
+      // Rollback
       const item = initialItems.find((i) => i.id === id);
       if (item) {
-        setItems((prev) => [item, ...prev]);
+        setItems((prev) => [item, ...prev].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
         decrement(-1);
       }
       toast.error("Failed to mark notification as read");
     }
   };
 
+  // ── Mark all read ──────────────────────────────────────────────────────
   const handleMarkAllRead = async () => {
     if (items.length === 0) {
       toast.info("No unread notifications");
@@ -242,8 +266,16 @@ export default function SharedNotificationsClient({
     }
   };
 
-  const togglePref = (key: PrefKey) => {
-    setActivePrefs((prev) => ({ ...prev, [key]: !prev[key] }));
+  // ── Toggle preference and save to DB ───────────────────────────────────
+  const togglePref = async (key: PrefKey) => {
+    const updated = { ...activePrefs, [key]: !activePrefs[key] };
+    setActivePrefs(updated);
+    try {
+      await saveNotificationPreferences(userId, updated);
+      toast.success("Preferences saved successfully");
+    } catch {
+      toast.error("Failed to save preferences");
+    }
   };
 
   const TABS: { id: PriorityFilter; label: string }[] = [
@@ -255,7 +287,7 @@ export default function SharedNotificationsClient({
 
   return (
     <div className="space-y-8">
-      {/* Header */}
+      {/* ── Header ───────────────────────────────────────────────────── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-accent">
@@ -276,7 +308,7 @@ export default function SharedNotificationsClient({
         </button>
       </div>
 
-      {/* Main Grid */}
+      {/* ── Main Grid ────────────────────────────────────────────────── */}
       <section className="grid gap-8 xl:grid-cols-[1fr_320px]">
         {/* Left: Filter tabs + search + feed */}
         <div className="space-y-6">
@@ -306,9 +338,7 @@ export default function SharedNotificationsClient({
                     }`}
                   >
                     {tab.label}
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${badgeColor}`}
-                    >
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${badgeColor}`}>
                       {countByPriority(tab.id)}
                     </span>
                   </button>
@@ -319,7 +349,7 @@ export default function SharedNotificationsClient({
             {/* Search */}
             <div className="relative">
               <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
-                <svg viewBox="0 0 24 24" className="h-4.5 w-4.5 fill-current">
+                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
                   <path d="M10 4a6 6 0 1 0 3.7 10.7l3.6 3.6 1.4-1.4-3.6-3.6A6 6 0 0 0 10 4Zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z" />
                 </svg>
               </span>
@@ -358,9 +388,12 @@ export default function SharedNotificationsClient({
                     <p className="mt-2 text-xs leading-relaxed text-secondary">
                       {item.message}
                     </p>
-                    <p className="mt-3 text-[10px] text-muted font-medium">
-                      {timeAgo(item.createdAt)}
-                    </p>
+                    <div className="mt-3 flex items-center gap-3">
+                      <p className="text-[10px] text-muted font-medium">
+                        {timeAgo(item.createdAt)}
+                      </p>
+                      <span className="text-[10px] text-accent font-semibold">· Click to mark as read</span>
+                    </div>
                   </div>
                 </article>
               ))}
@@ -396,14 +429,14 @@ export default function SharedNotificationsClient({
           </div>
         </div>
 
-        {/* Right: Preferences (UI filter panel only) */}
+        {/* Right: Preferences (DB-backed) */}
         <aside className="rounded-2xl border border-theme bg-surface p-6 shadow-xl self-start">
           <div className="border-b border-theme pb-4">
             <h2 className="text-sm font-semibold text-primary uppercase tracking-wider">
               Preferences
             </h2>
             <p className="text-xs text-secondary mt-1">
-              Configure channels for local alerts feeds.
+              Configure which alert categories appear in your feed.
             </p>
           </div>
           <div className="mt-6 space-y-3 text-xs font-semibold text-primary">
@@ -422,6 +455,11 @@ export default function SharedNotificationsClient({
                 />
               </label>
             ))}
+          </div>
+          <div className="mt-6 pt-5 border-t border-theme">
+            <p className="text-[10px] text-muted leading-relaxed">
+              Preferences are saved to your account and persist across sessions.
+            </p>
           </div>
         </aside>
       </section>

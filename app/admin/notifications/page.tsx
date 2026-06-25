@@ -3,6 +3,7 @@ import { notifications } from "@/lib/schema";
 import { desc, eq } from "drizzle-orm";
 import NotificationsClient from "@/components/admin/NotificationsClient";
 import { requireRole } from "@/lib/auth";
+import { getUserNotificationPreferences } from "@/lib/notification-actions";
 
 export default async function NotificationsPage() {
   const user = await requireRole("admin");
@@ -20,6 +21,7 @@ export default async function NotificationsPage() {
   }));
 
   const unreadCount = rows.filter((r) => !r.isRead).length;
+  const prefs = await getUserNotificationPreferences(user.id);
 
   return (
     <main className="min-h-screen bg-background p-4 sm:p-6 lg:p-8">
@@ -27,6 +29,7 @@ export default async function NotificationsPage() {
         initialItems={items}
         userId={user.id}
         initialUnreadCount={unreadCount}
+        initialPrefs={prefs}
       />
     </main>
   );

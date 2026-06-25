@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import {
   markNotificationRead,
   markAllNotificationsRead,
+  saveNotificationPreferences,
+  type NotificationPreferences,
 } from "@/lib/notification-actions";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import { useEffect } from "react";
@@ -132,12 +134,12 @@ export default function NotificationsClient({
   initialItems,
   userId,
   initialUnreadCount,
+  initialPrefs,
 }: {
   initialItems: NotificationItem[];
   userId: number;
   initialUnreadCount: number;
-  // initialPrefs is no longer used — preferences are UI-only filters
-  initialPrefs?: unknown;
+  initialPrefs?: NotificationPreferences;
 }) {
   // Only show unread items — read items are hidden from the feed
   const [items, setItems] = useState<NotificationItem[]>(
@@ -147,12 +149,12 @@ export default function NotificationsClient({
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  // Preference checkboxes — UI-only visibility filters, never saved
+  // Preference checkboxes — loaded from DB and saved on toggle
   const [activePrefs, setActivePrefs] = useState<Record<PrefKey, boolean>>({
-    academic: true,
-    attendance: true,
-    system: true,
-    reports: true,
+    academic: initialPrefs?.academic ?? true,
+    attendance: initialPrefs?.attendance ?? true,
+    system: initialPrefs?.system ?? true,
+    reports: initialPrefs?.reports ?? true,
   });
   const [, startTransition] = useTransition();
 
@@ -258,9 +260,16 @@ export default function NotificationsClient({
     }
   };
 
-  // ── Toggle preference filter ───────────────────────────────────────────
-  const togglePref = (key: PrefKey) => {
-    setActivePrefs((prev) => ({ ...prev, [key]: !prev[key] }));
+  // ── Toggle preference filter and save to DB ───────────────────────────
+  const togglePref = async (key: PrefKey) => {
+    const updated = { ...activePrefs, [key]: !activePrefs[key] };
+    setActivePrefs(updated);
+    try {
+      await saveNotificationPreferences(userId, updated);
+      toast.success("Preferences saved successfully");
+    } catch {
+      toast.error("Failed to save notification preferences");
+    }
   };
 
   const TABS: { id: PriorityFilter; label: string }[] = [

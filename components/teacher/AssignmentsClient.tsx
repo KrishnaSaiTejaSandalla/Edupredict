@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { toast } from "sonner";
+import DeleteConfirmModal from "@/components/ui/DeleteConfirmModal";
 
 type ClassSubject = { classId: number; subjectId: number; className: string; subjectName: string };
 
@@ -56,6 +57,15 @@ export default function AssignmentsClient({ teacherId, classSubjects }: Props) {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
 
+  // Delete modal state
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [assignmentToDelete, setAssignmentToDelete] = useState<{ id: number; title: string } | null>(null);
+
+  // Inline grading state
+  const [gradingId, setGradingId] = useState<number | null>(null);
+  const [gradeValue, setGradeValue] = useState<string>("");
+  const [feedbackValue, setFeedbackValue] = useState<string>("");
+
   // Create form
   const [form, setForm] = useState({
     classId: "" as number | "",
@@ -79,7 +89,9 @@ export default function AssignmentsClient({ teacherId, classSubjects }: Props) {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchAssignments(); }, [page, search]);
+  useEffect(() => {
+    fetchAssignments();
+  }, [page, search]);
 
   const fetchSubmissions = (assignmentId: number) => {
     setLoadingSubmissions(true);
@@ -119,8 +131,15 @@ export default function AssignmentsClient({ teacherId, classSubjects }: Props) {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Delete this assignment? This cannot be undone.")) return;
+  const askDelete = (id: number, title: string) => {
+    setAssignmentToDelete({ id, title });
+    setDeleteModalOpen(true);
+  };
+
+  const executeDelete = async () => {
+    if (!assignmentToDelete) return;
+    const { id } = assignmentToDelete;
+    setDeleteModalOpen(false);
     try {
       const res = await fetch(`/api/teacher/assignments?id=${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error((await res.json()).error || "Failed");
@@ -128,6 +147,8 @@ export default function AssignmentsClient({ teacherId, classSubjects }: Props) {
       fetchAssignments();
     } catch (err: any) {
       toast.error(err.message);
+    } finally {
+      setAssignmentToDelete(null);
     }
   };
 
@@ -147,16 +168,31 @@ export default function AssignmentsClient({ teacherId, classSubjects }: Props) {
     }
   };
 
+  const startGrading = (sub: Submission) => {
+    setGradingId(sub.id);
+    setGradeValue(sub.grade !== null ? String(sub.grade) : "");
+    setFeedbackValue(sub.feedback || "");
+  };
+
   const filteredClassSubjects = classSubjects.filter(
     (cs) => !form.classId || cs.classId === form.classId
   );
 
+  // KPI calculations
+  const totalAssignments = assignments.length;
+  const activeCount = assignments.filter((a) => !a.dueDate || new Date(a.dueDate) >= new Date()).length;
+  const overdueCount = assignments.filter((a) => a.dueDate && new Date(a.dueDate) < new Date()).length;
+  const avgSubmissionPct =
+    totalAssignments > 0
+      ? Math.round(assignments.reduce((sum, a) => sum + a.submissionPct, 0) / totalAssignments)
+      : 0;
+
   return (
-    <main className="min-h-screen bg-background text-foreground p-4 sm:p-6 lg:p-8 space-y-8 transition-colors duration-200">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-8">
       {/* Header */}
-      <div className="flex flex-wrap gap-4 items-end justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.35em] text-cyan-500 dark:text-cyan-400">
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-400">
             Faculty Portal
           </p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Assignments</h1>
@@ -166,107 +202,155 @@ export default function AssignmentsClient({ teacherId, classSubjects }: Props) {
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="btn-cyan rounded-xl px-5 py-2.5 text-sm font-semibold flex items-center gap-2 shrink-0"
+          className="rounded-xl btn-cyan px-5 py-3 text-xs font-bold whitespace-nowrap flex items-center gap-2 shrink-0 self-start sm:self-auto"
         >
           <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current"><path d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z" /></svg>
           New Assignment
         </button>
       </div>
 
-      {/* Search */}
-      <div className="flex gap-3 flex-wrap items-center">
-        <input
-          type="text"
-          placeholder="Search assignments..."
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-          className="input-theme max-w-[280px] py-2 text-xs"
-        />
-        <span className="text-xs text-muted-foreground">{assignments.length} assignments</span>
+      {/* KPI Strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {[
+          { label: "Total Assignments", value: totalAssignments, color: "text-primary border-border" },
+          { label: "Active Assignments", value: activeCount, color: "text-emerald-500 dark:text-emerald-400 border-emerald-500/10 bg-emerald-500/5" },
+          { label: "Overdue Assignments", value: overdueCount, color: "text-rose-500 dark:text-rose-400 border-rose-500/10 bg-rose-500/5" },
+          { label: "Avg Submission", value: `${avgSubmissionPct}%`, color: "text-cyan-500 dark:text-cyan-400 border-cyan-500/10 bg-cyan-500/5" },
+        ].map(({ label, value, color }) => (
+          <div key={label} className={`rounded-2xl border bg-card p-5 shadow-sm hover:shadow-md transition duration-200 ${color.includes("border-") ? color.split(" ")[1] + " " + color.split(" ")[2] : "border-border"}`}>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
+            <p className={`mt-2 text-2xl font-black ${color.split(" ")[0]}`}>{value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Controls Bar */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-border bg-card p-4 shadow-sm">
+        <div className="relative flex-1 max-w-md w-full">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50">
+            <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
+              <path d="M10 4a6 6 0 1 0 3.7 10.7l3.6 3.6 1.4-1.4-3.6-3.6A6 6 0 0 0 10 4Zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z" />
+            </svg>
+          </span>
+          {/* <input
+            type="text"
+            placeholder="Search assignments..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            className="h-11 w-full rounded-xl border border-border bg-background pl-10 pr-4 text-md"
+          /> */}
+          <input
+            type="text"
+            placeholder="Search assignments..."
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            className="h-11 w-full rounded-xl border border-border bg-background pl-10 pr-4 text-md focus-visible:outline-none focus:ring-accent focus:border-transparent"
+          />
+        </div>
+        <span className="text-xs font-semibold text-muted-foreground self-center shrink-0">
+          {assignments.length} {assignments.length === 1 ? "assignment" : "assignments"} found
+        </span>
       </div>
 
       {/* Assignments Grid */}
       {loading ? (
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3].map((i) => <div key={i} className="skeleton h-40 rounded-2xl" />)}
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="skeleton h-24 rounded-2xl" />
+          ))}
         </div>
       ) : assignments.length === 0 ? (
-        <div className="rounded-2xl border-2 border-dashed border-theme bg-surface p-16 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-hover text-muted">
+        <div className="rounded-2xl border-2 border-dashed border-border bg-card p-16 text-center shadow-sm max-w-lg mx-auto">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-hover text-muted-foreground">
             <svg viewBox="0 0 24 24" className="h-6 w-6 fill-current">
               <path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2Z" />
             </svg>
           </div>
-          <h3 className="text-base font-semibold text-primary">No Assignments Yet</h3>
-          <p className="mt-2 text-sm text-secondary max-w-sm mx-auto">
+          <h3 className="text-sm font-bold text-foreground">No Assignments Yet</h3>
+          <p className="mt-2 text-xs text-muted-foreground max-w-xs mx-auto leading-relaxed">
             Create your first assignment to get started. Track submissions and grade students directly.
           </p>
-          <button onClick={() => setShowCreateModal(true)} className="btn-cyan mt-4 rounded-xl px-5 py-2 text-sm font-semibold">
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="btn-cyan mt-5 rounded-xl px-5 py-2.5 text-xs font-bold whitespace-nowrap"
+          >
             Create Assignment
           </button>
         </div>
       ) : (
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          {assignments.map((assignment) => {
+        <div className="space-y-4">
+          {assignments.map((assignment, index) => {
             const isOverdue = assignment.dueDate && new Date(assignment.dueDate) < new Date();
             return (
               <div
-                key={assignment.id}
-                className="group rounded-2xl border border-border bg-card hover:border-cyan-500/30 hover:-translate-y-1 transition-all duration-300 p-5 shadow-sm hover:shadow-lg flex flex-col"
+                key={`${assignment.id}-${index}`}
+                className="group rounded-2xl border border-border bg-card hover:border-cyan-500/30 hover:-translate-y-0.5 transition-all duration-200 p-5 shadow-sm hover:shadow-md flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6"
               >
-                <div className="flex items-start justify-between gap-2 mb-3">
-                  <div className="min-w-0 flex-1">
+                {/* Left Side: Info & Description */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3">
                     <p className="text-sm font-bold text-foreground group-hover:text-cyan-400 transition truncate">
                       {assignment.title}
                     </p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {assignment.subjectName} · {assignment.className}
+                    <span className="text-[10px] font-semibold text-muted-foreground bg-hover px-2 py-0.5 rounded-lg uppercase tracking-wider">
+                      {assignment.className}
+                    </span>
+                    <span className="text-[10px] font-semibold text-accent bg-accent-bg px-2 py-0.5 rounded-lg uppercase tracking-wider">
+                      {assignment.subjectName}
+                    </span>
+                  </div>
+                  {assignment.description && (
+                    <p className="text-xs text-secondary leading-relaxed line-clamp-2 mt-2">
+                      {assignment.description}
                     </p>
-                  </div>
-                  <button
-                    onClick={() => handleDelete(assignment.id)}
-                    className="shrink-0 opacity-0 group-hover:opacity-100 rounded-lg p-1.5 text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 transition"
-                  >
-                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
-                      <path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1zM18 7H6v12c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7z" />
-                    </svg>
-                  </button>
-                </div>
-
-                {assignment.description && (
-                  <p className="text-[10px] text-secondary leading-relaxed line-clamp-2 mb-3">
-                    {assignment.description}
-                  </p>
-                )}
-
-                {/* Submission Progress */}
-                <div className="mt-auto space-y-2">
-                  <div className="flex justify-between text-[10px]">
-                    <span className="text-muted-foreground">Submissions</span>
-                    <span className="font-semibold text-foreground">{assignment.submitted}/{assignment.totalStudents}</span>
-                  </div>
-                  <div className="h-1.5 rounded-full bg-hover overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-700"
-                      style={{ width: `${assignment.submissionPct}%` }}
-                    />
+                  )}
+                  <div className="flex items-center gap-2 mt-3">
+                    <span className={`text-[9px] font-bold uppercase tracking-wider rounded-lg border px-2.5 py-1 ${isOverdue
+                      ? "bg-rose-500/10 text-rose-500 dark:text-rose-400 border-rose-500/20"
+                      : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                      }`}>
+                      {assignment.dueDate ? `Due: ${new Date(assignment.dueDate).toLocaleDateString([], { month: "short", day: "numeric" })}` : "No due date"}
+                    </span>
                   </div>
                 </div>
 
-                <div className="mt-3 flex items-center justify-between gap-2">
-                  <span className={`text-[9px] font-semibold rounded-full border px-2 py-0.5 ${
-                    isOverdue
-                      ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
-                      : "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                  }`}>
-                    {assignment.dueDate ? `Due: ${new Date(assignment.dueDate).toLocaleDateString([], { month: "short", day: "numeric" })}` : "No due date"}
-                  </span>
-                  <button
-                    onClick={() => { setSelectedAssignment(assignment); fetchSubmissions(assignment.id); }}
-                    className="text-[10px] font-semibold text-cyan-400 hover:text-cyan-300 border border-cyan-500/20 bg-cyan-500/10 rounded-lg px-2.5 py-1 transition"
-                  >
-                    Review →
-                  </button>
+                {/* Right Side: Progress Bar + Submissions Count + Review Button + Delete Action */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-6 shrink-0 w-full sm:w-auto">
+                  {/* Progress Info */}
+                  <div className="w-full sm:w-44 space-y-2">
+                    <div className="flex justify-between text-[10px] font-semibold">
+                      <span className="text-muted-foreground">Submissions</span>
+                      <span className="text-foreground">{assignment.submitted}/{assignment.totalStudents}</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-hover overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-700"
+                        style={{ width: `${assignment.submissionPct}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                    <button
+                      onClick={() => { setSelectedAssignment(assignment); fetchSubmissions(assignment.id); }}
+                      className="text-[10px] font-bold text-cyan-500 hover:text-cyan-400 border border-cyan-500/20 bg-cyan-500/10 rounded-xl px-4 py-2 transition"
+                    >
+                      Review Submissions
+                    </button>
+                    <button
+                      onClick={() => askDelete(assignment.id, assignment.title)}
+                      className="rounded-xl p-2 text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition"
+                      title="Delete Assignment"
+                    >
+                      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
+                        <path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1zM18 7H6v12c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7z" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -276,32 +360,58 @@ export default function AssignmentsClient({ teacherId, classSubjects }: Props) {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2">
-          <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-secondary border border-subtle hover:bg-hover disabled:opacity-30 transition">← Prev</button>
-          <span className="text-xs text-muted-foreground">Page {page} of {totalPages}</span>
-          <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-secondary border border-subtle hover:bg-hover disabled:opacity-30 transition">Next →</button>
+        <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground pt-4 border-t border-border mt-4 w-full">
+          <div>
+            {page > 1 && (
+              <button
+                onClick={() => setPage(p => p - 1)}
+                className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150"
+              >
+                ← Previous
+              </button>
+            )}
+          </div>
+          <span className="tabular-nums">Page {page} of {totalPages}</span>
+          <div>
+            {page < totalPages && (
+              <button
+                onClick={() => setPage(p => p + 1)}
+                className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150"
+              >
+                Next →
+              </button>
+            )}
+          </div>
         </div>
       )}
 
       {/* Create Assignment Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl p-6 space-y-5">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-foreground">Create Assignment</h3>
-              <button onClick={() => setShowCreateModal(false)} className="text-muted-foreground hover:text-foreground transition">
-                <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-              </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm transition-all duration-300">
+          <div className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-border bg-card shadow-2xl shadow-black/40 animate-in fade-in zoom-in-95 duration-200">
+            {/* Close Button */}
+            <button
+              onClick={() => setShowCreateModal(false)}
+              className="absolute right-5 top-5 z-10 flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-hover text-muted-foreground hover:text-foreground hover:bg-background transition duration-200"
+            >
+              ✕
+            </button>
+
+            {/* Header */}
+            <div className="border-b border-border px-6 py-5">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">Create Assignment</h3>
             </div>
 
-            <div className="space-y-4">
+            {/* Body */}
+            <div className="p-6 space-y-5">
               <label className="block space-y-1.5">
-                <span className="text-xs font-semibold uppercase tracking-wider text-secondary">Title *</span>
+                <span className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">Title *</span>
                 <input type="text" className="input-theme" value={form.title} onChange={(e) => setForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Chapter 5 Worksheet" />
               </label>
-              <div className="grid grid-cols-2 gap-3">
+
+              <div className="grid grid-cols-2 gap-4">
                 <label className="block space-y-1.5">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-secondary">Class *</span>
+                  <span className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">Class *</span>
                   <select className="select-theme" value={form.classId} onChange={(e) => setForm(f => ({ ...f, classId: e.target.value ? Number(e.target.value) : "", subjectId: "" }))}>
                     <option value="">Select class</option>
                     {[...new Map(classSubjects.map(cs => [cs.classId, cs])).values()].map(cs => (
@@ -310,7 +420,7 @@ export default function AssignmentsClient({ teacherId, classSubjects }: Props) {
                   </select>
                 </label>
                 <label className="block space-y-1.5">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-secondary">Subject *</span>
+                  <span className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">Subject *</span>
                   <select className="select-theme" value={form.subjectId} onChange={(e) => setForm(f => ({ ...f, subjectId: e.target.value ? Number(e.target.value) : "" }))}>
                     <option value="">Select subject</option>
                     {classSubjects.filter(cs => !form.classId || cs.classId === form.classId).map(cs => (
@@ -319,112 +429,214 @@ export default function AssignmentsClient({ teacherId, classSubjects }: Props) {
                   </select>
                 </label>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+
+              <div className="grid grid-cols-2 gap-4">
                 <label className="block space-y-1.5">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-secondary">Due Date *</span>
+                  <span className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">Due Date *</span>
                   <input type="date" className="input-theme" value={form.dueDate} onChange={(e) => setForm(f => ({ ...f, dueDate: e.target.value }))} />
                 </label>
                 <label className="block space-y-1.5">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-secondary">Max Marks</span>
+                  <span className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">Max Marks</span>
                   <input type="number" className="input-theme" value={form.maxMarks} onChange={(e) => setForm(f => ({ ...f, maxMarks: Number(e.target.value) }))} />
                 </label>
               </div>
+
               <label className="block space-y-1.5">
-                <span className="text-xs font-semibold uppercase tracking-wider text-secondary">Description</span>
+                <span className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">Description</span>
                 <textarea className="textarea-theme" rows={3} value={form.description} onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Instructions for students..." />
               </label>
             </div>
 
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setShowCreateModal(false)} className="rounded-xl border border-subtle px-4 py-2 text-xs font-semibold text-secondary hover:bg-hover transition">Cancel</button>
-              <button onClick={handleCreate} disabled={creating} className="btn-cyan rounded-xl px-5 py-2 text-xs font-semibold disabled:opacity-50">{creating ? "Creating..." : "Create Assignment"}</button>
+            {/* Footer */}
+            <div className="border-t border-border px-6 py-4 flex justify-end gap-3 bg-background/50">
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="rounded-xl border border-border bg-background px-5 py-2.5 text-xs font-bold text-foreground hover:bg-hover transition duration-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreate}
+                disabled={creating}
+                className="btn-cyan rounded-xl px-5 py-2.5 text-xs font-bold whitespace-nowrap disabled:opacity-50"
+              >
+                {creating ? "Creating..." : "Create Assignment"}
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Submissions Panel */}
+      {/* Submissions Panel (Drawer) */}
       {selectedAssignment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/60">
-          <div className="h-full w-full max-w-lg bg-card border-l border-border shadow-2xl overflow-y-auto">
-            <div className="sticky top-0 z-10 border-b border-subtle bg-card/95 backdrop-blur px-6 py-4 flex items-center gap-3">
-              <button onClick={() => { setSelectedAssignment(null); setSubmissions([]); setAnalytics(null); }} className="text-muted-foreground hover:text-foreground transition">
-                <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current"><path d="M19 11H7.83l4.88-4.88c.39-.39.39-1.03 0-1.42-.39-.39-1.02-.39-1.41 0l-6.59 6.59c-.39.39-.39 1.02 0 1.41l6.59 6.59c.39.39 1.02.39 1.41 0 .39-.39.39-1.02 0-1.41L7.83 13H19c.55 0 1-.45 1-1s-.45-1-1-1z"/></svg>
-              </button>
-              <div>
-                <h3 className="text-sm font-bold text-foreground">{selectedAssignment.title}</h3>
-                <p className="text-[10px] text-muted-foreground">{selectedAssignment.subjectName} · {selectedAssignment.className}</p>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-end bg-background/85 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          onClick={() => { setSelectedAssignment(null); setSubmissions([]); setAnalytics(null); setGradingId(null); }}
+        >
+          <div
+            className="h-full w-full max-w-lg bg-card border border-border rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="sticky top-0 z-10 border-b border-border bg-card/95 backdrop-blur px-6 py-5 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => { setSelectedAssignment(null); setSubmissions([]); setAnalytics(null); setGradingId(null); }}
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-hover text-muted-foreground hover:text-foreground hover:bg-background transition duration-200"
+                  title="Back"
+                >
+                  <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current"><path d="M20 11H7.83l4.88-4.88c.39-.39.39-1.03 0-1.42-.39-.39-1.02-.39-1.41 0l-6.59 6.59c-.39.39-.39 1.02 0 1.41l6.59 6.59c.39.39 1.02.39 1.41 0 .39-.39.39-1.02 0-1.41L7.83 13H20c.55 0 1-.45 1-1s-.45-1-1-1z" /></svg>
+                </button>
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">{selectedAssignment.title}</h3>
+                  <p className="text-[10px] text-muted-foreground font-semibold mt-0.5">{selectedAssignment.subjectName} · {selectedAssignment.className}</p>
+                </div>
               </div>
+              <button
+                onClick={() => { setSelectedAssignment(null); setSubmissions([]); setAnalytics(null); setGradingId(null); }}
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-hover text-muted-foreground hover:text-foreground hover:bg-background transition duration-200"
+                title="Close"
+              >
+                ✕
+              </button>
             </div>
 
-            <div className="p-6 space-y-6">
-              {/* Analytics */}
+            <div className="p-6 space-y-6 overflow-y-auto flex-1">
+              {/* Analytics strip */}
               {analytics && (
                 <div className="grid grid-cols-3 gap-3">
-                  <div className="rounded-xl border border-subtle bg-hover/30 p-3 text-center">
-                    <p className="text-xl font-bold text-foreground">{analytics.submissionRate}%</p>
-                    <p className="text-[9px] uppercase tracking-wider text-muted-foreground mt-0.5">Submitted</p>
-                  </div>
-                  <div className="rounded-xl border border-subtle bg-hover/30 p-3 text-center">
-                    <p className="text-xl font-bold text-foreground">{analytics.avgGrade}</p>
-                    <p className="text-[9px] uppercase tracking-wider text-muted-foreground mt-0.5">Avg Grade</p>
-                  </div>
-                  <div className="rounded-xl border border-subtle bg-hover/30 p-3 text-center">
-                    <p className="text-xl font-bold text-rose-400">{analytics.late}</p>
-                    <p className="text-[9px] uppercase tracking-wider text-muted-foreground mt-0.5">Late</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Submissions List */}
-              {loadingSubmissions ? (
-                <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="skeleton h-16 rounded-xl" />)}</div>
-              ) : submissions.length === 0 ? (
-                <div className="rounded-xl border-2 border-dashed border-theme p-8 text-center">
-                  <p className="text-sm text-secondary">No submissions yet</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {submissions.map((sub) => (
-                    <div key={sub.id} className="rounded-xl border border-subtle bg-hover/20 p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-xs font-bold text-foreground">{sub.studentName}</p>
-                          <p className="text-[10px] text-muted-foreground">Roll {sub.rollNumber}</p>
-                        </div>
-                        <div className="flex gap-1.5">
-                          {sub.isLate && (
-                            <span className="rounded-full bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 text-[9px] font-bold text-rose-400">Late</span>
-                          )}
-                          {sub.grade !== null && (
-                            <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400">
-                              {sub.grade}/{selectedAssignment.maxMarks}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      {sub.grade === null && (
-                        <button
-                          onClick={() => {
-                            const grade = window.prompt("Enter grade (0-" + selectedAssignment.maxMarks + "):");
-                            const feedback = window.prompt("Enter feedback:");
-                            if (grade !== null && !isNaN(Number(grade))) {
-                              handleGrade(sub.id, Number(grade), feedback || "");
-                            }
-                          }}
-                          className="mt-2 text-[10px] font-semibold text-cyan-400 hover:text-cyan-300 border border-cyan-500/20 bg-cyan-500/10 rounded-lg px-2.5 py-1 transition"
-                        >
-                          Grade
-                        </button>
-                      )}
+                  {[
+                    { label: "Submitted", value: `${analytics.submissionRate}%`, color: "border-border text-foreground" },
+                    { label: "Avg Grade", value: analytics.avgGrade, color: "border-border text-foreground" },
+                    { label: "Late Submissions", value: analytics.late, color: "border-rose-500/10 text-rose-500 bg-rose-500/5" },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className={`rounded-xl border p-3 text-center ${color.includes("bg-") ? color.split(" ")[1] + " " + color.split(" ")[2] : "bg-hover/30"}`}>
+                      <p className={`text-xl font-bold ${color.split(" ")[0]}`}>{value}</p>
+                      <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold mt-1">{label}</p>
                     </div>
                   ))}
                 </div>
               )}
+
+              {/* Submissions List */}
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-foreground mb-4">Class Submissions</h4>
+                {loadingSubmissions ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => <div key={i} className="skeleton h-20 rounded-2xl" />)}
+                  </div>
+                ) : submissions.length === 0 ? (
+                  <div className="rounded-xl border-2 border-dashed border-border p-10 text-center bg-hover/10">
+                    <p className="text-xs font-semibold text-muted-foreground">No submissions recorded for this assignment.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3.5">
+                    {submissions.map((sub) => (
+                      <div key={sub.id} className="rounded-2xl border border-border bg-hover/20 p-4 hover:border-cyan-500/10 transition duration-150">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-bold text-foreground">{sub.studentName}</p>
+                            <p className="text-[10px] text-muted-foreground font-semibold mt-0.5">Roll: {sub.rollNumber}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {sub.isLate && (
+                              <span className="rounded-full bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 text-[9px] font-bold text-rose-500 dark:text-rose-400 uppercase tracking-wider">Late</span>
+                            )}
+                            {sub.grade !== null ? (
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 text-[10px] font-bold text-emerald-500 dark:text-emerald-400">
+                                  {sub.grade}/{selectedAssignment.maxMarks}
+                                </span>
+                                <button
+                                  onClick={() => startGrading(sub)}
+                                  className="text-[10px] font-bold text-muted-foreground hover:text-foreground transition underline underline-offset-2"
+                                  title="Edit Grade"
+                                >
+                                  Edit
+                                </button>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        {/* Grading flow form */}
+                        {gradingId === sub.id ? (
+                          <div className="mt-3.5 space-y-3.5 border-t border-border pt-3.5 animate-in fade-in duration-200">
+                            <div className="grid grid-cols-3 gap-3">
+                              <div className="col-span-1">
+                                <label className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Grade (Max {selectedAssignment.maxMarks})</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max={selectedAssignment.maxMarks}
+                                  value={gradeValue}
+                                  onChange={(e) => setGradeValue(e.target.value)}
+                                  placeholder="0"
+                                  className="input-theme h-8 text-xs py-1"
+                                />
+                              </div>
+                              <div className="col-span-2">
+                                <label className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Feedback</label>
+                                <input
+                                  type="text"
+                                  value={feedbackValue}
+                                  onChange={(e) => setFeedbackValue(e.target.value)}
+                                  placeholder="Enter feedback..."
+                                  className="input-theme h-8 text-xs py-1"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex justify-end gap-2">
+                              <button
+                                onClick={() => setGradingId(null)}
+                                className="rounded-xl border border-border bg-background px-3 py-1.5 text-[10px] font-bold text-foreground hover:bg-hover transition"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const numGrade = Number(gradeValue);
+                                  if (gradeValue.trim() === "" || isNaN(numGrade) || numGrade < 0 || numGrade > selectedAssignment.maxMarks) {
+                                    toast.error(`Please enter a valid grade between 0 and ${selectedAssignment.maxMarks}`);
+                                    return;
+                                  }
+                                  handleGrade(sub.id, numGrade, feedbackValue);
+                                  setGradingId(null);
+                                }}
+                                className="rounded-xl btn-emerald px-3.5 py-1.5 text-[10px] font-bold whitespace-nowrap"
+                              >
+                                Submit Grade
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          sub.grade === null && (
+                            <button
+                              onClick={() => startGrading(sub)}
+                              className="mt-3.5 text-[10px] font-bold text-cyan-500 hover:text-cyan-400 border border-cyan-500/20 bg-cyan-500/10 rounded-xl px-3 py-1.5 transition"
+                            >
+                              Grade Submission
+                            </button>
+                          )
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
       )}
-    </main>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={deleteModalOpen}
+        title="Delete Assignment?"
+        message={`Are you sure you want to delete the assignment "${assignmentToDelete?.title}"? This action cannot be undone.`}
+        onConfirm={() => { executeDelete(); }}
+        onCancel={() => { setDeleteModalOpen(false); setAssignmentToDelete(null); }}
+      />
+    </div>
   );
 }

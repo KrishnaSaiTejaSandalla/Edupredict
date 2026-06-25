@@ -68,6 +68,11 @@ const baseNavItems = [
     label: "Resources",
     icon: "M20 6h-2.18c.07-.23.18-.45.18-.7V3.5A2.5 2.5 0 0 0 15.5 1h-7A2.5 2.5 0 0 0 6 3.5v1.8c0 .25.11.47.18.7H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2ZM8 3.5c0-.28.22-.5.5-.5h7c.28 0 .5.22.5.5V5H8V3.5ZM20 20H4V8h16v12Z",
   },
+  {
+    href: "/teacher/leaves",
+    label: "Leaves",
+    icon: "M19 3h-5v2h4v14H5V5h4V3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2Z",
+  },
 ];
 
 const classTeacherNavItem = {
@@ -112,11 +117,8 @@ export default function TeacherShell({
     return () => clearInterval(interval);
   }, [hydrate]);
 
-  useEffect(() => {
-    const serverCount = alerts.filter((a) => a.id !== "empty").length;
-    hydrate(serverCount);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // NOTE: unread count is managed by SharedNotificationsClient (hydrate from DB)
+  // and by the polling useEffect above. Do NOT override it from alerts prop.
 
   const initials = user.name
     .split(" ")
@@ -144,10 +146,12 @@ export default function TeacherShell({
     return () => window.removeEventListener("click", handleOutsideClick);
   }, [showNotifications, showProfileMenu, showBottomMenu]);
 
-  // Build nav items: if class teacher, inject My Classes after Dashboard
+  // Build nav items: if class teacher, inject My Classes after Dashboard; Leaves always last
+  const leavesItem = baseNavItems.find(item => item.href === "/teacher/leaves");
+  const otherNavItems = baseNavItems.filter(item => item.href !== "/teacher/leaves");
   const navItems = isClassTeacher
-    ? [baseNavItems[0], classTeacherNavItem, ...baseNavItems.slice(1)]
-    : baseNavItems;
+    ? [otherNavItems[0], classTeacherNavItem, ...otherNavItems.slice(1), ...(leavesItem ? [leavesItem] : [])]
+    : [...otherNavItems, ...(leavesItem ? [leavesItem] : [])];
 
   return (
     <div className="min-h-screen bg-base text-primary antialiased selection:bg-cyan-500/30 transition-colors duration-200">
@@ -323,8 +327,8 @@ export default function TeacherShell({
                           alert.tone === "danger"
                             ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
                             : alert.tone === "warning"
-                            ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                            : "bg-cyan-500/10 text-cyan-400 border-cyan-500/20";
+                              ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                              : "bg-cyan-500/10 text-cyan-400 border-cyan-500/20";
 
                         const badgeText =
                           alert.tone === "danger" ? "High" : alert.tone === "warning" ? "Medium" : "Info";
@@ -336,13 +340,12 @@ export default function TeacherShell({
                           >
                             <div className="flex gap-2.5">
                               <span
-                                className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
-                                  alert.tone === "danger"
-                                    ? "bg-rose-500"
-                                    : alert.tone === "warning"
+                                className={`mt-1 h-2 w-2 shrink-0 rounded-full ${alert.tone === "danger"
+                                  ? "bg-rose-500"
+                                  : alert.tone === "warning"
                                     ? "bg-amber-500"
                                     : "bg-cyan-500"
-                                }`}
+                                  }`}
                               />
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center justify-between gap-1.5">
@@ -418,26 +421,11 @@ export default function TeacherShell({
                       onClick={() => setShowProfileMenu(false)}
                       className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-secondary hover:bg-hover hover:text-primary transition duration-200"
                     >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current text-muted">
+                      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
                         <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
-                        <path fillRule="evenodd" d="M19.4 15a1.6 1.6 0 0 0 1-1.5v-3a1.6 1.6 0 0 0-1-1.5l-2.2-1.1a8.8 8.8 0 0 0-.7-1.7l1.1-2.2A1.6 1.6 0 0 0 17.1 3h-3a1.6 1.6 0 0 0-1.5 1L11.5 6.2a8.8 8.8 0 0 0-1.7.7L7.6 5.8a1.6 1.6 0 0 0-1.5 1v3a1.6 1.6 0 0 0 1 1.5l2.2 1.1c.2.6.4 1.2.7 1.7l-1.1 2.2a1.6 1.6 0 0 0 .5 2l3 1.5c.5.3 1.1.2 1.5-.2l1.1-2.2c.6-.2 1.2-.4 1.7-.7l2.2 1.1a1.6 1.6 0 0 0 1.5-1v-3ZM12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z" />
+                        <path fillRule="evenodd" d="M19.4 15a1.6 1.6 0 0 0 1-1.5v-3a1.6 1.6 0 0 0-1-1.5l-2.2-1.1a8.8 8.8 0 0 0-.7-1.7l1.1-2.2A1.6 1.6 0 0 0 17.1 3h-3a1.6 1.6 0 0 0-1.5 1L11.5 6.2a8.8 8.8 0 0 0-1.7.7L7.6 5.8a1.6 1.6 0 0 0-1.5 1v3a1.6 1.6 0 0 0 1 1.5l2.2 1.1c.2.6.4 1.2.7 1.7l-1.1 2.2a1.6 1.6 0 0 0 .5 2l3 1.5a1.6 1.6 0 0 0 1.5-1v-3ZM12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z" />
                       </svg>
                       Settings
-                    </Link>
-                    <Link
-                      href="/teacher/notifications"
-                      onClick={() => setShowProfileMenu(false)}
-                      className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-secondary hover:bg-hover hover:text-primary transition duration-200"
-                    >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current text-muted">
-                        <path d="M12 22a2.8 2.8 0 0 0 2.7-2h-5.4A2.8 2.8 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5-6.7V3a2 2 0 0 0-4 0v1.3A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z" />
-                      </svg>
-                      Notifications
-                      {storeUnread > 0 && (
-                        <span className="ml-auto flex h-4 min-w-[16px] items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white">
-                          {storeUnread}
-                        </span>
-                      )}
                     </Link>
                   </div>
                 </div>

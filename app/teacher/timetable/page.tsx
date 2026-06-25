@@ -1,111 +1,87 @@
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { teachers } from "@/lib/schema";
-import { getTimetableByTeacher } from "@/lib/timetable-actions";
-import { eq } from "drizzle-orm";
+import { teachers, timetables, classes, subjects, teacherClassAssignments, teacherSubjectAssignments } from "@/lib/schema";
+import { eq, and, inArray } from "drizzle-orm";
+import TeacherTimetableClient from "@/components/teacher/TeacherTimetableClient";
 
 export const dynamic = "force-dynamic";
 
-const DAYS_OF_WEEK = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-];
+type TimetableEntry = {
+  id: number;
+  subjectId: number;
+  classId: number;
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  roomNumber: string;
+  className: string;
+  subjectName: string;
+  teacherRole: "class_teacher" | "subject_teacher" | null;
+};
 
 export default async function TeacherTimetablePage() {
   const user = await requireRole("teacher");
 
-  // Get teacher ID
   const [teacher] = await db
     .select({ id: teachers.id })
     .from(teachers)
     .where(eq(teachers.userId, user.id))
     .limit(1);
 
-  let timetableEntries: any[] = [];
+  let entries: TimetableEntry[] = [];
+
   if (teacher) {
-    timetableEntries = await getTimetableByTeacher(teacher.id);
+    const classRows = await db
+      .select({ classId: teacherClassAssignments.classId })
+      .from(teacherClassAssignments)
+      .where(eq(teacherClassAssignments.teacherId, teacher.id));
+    const assignedClassIds = classRows.map((r) => r.classId);
+
+    const subjectRows = await db
+      .select({ subjectId: teacherSubjectAssignments.subjectId })
+      .from(teacherSubjectAssignments)
+      .where(eq(teacherSubjectAssignments.teacherId, teacher.id));
+    const assignedSubjectIds = subjectRows.map((r) => r.subjectId);
+
+    if (assignedClassIds.length > 0 && assignedSubjectIds.length > 0) {
+      const rows = await db
+        .select({
+          id: timetables.id,
+          subjectId: timetables.subjectId,
+          classId: timetables.classId,
+          dayOfWeek: timetables.dayOfWeek,
+          startTime: timetables.startTime,
+          endTime: timetables.endTime,
+          roomNumber: timetables.roomNumber,
+          className: classes.name,
+          classSection: classes.section,
+          subjectName: subjects.name,
+        })
+        .from(timetables)
+        .leftJoin(classes, eq(timetables.classId, classes.id))
+        .leftJoin(subjects, eq(timetables.subjectId, subjects.id))
+        .where(
+          and(
+            eq(timetables.teacherId, teacher.id),
+            inArray(timetables.classId, assignedClassIds),
+            inArray(timetables.subjectId, assignedSubjectIds)
+          )
+        );
+
+      entries = rows.map((r) => ({
+        id: r.id,
+        subjectId: r.subjectId,
+        classId: r.classId,
+        dayOfWeek: r.dayOfWeek,
+        startTime: r.startTime,
+        endTime: r.endTime,
+        roomNumber: r.roomNumber,
+        className: r.className ? `${r.className}${r.classSection ? ` ${r.classSection}` : ''}` : 'N/A',
+        subjectName: r.subjectName ?? 'N/A',
+        teacherRole: null,
+      }));
+    }
   }
 
-  return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-8">
-      {/* Header */}
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-500 dark:text-cyan-400">
-          Faculty
-        </p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight text-primary sm:text-4xl">
-          Weekly Timetable
-        </h1>
-        <p className="mt-2 text-sm text-secondary">
-          Your assigned lectures, classes, and classroom locations for each weekday.
-        </p>
-      </div>
-
-      {/* Grid Layout grouped by day */}
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-        {DAYS_OF_WEEK.map((day) => {
-          const dayEntries = timetableEntries
-            .filter((e) => e.dayOfWeek === day)
-            .sort((a, b) => a.startTime.localeCompare(b.startTime));
-
-          return (
-            <div
-              key={day}
-              className="flex flex-col h-[400px] rounded-2xl border border-theme bg-surface/50 p-5"
-            >
-              <div className="flex items-center justify-between border-b border-theme pb-2.5 mb-4 shrink-0">
-                <h3 className="text-sm font-bold text-primary">{day}</h3>
-                <span className="rounded-full bg-cyan-500/10 px-2.5 py-0.5 text-[10px] font-bold text-cyan-400">
-                  {dayEntries.length} {dayEntries.length === 1 ? "Class" : "Classes"}
-                </span>
-              </div>
-
-              {dayEntries.length === 0 ? (
-                <div className="flex-1 flex items-center justify-center">
-                  <p className="text-xs text-muted py-4 text-center">No classes scheduled.</p>
-                </div>
-              ) : (
-                <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-                  {dayEntries.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="group rounded-xl border border-theme bg-surface hover:bg-hover p-4 transition duration-150"
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="text-xs font-bold text-primary group-hover:text-cyan-400 transition">
-                            {entry.subjectName}
-                          </p>
-                          <p className="text-[11px] text-secondary mt-1">
-                            Class: <span className="font-semibold text-primary">{entry.className}</span>
-                          </p>
-                        </div>
-                        <span className="rounded bg-hover px-2 py-0.5 text-[10px] font-semibold text-cyan-400">
-                          {entry.roomNumber}
-                        </span>
-                      </div>
-
-                      {/* Timing */}
-                      <div className="mt-4 flex items-center gap-1.5 text-[11px] font-semibold text-secondary">
-                        <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current" strokeWidth="2.5">
-                          <circle cx="12" cy="12" r="10" />
-                          <path d="M12 6v6l4 2" />
-                        </svg>
-                        <span>
-                          {entry.startTime.slice(0, 5)} - {entry.endTime.slice(0, 5)}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
+  return <TeacherTimetableClient entries={entries} />;
 }

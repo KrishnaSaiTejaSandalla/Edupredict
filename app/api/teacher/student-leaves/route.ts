@@ -1,51 +1,34 @@
+import { NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { leaveRequests, users, students, classTeacherAssignments, classes, teachers, parents, studentParents } from "@/lib/schema";
+import { teachers, classTeacherAssignments, leaveRequests, students, classes, parents, studentParents, users } from "@/lib/schema";
 import { eq, and, isNull, inArray } from "drizzle-orm";
-import TeacherLeavesClient from "@/components/teacher/TeacherLeavesClient";
-import { getLeaveRequestsByUser } from "@/lib/leave-actions";
+import { updateLeaveStatus } from "@/lib/leave-actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function TeacherLeavesPage() {
-  const user = await requireRole("teacher");
+export async function GET(request: Request) {
+  try {
+    const user = await requireRole("teacher");
 
-  // Get teacher info
-  const [teacher] = await db
-    .select({ id: teachers.id })
-    .from(teachers)
-    .where(eq(teachers.userId, user.id))
-    .limit(1);
+    const [teacher] = await db
+      .select({ id: teachers.id })
+      .from(teachers)
+      .where(eq(teachers.userId, user.id))
+      .limit(1);
 
-  // Teacher's own leave requests
-  const initialTeacherHistory = teacher 
-    ? await getLeaveRequestsByUser(user.id) 
-    : [];
+    if (!teacher) return NextResponse.json([]);
 
-  // Student leave requests for teacher's classes
-  const classIds = teacher
-    ? await db
-        .select({ classId: classTeacherAssignments.classId })
-        .from(classTeacherAssignments)
-        .where(eq(classTeacherAssignments.teacherId, teacher.id))
-        .then(rows => rows.map(r => r.classId))
-    : [];
+    // Get class IDs for this teacher
+    const classIds = await db
+      .select({ classId: classTeacherAssignments.classId })
+      .from(classTeacherAssignments)
+      .where(eq(classTeacherAssignments.teacherId, teacher.id))
+      .then(rows => rows.map(r => r.classId));
 
-  let initialStudentLeaves: {
-    id: number;
-    studentName: string;
-    className: string;
-    parentName: string;
-    leaveType: string;
-    startDate: string;
-    endDate: string;
-    reason: string;
-    status: "pending" | "approved" | "rejected";
-    submittedAt: string;
-  }[] = [];
+    if (classIds.length === 0) return NextResponse.json([]);
 
-  if (classIds.length > 0) {
-    // Get leave requests with student info for the teacher's classes
+    // Get student leave requests
     const studentLeaveRows = await db
       .select({
         id: leaveRequests.id,
@@ -64,22 +47,22 @@ export default async function TeacherLeavesPage() {
       .leftJoin(classes, eq(students.classId, classes.id))
       .where(
         and(
-          isNull(leaveRequests.userId), // Only student-initiated leaves
+          isNull(leaveRequests.userId),
           inArray(students.classId, classIds)
         )
       )
       .orderBy(leaveRequests.createdAt);
 
-    // Get student names and parent names
     const studentIds = studentLeaveRows.map(r => r.studentId).filter(Boolean) as number[];
-    const parentIds = studentLeaveRows.map(r => r.studentId).filter(Boolean) as number[]; // Will need to join student_parents
 
+    // Get student names
     const studentNameRows = await db
       .select({ id: users.id, name: users.name, studentId: students.id })
       .from(users)
       .leftJoin(students, eq(users.id, students.userId))
       .where(inArray(users.id, studentIds.length > 0 ? studentIds : [-1]));
 
+    // Get parent names
     const parentNameRows = await db
       .select({ parentId: parents.id, parentName: users.name, studentId: studentParents.studentId })
       .from(studentParents)
@@ -100,7 +83,7 @@ export default async function TeacherLeavesPage() {
       }
     });
 
-    initialStudentLeaves = studentLeaveRows.map((r) => ({
+    const result = studentLeaveRows.map((r) => ({
       id: r.id,
       studentName: r.studentId && studentNameMap[r.studentId] ? studentNameMap[r.studentId] : "Unknown",
       className: r.className 
@@ -114,14 +97,52 @@ export default async function TeacherLeavesPage() {
       status: r.status as "pending" | "approved" | "rejected",
       submittedAt: typeof r.createdAt === "string" ? r.createdAt : (r.createdAt ? new Date(r.createdAt).toISOString() : ""),
     }));
-  }
 
-  return (
-    <main className="min-h-screen bg-background text-foreground p-4 sm:p-6 lg:p-8">
-      <TeacherLeavesClient 
-        initialTeacherHistory={initialTeacherHistory as any} 
-        initialStudentLeaves={initialStudentLeaves}
-      />
-    </main>
-  );
+    return NextResponse.json(result);
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 401 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const user = await requireRole("teacher");
+    const [teacher] = await db
+      .select({ id: teachers.id })
+      .from(teachers)
+      .where(eq(teachers.userId, user.id))
+      .limit(1);
+
+    if (!teacher) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+
+    const body = await request.json();
+    const { leaveId, action, remarks } = body;
+
+    if (!leaveId || !["approve", "reject"].includes(action)) {
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    }
+
+    // Verify this leave is for one of teacher's classes
+    const [leave] = await db
+      .select({ id: leaveRequests.id })
+      .from(leaveRequests)
+      .leftJoin(students, eq(leaveRequests.studentId, students.id))
+      .leftJoin(classTeacherAssignments, eq(students.classId, classTeacherAssignments.classId))
+      .where(
+        and(
+          eq(leaveRequests.id, leaveId),
+          eq(classTeacherAssignments.teacherId, teacher.id)
+        )
+      )
+      .limit(1);
+
+    if (!leave) return NextResponse.json({ error: "Leave request not found or not authorized" }, { status: 404 });
+
+    const status = action === "approve" ? "approved" : "rejected";
+    await updateLeaveStatus(leaveId, status, remarks);
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
 }

@@ -59,46 +59,72 @@ export default function TeacherPerformanceClient({ performance }: Props) {
       value: kpis.teacherRating > 0 ? `${kpis.teacherRating}/5` : "N/A",
       sub: kpis.teacherRating > 0 ? <StarRating rating={kpis.teacherRating} /> : <p className="text-[10px] text-muted-foreground">No feedback yet</p>,
       color: "amber",
+      icon: (
+        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
+          <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+        </svg>
+      ),
+      iconClass: "bg-amber-500/15 text-amber-700 dark:text-amber-500",
     },
     {
       label: "Attendance Completion",
       value: `${kpis.attendanceCompletionRate}%`,
       sub: null,
       color: "emerald",
+      icon: (
+        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      ),
+      iconClass: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-500",
     },
     {
       label: "Grading Rate",
       value: `${kpis.gradingRate}%`,
       sub: null,
       color: kpis.gradingRate < 70 ? "rose" : "blue",
+      icon: (
+        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      ),
+      iconClass: kpis.gradingRate < 70 ? "bg-rose-500/15 text-rose-700 dark:text-rose-500" : "bg-blue-500/15 text-blue-700 dark:text-blue-500",
     },
     {
       label: "Student Satisfaction",
       value: kpis.studentSatisfaction > 0 ? `${kpis.studentSatisfaction}%` : "N/A",
       sub: null,
       color: "violet",
+      icon: (
+        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      ),
+      iconClass: "bg-violet-500/15 text-violet-700 dark:text-violet-500",
     },
   ];
 
   const colorMap: Record<string, string> = {
     amber: "from-amber-500/15 via-yellow-400/8 to-white dark:from-amber-500/15 dark:via-yellow-400/5 dark:to-transparent border-amber-100 dark:border-amber-500/10 hover:border-amber-300 dark:hover:border-amber-500/30",
-    emerald: "from-emerald-500/15 via-green-400/8 to-white dark:from-emerald-500/15 dark:via-green-400/5 dark:to-transparent border-emerald-100 dark:border-emerald-500/10",
-    rose: "from-rose-500/15 via-pink-400/8 to-white dark:from-rose-500/15 dark:via-pink-400/5 dark:to-transparent border-rose-100 dark:border-rose-500/10",
-    blue: "from-blue-500/15 via-blue-400/8 to-white dark:from-blue-500/15 dark:via-blue-400/5 dark:to-transparent border-blue-100 dark:border-blue-500/10",
-    violet: "from-violet-500/15 via-indigo-400/8 to-white dark:from-violet-500/15 dark:via-indigo-400/5 dark:to-transparent border-indigo-100 dark:border-indigo-500/10",
+    emerald: "from-emerald-500/15 via-green-400/8 to-white dark:from-emerald-500/15 dark:via-green-400/5 dark:to-transparent border-emerald-100 dark:border-emerald-500/10 hover:border-emerald-300 dark:hover:border-emerald-500/30",
+    rose: "from-rose-500/15 via-pink-400/8 to-white dark:from-rose-500/15 dark:via-pink-400/5 dark:to-transparent border-rose-100 dark:border-rose-500/10 hover:border-rose-300 dark:hover:border-rose-500/30",
+    blue: "from-blue-500/15 via-blue-400/8 to-white dark:from-blue-500/15 dark:via-blue-400/5 dark:to-transparent border-blue-100 dark:border-blue-500/10 hover:border-blue-300 dark:hover:border-blue-500/30",
+    violet: "from-violet-500/15 via-indigo-400/8 to-white dark:from-violet-500/15 dark:via-indigo-400/5 dark:to-transparent border-indigo-100 dark:border-indigo-500/10 hover:border-indigo-300 dark:hover:border-indigo-500/30",
   };
 
   return (
-    <main className="min-h-screen bg-background text-foreground p-4 sm:p-6 lg:p-8 space-y-8 transition-colors duration-200">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-8">
       {/* Header */}
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.35em] text-cyan-500 dark:text-cyan-400">
-          Faculty Portal
-        </p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Performance</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Your teaching effectiveness metrics, class outcomes, and AI-driven insights.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.28em] text-cyan-500 dark:text-cyan-400">
+            Faculty Portal
+          </p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-primary sm:text-4xl">Performance</h1>
+          <p className="mt-2 text-sm text-secondary">
+            Your teaching effectiveness metrics, class outcomes, and AI-driven insights.
+          </p>
+        </div>
       </div>
 
       {hasNoData ? (
@@ -118,25 +144,34 @@ export default function TeacherPerformanceClient({ performance }: Props) {
       ) : (
         <>
           {/* KPI Cards */}
-          <section className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+          <section className="grid gap-4 grid-cols-2 lg:grid-cols-4">
             {kpiCards.map((card) => (
               <div
                 key={card.label}
-                className={`rounded-2xl border bg-gradient-to-br p-6 shadow-sm hover:-translate-y-1 transition-all duration-300 group ${colorMap[card.color]}`}
+                className={`rounded-2xl border bg-gradient-to-br p-5 shadow-sm hover:-translate-y-1 transition-all duration-300 group ${colorMap[card.color]}`}
               >
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{card.label}</p>
-                <p className="mt-3 text-3xl font-bold tracking-tight text-foreground">{card.value}</p>
-                {card.sub && <div className="mt-2">{card.sub}</div>}
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-medium text-secondary uppercase tracking-wider">{card.label}</p>
+                    <p className="mt-3 text-3xl font-bold tracking-tight text-primary">{card.value}</p>
+                    {card.sub && <div className="mt-2">{card.sub}</div>}
+                  </div>
+                  <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-all duration-300 group-hover:scale-110 ${card.iconClass}`}>
+                    {card.icon}
+                  </div>
+                </div>
               </div>
             ))}
           </section>
 
-          {/* Charts Row */}
+          {/* Charts Row — section header */}
           <section className="grid gap-6 lg:grid-cols-2">
             {/* Teaching Effectiveness */}
-            <div className="rounded-2xl border border-border bg-card p-5 shadow-md flex flex-col transition-colors duration-200">
-              <h2 className="text-base font-semibold text-foreground tracking-tight mb-4">Teaching Effectiveness</h2>
-              <p className="text-xs text-muted-foreground mb-4">Average student scores over time across your classes</p>
+            <div className="rounded-2xl border border-border bg-card p-5 shadow-md flex flex-col">
+              <div className="mb-4">
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">Teaching Effectiveness</h2>
+                <p className="text-xs text-muted-foreground mt-1">Average student scores over time across your classes</p>
+              </div>
               <div className="flex-1 min-h-[200px]">
                 {teachingEffectiveness.length < 2 ? (
                   <div className="h-full flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border">
@@ -165,9 +200,11 @@ export default function TeacherPerformanceClient({ performance }: Props) {
             </div>
 
             {/* Class Outcomes */}
-            <div className="rounded-2xl border border-border bg-card p-5 shadow-md flex flex-col transition-colors duration-200">
-              <h2 className="text-base font-semibold text-foreground tracking-tight mb-4">Class Outcomes</h2>
-              <p className="text-xs text-muted-foreground mb-4">Average performance by class</p>
+            <div className="rounded-2xl border border-border bg-card p-5 shadow-md flex flex-col">
+              <div className="mb-4">
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">Class Outcomes</h2>
+                <p className="text-xs text-muted-foreground mt-1">Average performance by class</p>
+              </div>
               <div className="flex-1 min-h-[200px]">
                 {classOutcomes.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border">
@@ -191,7 +228,7 @@ export default function TeacherPerformanceClient({ performance }: Props) {
           {/* AI Teaching Insights */}
           {aiInsights && (
             <section>
-              <h2 className="text-base font-semibold text-foreground mb-4">AI Teaching Insights</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground mb-4">AI Teaching Insights</h2>
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="rounded-2xl border border-rose-500/20 bg-gradient-to-br from-rose-500/10 to-rose-500/5 p-5 shadow-sm">
                   <div className="flex items-center gap-2 mb-3">
@@ -242,6 +279,6 @@ export default function TeacherPerformanceClient({ performance }: Props) {
           )}
         </>
       )}
-    </main>
+    </div>
   );
 }

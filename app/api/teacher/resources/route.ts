@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { teachers, schools, users } from "@/lib/schema";
+import { teachers } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import {
   getTeacherResources,
@@ -54,15 +54,14 @@ export async function POST(request: Request) {
       .limit(1);
     if (!teacher) return NextResponse.json({ error: "Teacher not found" }, { status: 404 });
 
-    const [dbUser] = await db.select({ schoolId: users.schoolId }).from(users).where(eq(users.id, user.id)).limit(1);
-    const schoolId = dbUser?.schoolId || 1;
-
     const body = await request.json();
     const { title, description, subject, classLevel, resourceType, fileUrl, isAIGenerated, aiPrompt, aiContent } = body;
 
     if (!title || !resourceType) {
       return NextResponse.json({ error: "Title and resource type are required" }, { status: 400 });
     }
+
+    const schoolId = user.school?.id || 1;
 
     await createResource(teacher.id, schoolId, {
       title, description, subject, classLevel, resourceType, fileUrl, isAIGenerated, aiPrompt, aiContent,

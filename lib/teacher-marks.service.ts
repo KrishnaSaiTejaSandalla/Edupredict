@@ -8,9 +8,9 @@ import {
   classes,
   teacherClassAssignments,
   teacherSubjectAssignments,
+  users,
 } from './schema';
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
-import { users } from './schema';
 
 // ==================== TEACHER MARKS SERVICE ====================
 
@@ -246,4 +246,166 @@ export async function updateMark(resultId: number, marks: number, remarks?: stri
 
 export async function getEditableMarks(teacherId: number, page = 1, pageSize = 15) {
   return getTeacherResults(teacherId, { page, pageSize });
+}
+
+export async function getMarksAnalytics(teacherId: number) {
+  // Get teacher's assigned classes and subjects
+  const classRows = await db
+    .select({ classId: teacherClassAssignments.classId })
+    .from(teacherClassAssignments)
+    .where(eq(teacherClassAssignments.teacherId, teacherId));
+  const assignedClassIds = classRows.map((r) => r.classId);
+
+  const subjectRows = await db
+    .select({ subjectId: teacherSubjectAssignments.subjectId })
+    .from(teacherSubjectAssignments)
+    .where(eq(teacherSubjectAssignments.teacherId, teacherId));
+  const assignedSubjectIds = subjectRows.map((r) => r.subjectId);
+
+  if (assignedClassIds.length === 0 || assignedSubjectIds.length === 0) {
+    return {
+      total: 0,
+      passPercentage: 0,
+      averageScore: 0,
+      highestScore: 0,
+      lowestScore: 0,
+      subjectComparison: [],
+      classComparison: [],
+      topPerformers: [],
+      trendData: [],
+    };
+  }
+
+  // Get all results for teacher's subjects
+  const allResults = await db
+    .select({
+      marks: results.marks,
+      maxMarks: exams.maxMarks,
+      studentId: results.studentId,
+      subjectId: results.subjectId,
+      classId: students.classId,
+      className: classes.name,
+      classSection: classes.section,
+      subjectName: subjects.name,
+      studentName: users.name,
+      recordedDate: results.recordedDate,
+    })
+    .from(results)
+    .leftJoin(students, eq(results.studentId, students.id))
+    .leftJoin(users, eq(students.userId, users.id))
+    .leftJoin(exams, eq(results.examId, exams.id))
+    .leftJoin(subjects, eq(results.subjectId, subjects.id))
+    .leftJoin(classes, eq(students.classId, classes.id))
+    .where(
+      and(
+        inArray(students.classId, assignedClassIds),
+        inArray(results.subjectId, assignedSubjectIds)
+      )
+    );
+
+  const total = allResults.length;
+  const scores = allResults.map(r => Number(r.marks || 0) / Number(r.maxMarks || 100) * 100);
+  
+  const passPercentage = scores.length > 0 
+    ? Math.round((scores.filter(s => s >= 50).length / scores.length) * 100) 
+    : 0;
+  const averageScore = scores.length > 0 
+    ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) 
+    : 0;
+  const highestScore = scores.length > 0 ? Math.round(Math.max(...scores)) : 0;
+  const lowestScore = scores.length > 0 ? Math.round(Math.min(...scores)) : 0;
+
+  // Subject comparison
+  const subjectMap: Record<string, { total: number; count: number; maxMarks: number }> = {};
+  allResults.forEach(r => {
+    const subject = r.subjectName ?? "Unknown";
+    if (!subjectMap[subject]) {
+      subjectMap[subject] = { total: 0, count: 0, maxMarks: Number(r.maxMarks || 100) };
+    }
+    subjectMap[subject].total += Number(r.marks || 0);
+    subjectMap[subject].count += 1;
+  });
+
+  const subjectComparison = Object.entries(subjectMap).map(([subjectName, data]) => ({
+    subjectName,
+    avgScore: Math.round((data.total / data.count / data.maxMarks) * 100),
+    maxMarks: data.maxMarks,
+  }));
+
+  // Class comparison with sorting
+  const classMap: Record<string, { total: number; count: number }> = {};
+  allResults.forEach(r => {
+    const className = r.className 
+      ? `${r.className}${r.classSection ? ` ${r.classSection}` : ""}` 
+      : "Unknown";
+    if (!classMap[className]) {
+      classMap[className] = { total: 0, count: 0 };
+    }
+    classMap[className].total += Number(r.marks || 0);
+    classMap[className].count += 1;
+  });
+
+  const classComparison = Object.entries(classMap)
+    .map(([className, data]) => ({
+      className,
+      avgScore: Math.round(data.total / data.count),
+    }))
+    .sort((a, b) => {
+      const gradeA = parseInt(a.className) || 0;
+      const gradeB = parseInt(b.className) || 0;
+      if (gradeA !== gradeB) return gradeA - gradeB;
+      return a.className.localeCompare(b.className);
+    });
+
+  // Top performers (top 5 students)
+  const studentScoreMap: Record<number, { total: number; count: number; name: string }> = {};
+  allResults.forEach(r => {
+    if (!studentScoreMap[r.studentId]) {
+      studentScoreMap[r.studentId] = { total: 0, count: 0, name: r.studentName ?? "Unknown" };
+    }
+    studentScoreMap[r.studentId].total += Number(r.marks || 0);
+    studentScoreMap[r.studentId].count += 1;
+  });
+
+  const topPerformers = Object.values(studentScoreMap)
+    .map(s => ({
+      name: s.name,
+      score: Math.round((s.total / s.count / 100) * 100),
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
+
+  // Trend data (last 10 days)
+  const todayDate = new Date();
+  const trendData = [];
+  for (let i = 9; i >= 0; i--) {
+    const d = new Date(todayDate);
+    d.setDate(todayDate.getDate() - i);
+    const dateStr = d.toISOString().split("T")[0];
+    
+    const dayResults = allResults.filter(r => {
+      const recDate = r.recordedDate;
+      if (!recDate) return false;
+      const recDateStr = recDate instanceof Date ? recDate.toISOString().split("T")[0] : String(recDate);
+      return recDateStr === dateStr;
+    });
+    
+    const dayAvg = dayResults.length > 0 
+      ? Math.round(dayResults.reduce((sum, r) => sum + Number(r.marks || 0), 0) / dayResults.length / 100 * 100)
+      : 0;
+    
+    trendData.push({ date: dateStr.slice(5), score: dayAvg });
+  }
+
+  return {
+    total,
+    passPercentage,
+    averageScore,
+    highestScore,
+    lowestScore,
+    subjectComparison,
+    classComparison,
+    topPerformers,
+    trendData,
+  };
 }

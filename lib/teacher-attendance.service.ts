@@ -22,12 +22,19 @@ export async function getTeacherClasses(teacherId: number) {
     .leftJoin(classes, eq(teacherClassAssignments.classId, classes.id))
     .where(eq(teacherClassAssignments.teacherId, teacherId));
 
-  return rows.map((r) => ({
-    classId: r.classId,
-    className: r.className
-      ? `${r.className}${r.classSection ? ` ${r.classSection}` : ''}`
-      : 'N/A',
-  }));
+  return rows
+    .map((r) => ({
+      classId: r.classId,
+      className: r.className
+        ? `${r.className}${r.classSection ? ` ${r.classSection}` : ''}`
+        : 'N/A',
+    }))
+    .sort((a, b) => {
+      const gradeA = parseInt(a.className) || 0;
+      const gradeB = parseInt(b.className) || 0;
+      if (gradeA !== gradeB) return gradeA - gradeB;
+      return a.className.localeCompare(b.className);
+    });
 }
 
 export async function getStudentsByClass(classId: number) {
@@ -56,7 +63,6 @@ export async function getStudentsByClass(classId: number) {
 }
 
 export async function getAttendanceForDate(classId: number, date: string) {
-  // drizzle date() column expects Date objects in queries
   const dateObj = new Date(date + 'T00:00:00');
   return db
     .select()
@@ -71,7 +77,7 @@ export async function getAttendanceForDate(classId: number, date: string) {
 
 export type AttendanceRecord = {
   studentId: number;
-  status: 'present' | 'absent' | 'late';
+  status: 'present' | 'absent' | 'leave';
   remarks?: string;
 };
 
@@ -87,7 +93,6 @@ export async function markBulkAttendance(
 
   const dateObj = new Date(date + 'T00:00:00');
 
-  // Delete existing for this class/date first (upsert approach)
   await db
     .delete(attendance)
     .where(
@@ -97,7 +102,6 @@ export async function markBulkAttendance(
       )
     );
 
-  // Insert new records
   await db.insert(attendance).values(
     records.map((r) => ({
       studentId: r.studentId,
@@ -119,13 +123,11 @@ export async function getAttendanceHistory(
   startDate?: string,
   endDate?: string
 ) {
-  // Get all class IDs this teacher teaches
   const classRows = await getTeacherClasses(teacherId);
   const teacherClassIds = classRows.map((c) => c.classId);
 
   if (teacherClassIds.length === 0) return [];
 
-  // Build WHERE conditions
   const conditions: any[] = [inArray(attendance.classId, teacherClassIds)];
 
   if (classId) conditions.push(eq(attendance.classId, classId));
@@ -179,10 +181,9 @@ export async function getAttendanceKPIs(teacherId: number) {
   const classIds = classRows.map((c) => c.classId);
 
   if (classIds.length === 0) {
-    return { presentPct: 0, absentPct: 0, atRiskPct: 0, totalStudents: 0 };
+    return { presentPct: 0, absentPct: 0, leavePct: 0, atRiskPct: 0, totalStudents: 0 };
   }
 
-  // Last 30 days
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -218,6 +219,17 @@ export async function getAttendanceKPIs(teacherId: number) {
       )
     );
 
+  const [leaveRow] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(attendance)
+    .where(
+      and(
+        inArray(attendance.classId, classIds),
+        gte(attendance.attendanceDate, thirtyDaysAgo),
+        eq(attendance.status, 'leave')
+      )
+    );
+
   const [totalStudentsRow] = await db
     .select({ count: sql<number>`count(*)` })
     .from(students)
@@ -226,9 +238,10 @@ export async function getAttendanceKPIs(teacherId: number) {
   const total = Number(totalRow?.count || 0);
   const present = Number(presentRow?.count || 0);
   const absent = Number(absentRow?.count || 0);
+  const leaveCount = Number(leaveRow?.count || 0);
   const totalStudents = Number(totalStudentsRow?.count || 0);
 
-  // At-risk: students with <75% attendance
+  // At-risk: students with <75% attendance (excluding leave)
   let atRiskCount = 0;
   if (total > 0) {
     const studentAttRows = await db
@@ -247,7 +260,9 @@ export async function getAttendanceKPIs(teacherId: number) {
       .groupBy(attendance.studentId);
 
     atRiskCount = studentAttRows.filter((r) => {
-      const pct = Number(r.total) > 0 ? (Number(r.present) / Number(r.total)) * 100 : 0;
+      const pct = Number(r.total) > 0 
+        ? Number(r.present) / Number(r.total) * 100 
+        : 0;
       return pct < 75;
     }).length;
   }
@@ -255,6 +270,7 @@ export async function getAttendanceKPIs(teacherId: number) {
   return {
     presentPct: total > 0 ? Math.round((present / total) * 100) : 0,
     absentPct: total > 0 ? Math.round((absent / total) * 100) : 0,
+    leavePct: total > 0 ? Math.round((leaveCount / total) * 100) : 0,
     atRiskPct: totalStudents > 0 ? Math.round((atRiskCount / totalStudents) * 100) : 0,
     totalStudents,
   };

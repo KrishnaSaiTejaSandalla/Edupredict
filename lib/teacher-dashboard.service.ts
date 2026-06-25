@@ -191,27 +191,21 @@ export async function getTeacherDashboardData(userId: number): Promise<TeacherDa
     pendingAttendance = todayClassIds.length - markedToday;
   }
 
-  // 7. Pending grading — submissions without a grade
-  let pendingGrading = 0;
-  if (teacher.id) {
-    try {
-      const [pendingGradingRow] = await db
+// 7. Pending grading — submissions without a grade for this teacher's assignments
+    let pendingGrading = 0;
+    if (teacher && assignedClassIds.length > 0 && assignedSubjectIds.length > 0) {
+      const rows = await db
         .select({ count: sql<number>`count(*)` })
         .from(assignmentSubmissions)
-        .leftJoin(assignments, eq(assignmentSubmissions.assignmentId, assignments.id))
+        .innerJoin(assignments, eq(assignmentSubmissions.assignmentId, assignments.id))
         .where(
           and(
             eq(assignments.teacherId, teacher.id),
             isNull(assignmentSubmissions.grade)
           )
         );
-      pendingGrading = Number(pendingGradingRow?.count || 0);
-    } catch (error) {
-      // If query fails (e.g., table doesn't exist), default to 0
-      console.error('Error fetching pending grading count:', error);
-      pendingGrading = 0;
+      pendingGrading = Number(rows[0]?.count || 0);
     }
-  }
 
   // 8. Class performance
   const classPerformance: TeacherDashboardData['classPerformance'] = [];

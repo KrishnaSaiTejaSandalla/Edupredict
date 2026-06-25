@@ -64,11 +64,51 @@ interface TeacherSettingsClientProps {
 }
 
 const THEME_PRESETS = [
-  { id: "ocean-blue", name: "Ocean Blue", primary: "#22d3ee", gradient: "linear-gradient(135deg, #22d3ee 0%, #0891b2 100%)", emoji: "🌊" },
-  { id: "royal-purple", name: "Royal Purple", primary: "#a78bfa", gradient: "linear-gradient(135deg, #a78bfa 0%, #7c3aed 100%)", emoji: "👑" },
-  { id: "emerald-green", name: "Emerald Green", primary: "#34d399", gradient: "linear-gradient(135deg, #34d399 0%, #059669 100%)", emoji: "🌿" },
-  { id: "sunset-orange", name: "Sunset Orange", primary: "#fb923c", gradient: "linear-gradient(135deg, #fb923c 0%, #ea580c 100%)", emoji: "🌅" },
-  { id: "crimson-red", name: "Crimson Red", primary: "#f87171", gradient: "linear-gradient(135deg, #f87171 0%, #dc2626 100%)", emoji: "🔴" },
+  {
+    id: "ocean-blue",
+    name: "Ocean Blue",
+    description: "Cool cyan with a dark oceanic feel",
+    primary: "#22d3ee",
+    secondary: "#0891b2",
+    gradient: "linear-gradient(135deg, #22d3ee 0%, #0891b2 100%)",
+    emoji: "🌊",
+  },
+  {
+    id: "royal-purple",
+    name: "Royal Purple",
+    description: "Deep violet with a premium SaaS look",
+    primary: "#a78bfa",
+    secondary: "#7c3aed",
+    gradient: "linear-gradient(135deg, #a78bfa 0%, #7c3aed 100%)",
+    emoji: "👑",
+  },
+  {
+    id: "emerald-green",
+    name: "Emerald Green",
+    description: "Vibrant green, great for growth & data",
+    primary: "#34d399",
+    secondary: "#059669",
+    gradient: "linear-gradient(135deg, #34d399 0%, #059669 100%)",
+    emoji: "🌿",
+  },
+  {
+    id: "sunset-orange",
+    name: "Sunset Orange",
+    description: "Warm orange, energetic and welcoming",
+    primary: "#fb923c",
+    secondary: "#ea580c",
+    gradient: "linear-gradient(135deg, #fb923c 0%, #ea580c 100%)",
+    emoji: "🌅",
+  },
+  {
+    id: "crimson-red",
+    name: "Crimson Red",
+    description: "Bold red, confident and authoritative",
+    primary: "#f87171",
+    secondary: "#dc2626",
+    gradient: "linear-gradient(135deg, #f87171 0%, #dc2626 100%)",
+    emoji: "🔴",
+  },
 ];
 
 export default function TeacherSettingsClient({
@@ -83,6 +123,7 @@ export default function TeacherSettingsClient({
   const [isPending, startTransition] = useTransition();
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [selectedPreset, setSelectedPreset] = useState(currentPreset || "ocean-blue");
+  const [hoveredPreset, setHoveredPreset] = useState<string | null>(null);
   const [avatars, setAvatars] = useState(initialAvatars);
   const [isGeneratingAvatars, setIsGeneratingAvatars] = useState(false);
   const [isUploadingProfile, setIsUploadingProfile] = useState(false);
@@ -442,25 +483,90 @@ export default function TeacherSettingsClient({
                   </div>
                   <div className="space-y-6">
                     <div>
-                      <p className="text-xs font-semibold text-primary uppercase tracking-wider mb-3">Color Preset</p>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        {THEME_PRESETS.map((preset) => (
-                          <button
-                            key={preset.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedPreset(preset.id);
-                              setColorPreset(preset.id, false); // live preview
-                            }}
-                            className={`rounded-xl border-2 p-3 text-left transition ${selectedPreset === preset.id ? "border-cyan-400 bg-cyan-500/10" : "border-subtle hover:border-theme"}`}
-                          >
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="text-base">{preset.emoji}</span>
-                              <div className="h-4 w-8 rounded-full" style={{ background: preset.gradient }} />
-                            </div>
-                            <p className="text-[10px] font-bold text-primary">{preset.name}</p>
-                          </button>
-                        ))}
+                      <span className="block text-xs font-bold uppercase tracking-wider text-secondary">
+                        Color Preset
+                      </span>
+                      <p className="text-[11px] text-muted mt-0.5 mb-3">
+                        Choose a cohesive color system for your dashboard. Live preview switches colors instantly.
+                      </p>
+                      <div className="grid gap-4 grid-cols-2 sm:grid-cols-5">
+                        {THEME_PRESETS.map((preset) => {
+                          const isSelected = selectedPreset === preset.id;
+                          return (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedPreset(preset.id);
+                                setColorPreset(preset.id, false); // live preview
+                              }}
+                              onMouseEnter={() => {
+                                setHoveredPreset(preset.id);
+                                setColorPreset(preset.id, false); // live preview on hover
+                              }}
+                              onMouseLeave={() => {
+                                setHoveredPreset(null);
+                                // Revert to whatever is currently selected
+                                setColorPreset(selectedPreset, false);
+                              }}
+                              className={`flex flex-col items-stretch rounded-xl border p-4 text-left transition-all ${
+                                isSelected
+                                  ? "border-cyan-400 bg-cyan-500/10 ring-1 ring-cyan-400"
+                                  : "border-subtle bg-hover/20 hover:bg-hover hover:border-theme"
+                              }`}
+                            >
+                              {/* Card Header */}
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span className="text-sm shrink-0">{preset.emoji}</span>
+                                  <span className="text-xs font-bold text-primary truncate">{preset.name}</span>
+                                </div>
+                                {isSelected && (
+                                  <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 shrink-0" />
+                                )}
+                              </div>
+
+                              <p className="text-[10px] text-secondary mb-3 leading-relaxed truncate">
+                                {preset.description}
+                              </p>
+
+                              {/* Mini Dashboard Preview */}
+                              <div className="rounded-lg border border-theme bg-background p-2 space-y-1.5 overflow-hidden select-none pointer-events-none">
+                                {/* Topbar */}
+                                <div className="flex items-center justify-between border-b border-subtle pb-1">
+                                  <div className="h-1.5 w-8 rounded bg-muted/60" />
+                                  <div className="h-2.5 w-2.5 rounded-full bg-cyan-500/20 flex items-center justify-center">
+                                    <div className="h-1 w-1 rounded-full bg-cyan-400" />
+                                  </div>
+                                </div>
+                                
+                                {/* Body */}
+                                <div className="flex gap-2">
+                                  {/* Sidebar */}
+                                  <div className="w-8 border-r border-subtle pr-1 flex flex-col gap-1">
+                                    <div className="h-1.5 w-full rounded bg-cyan-500/15" />
+                                    <div className="h-1 w-2/3 rounded bg-muted/40" />
+                                  </div>
+                                  
+                                  {/* Content */}
+                                  <div className="flex-1 flex flex-col gap-1.5">
+                                    <div className="flex items-center justify-between">
+                                      <div className="h-2 w-8 rounded bg-muted/50" />
+                                      <div className="rounded bg-cyan-500/10 border border-cyan-500/20 px-1 py-0.5 text-[6px] font-bold text-cyan-400 uppercase tracking-wider scale-90 origin-right">
+                                        OK
+                                      </div>
+                                    </div>
+                                    <div className="mt-0.5 flex justify-end">
+                                      <div className="rounded bg-cyan-400 px-1.5 py-0.5 text-[6px] font-bold text-slate-950 scale-90 origin-right">
+                                        Go
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                     <div>

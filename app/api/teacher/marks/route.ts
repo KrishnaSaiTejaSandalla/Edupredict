@@ -3,7 +3,7 @@ import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { teachers } from "@/lib/schema";
 import { eq } from "drizzle-orm";
-import { getStudentsForExam, enterMarks, updateMark, getTeacherResults } from "@/lib/teacher-marks.service";
+import { getStudentsForExam, enterMarks, updateMark, getTeacherResults, getMarksAnalytics } from "@/lib/teacher-marks.service";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +37,11 @@ export async function GET(request: Request) {
       const examType = searchParams.get("examType") || undefined;
 
       const data = await getTeacherResults(teacher.id, { page, pageSize, search, classId, subjectId, examType });
+      return NextResponse.json(data);
+    }
+
+    if (action === "analytics") {
+      const data = await getMarksAnalytics(teacher.id);
       return NextResponse.json(data);
     }
 

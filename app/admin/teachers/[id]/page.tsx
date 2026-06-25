@@ -176,9 +176,7 @@ export default async function TeacherEditPage({ params }: Props) {
       {/* HEADER */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 sm:h-16 sm:w-16 shrink-0 items-center justify-center rounded-2xl bg-cyan-500/10 border border-cyan-500/20 text-lg sm:text-xl font-bold text-cyan-500 dark:text-cyan-400 shadow-inner select-none">
-            {initials}
-          </div>
+
           <div>
             <a
               href="/admin/teachers"
@@ -189,10 +187,22 @@ export default async function TeacherEditPage({ params }: Props) {
               </svg>
               Teachers
             </a>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">{user?.name}</h1>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {teacher.department || 'General Department'} &bull; Employee ID: {teacher.employeeId || '—'}
-            </p>
+            <div className="flex items-center gap-4 mt-2">
+              <div className="flex h-14 w-14 sm:h-16 sm:w-16 shrink-0 items-center justify-center rounded-2xl bg-cyan-500/10 border border-cyan-500/20 text-lg sm:text-xl font-bold text-cyan-500 dark:text-cyan-400 shadow-inner select-none">
+                {initials}
+              </div>
+
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+                  {user?.name}
+                </h1>
+
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {teacher.department || 'General Department'} &bull; Employee ID:{' '}
+                  {teacher.employeeId || '—'}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>

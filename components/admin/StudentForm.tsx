@@ -17,6 +17,7 @@ type Props = {
     parentName?: string;
     parentPhone?: string;
     parentEmail?: string;
+    parentAddress?: string;
   };
   submitLabel?: string;
 };
@@ -174,6 +175,16 @@ export default function StudentForm({ action, initial = {}, submitLabel = 'Save'
               defaultValue={initial.parentEmail}
               placeholder="parent@example.com"
               className="input-theme h-10"
+            />
+          </div>
+
+          <div className="md:col-span-3">
+            <label className={labelCls}>Guardian Address</label>
+            <textarea
+              name="parentAddress"
+              defaultValue={initial.parentAddress}
+              placeholder="Guardian complete address"
+              className="input-theme min-h-[80px] py-2"
             />
           </div>
         </div>

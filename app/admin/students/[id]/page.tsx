@@ -39,6 +39,7 @@ export default async function StudentEditPage({ params }: Props) {
   let parentName = '';
   let parentPhone = '';
   let parentEmail = '';
+  let parentAddress = '';
   let parentUserId: number | undefined;
 
   if (spRows.length) {
@@ -48,6 +49,7 @@ export default async function StudentEditPage({ params }: Props) {
       parentName = parentUser?.name || '';
       parentPhone = parentRow.phoneNumber || '';
       parentEmail = parentRow.parentEmail || '';
+      parentAddress = parentRow.address || '';
       parentUserId = parentUser?.id;
     }
   }
@@ -63,6 +65,7 @@ export default async function StudentEditPage({ params }: Props) {
     const parentNameInput = String(formData.get('parentName') || '');
     const parentPhoneInput = String(formData.get('parentPhone') || '');
     const parentEmailInput = String(formData.get('parentEmail') || '');
+    const parentAddressInput = String(formData.get('parentAddress') || '');
 
     await db.update(users).set({ name: fullName }).where(eq(users.id, s.userId));
 
@@ -85,6 +88,7 @@ export default async function StudentEditPage({ params }: Props) {
         await db.update(parents).set({
           phoneNumber: parentPhoneInput || parentRow.phoneNumber,
           parentEmail: parentEmailInput || parentRow.parentEmail,
+          address: parentAddressInput || null,
         }).where(eq(parents.id, parentRow.id));
       }
     } else if (parentNameInput) {
@@ -103,6 +107,7 @@ export default async function StudentEditPage({ params }: Props) {
             userId: parentInserted.id,
             phoneNumber: parentPhoneInput || undefined,
             parentEmail: parentEmailInput || undefined,
+            address: parentAddressInput || undefined,
           })
           .$returningId();
 
@@ -166,6 +171,7 @@ export default async function StudentEditPage({ params }: Props) {
     parentName,
     parentPhone,
     parentEmail,
+    parentAddress,
   };
 
   const className = cls ? `${cls.name}${cls.section ? ' – ' + cls.section : ''}` : `Class ${s.classId}`;

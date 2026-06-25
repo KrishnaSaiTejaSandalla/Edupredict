@@ -1,13 +1,42 @@
 'use server';
 
 import { db } from './db';
-import { leaveRequests, users, students } from './schema';
+import { leaveRequests, users, students, studentParents, parents, notifications } from './schema';
 import { eq, and, or, sql, gte } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { createNotification } from './notification-actions';
 import { parseDbError } from './db-errors';
 import { logAudit } from './audit-utils';
 import { getCurrentUser } from './auth';
+
+// ==================== NOTIFICATION HELPER ====================
+
+async function createNotificationForUser(
+  userId: number,
+  title: string,
+  message: string,
+  type: string = 'info',
+  priority: 'low' | 'medium' | 'high' = 'medium'
+) {
+  try {
+    await db.insert(notifications).values({
+      userId,
+      title,
+      message,
+      type,
+      priority,
+      isRead: false,
+    });
+    revalidatePath('/teacher/notifications');
+    revalidatePath('/teacher');
+    revalidatePath('/parent/notifications');
+    revalidatePath('/parent');
+    revalidatePath('/admin/notifications');
+    revalidatePath('/admin');
+  } catch (err) {
+    console.error('Failed to create notification for user:', err);
+  }
+}
 
 // ==================== LEAVE REQUEST ACTIONS ====================
 
@@ -46,13 +75,15 @@ async function checkLeaveOverlap(
   return overlap.length > 0;
 }
 
-export async function submitLeaveRequest(data: {
-  studentId?: number;
-  leaveType: string;
-  startDate: string;
-  endDate: string;
-  reason: string;
-}) {
+export async function submitLeaveRequest(
+  data: {
+    studentId?: number;
+    leaveType: string;
+    startDate: string;
+    endDate: string;
+    reason: string;
+  }
+): Promise<any> {
   if (!data.leaveType) throw new Error('Please select a leave type.');
   if (!data.startDate || !data.endDate) throw new Error('Please select start and end dates.');
   if (data.startDate > data.endDate) throw new Error('End date cannot be before start date.');
@@ -106,6 +137,22 @@ export async function submitLeaveRequest(data: {
   revalidatePath('/teacher/leaves');
   revalidatePath('/parent/leaves');
   revalidatePath('/admin');
+
+  return {
+    id: insertedId,
+    schoolId,
+    userId: user.id,
+    studentId: data.studentId || null,
+    leaveType: data.leaveType,
+    startDate: data.startDate,
+    endDate: data.endDate,
+    reason: data.reason.trim(),
+    status: "pending" as const,
+    remarks: null,
+    actionedBy: null,
+    createdAt: new Date(),
+    updatedAt: null,
+  };
 }
 
 export async function updateLeaveStatus(
@@ -135,12 +182,36 @@ export async function updateLeaveStatus(
   }
 
   const action = status === 'approved' ? 'Approved' : 'Rejected';
-  await createNotification(
-    `Leave Request ${action}`,
-    `Leave request #${id} has been ${status}.${remarks ? ` Remarks: ${remarks}` : ''}`,
-    status === 'approved' ? 'success' : 'warning',
-    'high'
-  );
+
+  // Notify the requester (for teacher leaves) or parent (for student leaves)
+  if (existing.studentId) {
+    // Student leave - notify parent(s)
+    const parentRows = await db
+      .select({ parentId: studentParents.parentId, parentUserId: parents.userId })
+      .from(studentParents)
+      .where(eq(studentParents.studentId, existing.studentId));
+
+    for (const { parentUserId } of parentRows) {
+      if (parentUserId) {
+        await createNotificationForUser(
+          parentUserId,
+          `Student Leave ${action}`,
+          `Your child's leave request from ${existing.startDate} to ${existing.endDate} has been ${status}.${remarks ? ` Reason: ${remarks}` : ''}`,
+          status === 'approved' ? 'success' : 'warning',
+          'high'
+        );
+      }
+    }
+  } else if (existing.userId) {
+    // Teacher personal leave - notify the teacher
+    await createNotificationForUser(
+      existing.userId,
+      `Leave Request ${action}`,
+      `Your leave request from ${existing.startDate} to ${existing.endDate} has been ${status}.${remarks ? ` Reason: ${remarks}` : ''}`,
+      status === 'approved' ? 'success' : 'warning',
+      'high'
+    );
+  }
 
   await logAudit(`${status.toUpperCase()}_LEAVE`, 'leave_request', id, `${action} leave request #${id}${remarks ? `. Remarks: ${remarks}` : ''}`);
 
@@ -153,7 +224,6 @@ export async function updateLeaveStatus(
 export async function deleteLeaveRequest(id: number) {
   const [existing] = await db.select().from(leaveRequests).where(eq(leaveRequests.id, id)).limit(1);
   if (!existing) throw new Error('Leave request not found.');
-  if (existing.status !== 'pending') throw new Error('Only pending leave requests can be deleted.');
 
   try {
     await db.delete(leaveRequests).where(eq(leaveRequests.id, id));

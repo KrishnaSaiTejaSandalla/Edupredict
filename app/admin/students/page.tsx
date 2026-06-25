@@ -55,6 +55,7 @@ export default async function StudentsPage({ searchParams }: Props) {
       parentName: parentUsers.name,
       parentPhone: parents.phoneNumber,
       parentEmail: parents.parentEmail,
+      parentAddress: parents.address,
     })
     .from(students)
 
@@ -115,6 +116,7 @@ export default async function StudentsPage({ searchParams }: Props) {
     const parentName = String(formData.get('parentName') || '').trim();
     const parentPhone = String(formData.get('parentPhone') || '').trim();
     const parentEmail = String(formData.get('parentEmail') || '').trim();
+    const parentAddress = String(formData.get('parentAddress') || '').trim();
     const schoolId = 1;
 
     // Validate parent email format if provided
@@ -187,6 +189,7 @@ export default async function StudentsPage({ searchParams }: Props) {
               userId: parentInserted.id,
               phoneNumber: parentPhone || undefined,
               parentEmail: parentEmail || undefined,
+              address: parentAddress || undefined,
             })
             .$returningId();
 
@@ -235,6 +238,7 @@ export default async function StudentsPage({ searchParams }: Props) {
       parentName: string;
       parentPhone: string;
       parentEmail: string;
+      parentAddress: string;
     }
   ) {
     'use server';
@@ -273,6 +277,7 @@ export default async function StudentsPage({ searchParams }: Props) {
           await db.update(parents).set({
             ...(data.parentPhone ? { phoneNumber: data.parentPhone } : {}),
             ...(data.parentEmail !== undefined ? { parentEmail: data.parentEmail || null } : {}),
+            ...(data.parentAddress !== undefined ? { address: data.parentAddress || null } : {}),
           }).where(eq(parents.id, parentRow.id));
         }
       } else if (data.parentName) {
@@ -291,6 +296,7 @@ export default async function StudentsPage({ searchParams }: Props) {
             userId: parentInserted.id,
             phoneNumber: data.parentPhone || undefined,
             parentEmail: data.parentEmail || undefined,
+            address: data.parentAddress || undefined,
           })
           .$returningId();
 

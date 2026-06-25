@@ -34,6 +34,7 @@ type StudentRow = {
   parentName: string | null;
   parentPhone: string | null;
   parentEmail: string | null;
+  parentAddress: string | null;
 };
 
 type FormState = {
@@ -46,6 +47,7 @@ type FormState = {
   parentName: string;
   parentPhone: string;
   parentEmail: string;
+  parentAddress: string;
 };
 
 const emptyForm: FormState = {
@@ -58,6 +60,7 @@ const emptyForm: FormState = {
   parentName: '',
   parentPhone: '',
   parentEmail: '',
+  parentAddress: '',
 };
 
 type Props = {
@@ -320,6 +323,17 @@ export default function StudentsClient({
               />
             </div>
 
+            {/* Parent Address */}
+            <div className="md:col-span-2">
+              <label className={labelCls}>Parent Address</label>
+              <textarea
+                value={formData.parentAddress}
+                onChange={(e) => setFormData({ ...formData, parentAddress: e.target.value })}
+                placeholder="Guardian complete address"
+                className={`${inputCls} min-h-[80px] py-2`}
+              />
+            </div>
+
             {/* Action buttons */}
             <div className="md:col-span-2 flex gap-3 mt-2">
               <button
@@ -565,6 +579,12 @@ export default function StudentsClient({
                     <p className="text-muted-foreground">Email</p>
                     <p>{viewingStudent.parentEmail || 'Not Available'}</p>
                   </div>
+                  {viewingStudent.parentAddress && (
+                    <div>
+                      <p className="text-muted-foreground">Address</p>
+                      <p>{viewingStudent.parentAddress}</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

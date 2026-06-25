@@ -19,19 +19,13 @@ export default function LoginForm() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Login failed");
-
-      const me = await fetch("/api/auth/me");
-      if (me.ok) {
-        const js = await me.json();
-        const role = js?.user?.role;
-        if (role === "admin") window.location.href = "/admin";
-        else if (role === "teacher") window.location.href = "/teacher";
-        else if (role === "parent") window.location.href = "/parent";
-        else if (role === "student") window.location.href = "/student";
-        else window.location.href = "/role-selection";
-      } else {
-        window.location.href = "/";
-      }
+      
+      const userRole = data.user?.role;
+      if (userRole === "admin") window.location.href = "/admin";
+      else if (userRole === "teacher") window.location.href = "/teacher";
+      else if (userRole === "parent") window.location.href = "/parent";
+      else if (userRole === "student") window.location.href = "/student";
+      else window.location.href = "/role-selection";
     } catch (err: any) {
       toast.error(err.message || "Login failed");
     } finally {

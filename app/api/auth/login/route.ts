@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { db } from '@/lib/db';
 import { users } from '@/lib/schema';
 import { eq } from 'drizzle-orm';
-import { createSession } from '@/lib/session';
+import { createSession, deleteSessionByToken } from '@/lib/session';
 import { SESSION_COOKIE_NAME } from '@/lib/env';
 
 export async function POST(req: Request) {
@@ -17,11 +17,14 @@ export async function POST(req: Request) {
   if (!valid) return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
 
   const { token, expiresAt } = await createSession(user.id);
-  const res = NextResponse.json({ ok: true });
-  const cookieOpts = { path: '/', expires: expiresAt, secure: process.env.NODE_ENV === 'production' } as const;
+
   const role = user.role ?? 'student';
+
+  const res = NextResponse.json({ ok: true, user: { id: user.id, name: user.name, email: user.email, role } });
+  const cookieOpts = { path: '/', expires: expiresAt, secure: process.env.NODE_ENV === 'production' } as const;
+
   res.cookies.set({ name: `${SESSION_COOKIE_NAME}_${role}`, value: token, httpOnly: true, ...cookieOpts });
   res.cookies.set({ name: `ep-role_${role}`, value: role, httpOnly: false, ...cookieOpts });
+
   return res;
 }
-

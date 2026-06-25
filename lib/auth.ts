@@ -30,9 +30,9 @@ type CurrentUser = {
   } | null;
 };
 
-export async function getCurrentUser(req?: Request): Promise<CurrentUser | null> {
+export async function getCurrentUser(req?: Request, expectedRole?: Role | string): Promise<CurrentUser | null> {
   let token: string | null = null;
-  let role: string | null = null;
+  let role: string | null = expectedRole || null;
 
   if (req) {
     const url = new URL(req.url);
@@ -41,7 +41,7 @@ export async function getCurrentUser(req?: Request): Promise<CurrentUser | null>
     else if (pathname.startsWith('/teacher') || pathname.startsWith('/api/teacher')) role = 'teacher';
     else if (pathname.startsWith('/parent') || pathname.startsWith('/api/parent')) role = 'parent';
     else if (pathname.startsWith('/student') || pathname.startsWith('/api/student')) role = 'student';
-  } else {
+  } else if (!role) {
     try {
       const { headers } = await import('next/headers');
       const reqHeaders = await headers();
@@ -61,7 +61,7 @@ export async function getCurrentUser(req?: Request): Promise<CurrentUser | null>
     const cookie = req.headers.get("cookie") || "";
     let match = cookie.match(new RegExp(`${cookieName}=([^;]+)`));
     if (!match && !role) {
-      const possibleRoles = ['admin', 'teacher', 'student', 'parent'];
+      const possibleRoles = expectedRole ? [expectedRole] : ['admin', 'teacher', 'student', 'parent'];
       for (const r of possibleRoles) {
         match = cookie.match(new RegExp(`${SESSION_COOKIE_NAME}_${r}=([^;]+)`));
         if (match) break;
@@ -72,7 +72,7 @@ export async function getCurrentUser(req?: Request): Promise<CurrentUser | null>
     const cookieStore = await cookies();
     token = cookieStore.get(cookieName)?.value || null;
     if (!token && !role) {
-      const possibleRoles = ['admin', 'teacher', 'student', 'parent'];
+      const possibleRoles = expectedRole ? [expectedRole] : ['admin', 'teacher', 'student', 'parent'];
       for (const r of possibleRoles) {
         token = cookieStore.get(`${SESSION_COOKIE_NAME}_${r}`)?.value || null;
         if (token) break;
@@ -86,7 +86,7 @@ export async function getCurrentUser(req?: Request): Promise<CurrentUser | null>
   if (!row) return null;
 
   // Extra security step: if role context was found in request path, prevent mismatched sessions
-  if (role && row.role !== role) {
+  if ((role || expectedRole) && row.role !== (role || expectedRole)) {
     return null;
   }
 
@@ -97,7 +97,6 @@ export async function getCurrentUser(req?: Request): Promise<CurrentUser | null>
     role: row.role,
     profileImageUrl: row.profileImageUrl,
 
-    // 🔥 FORCE mapping here (DO NOT rely on nested object from session layer)
     school: row.schoolId
       ? {
         id: row.schoolId,
@@ -115,7 +114,7 @@ export async function requireAuth(req?: Request) {
 }
 
 export async function requireRole(role: Role | string, req?: Request) {
-  const user = await getCurrentUser(req);
+  const user = await getCurrentUser(req, role);
   if (!user) redirect('/login');
   if (user.role !== role) redirect('/role-selection');
   return user;

@@ -67,6 +67,9 @@ export const schools = mysqlTable(
     logoUrl: varchar('logo_url', { length: 512 }),
     primaryColor: varchar('primary_color', { length: 16 }).default('#06b6d4'),
     accentColor: varchar('accent_color', { length: 16 }).default('#a78bfa'),
+    monthlyFeedbackOpen: boolean('monthly_feedback_open').default(false).notNull(),
+    teacherFeedbackOpen: boolean('teacher_feedback_open').default(false).notNull(),
+    schoolSurveyOpen: boolean('school_survey_open').default(false).notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').onUpdateNow().notNull(),
   },
@@ -186,6 +189,8 @@ export const students = mysqlTable(
     phoneNumber: varchar('phone_number', { length: 20 }),
     address: text('address'),
     admissionDate: date('admission_date'),
+    learningGoal: text('learning_goal'),
+    interests: text('interests'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
   },
@@ -754,7 +759,7 @@ export const assignmentSubmissions = mysqlTable(
     assignmentId: int('assignment_id').notNull(),
     studentId: int('student_id').notNull(),
     submittedAt: timestamp('submitted_at').defaultNow().notNull(),
-    fileUrl: varchar('file_url', { length: 512 }),
+    fileUrl: text('file_url'),
     content: text('content'),
     grade: decimal('grade', { precision: 5, scale: 2 }),
     feedback: text('feedback'),
@@ -906,3 +911,83 @@ export const classTeacherAssignments = mysqlTable(
   })
 );
 
+// ==================== Student Diaries (Teacher-Published) ====================
+export const studentDiaries = mysqlTable(
+  'student_diaries',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    schoolId: int('school_id').notNull(),
+    classId: int('class_id').notNull(),
+    subjectId: int('subject_id').notNull(),
+    teacherId: int('teacher_id').notNull(),
+    topicTaught: text('topic_taught').notNull(),
+    homework: text('homework'),
+    date: date('date').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (d) => ({
+    classIdIdx: index('student_diaries_class_id_idx').on(d.classId),
+    teacherIdIdx: index('student_diaries_teacher_id_idx').on(d.teacherId),
+    dateIdx: index('student_diaries_date_idx').on(d.date),
+    fk_diary_school: foreignKey({ columns: [d.schoolId], foreignColumns: [schools.id] }),
+    fk_diary_class: foreignKey({ columns: [d.classId], foreignColumns: [classes.id] }),
+    fk_diary_subject: foreignKey({ columns: [d.subjectId], foreignColumns: [subjects.id] }),
+    fk_diary_teacher: foreignKey({ columns: [d.teacherId], foreignColumns: [teachers.id] }),
+  })
+);
+
+// ==================== Student Diary Progress ====================
+export const studentDiaryProgress = mysqlTable(
+  'student_diary_progress',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    studentId: int('student_id').notNull(),
+    diaryId: int('diary_id').notNull(),
+    isCompleted: boolean('is_completed').default(false).notNull(),
+    completedAt: timestamp('completed_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (p) => ({
+    studentDiaryUnique: uniqueIndex('student_diary_progress_unique').on(p.studentId, p.diaryId),
+    fk_progress_student: foreignKey({ columns: [p.studentId], foreignColumns: [students.id] }),
+    fk_progress_diary: foreignKey({ columns: [p.diaryId], foreignColumns: [studentDiaries.id] }),
+  })
+);
+
+// ==================== Student Avatar Selections ====================
+export const studentAvatarSelections = mysqlTable(
+  'student_avatar_selections',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    studentId: int('student_id').notNull(),
+    avatarType: varchar('avatar_type', { length: 64 }).notNull(),
+    imageUrl: varchar('image_url', { length: 512 }).notNull(),
+    isSelected: boolean('is_selected').default(false).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (a) => ({
+    studentIdIdx: index('student_avatar_student_id_idx').on(a.studentId),
+    fk_avatar_student: foreignKey({ columns: [a.studentId], foreignColumns: [students.id] }),
+  })
+);
+
+// ==================== AI Generated Notes ====================
+export const aiGeneratedNotes = mysqlTable(
+  'ai_generated_notes',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    studentId: int('student_id').notNull(),
+    subjectName: varchar('subject_name', { length: 128 }),
+    topic: varchar('topic', { length: 256 }).notNull(),
+    noteType: varchar('note_type', { length: 64 }).notNull(), // 'cheatsheet','revision','mnemonic','practice'
+    title: varchar('title', { length: 256 }).notNull(),
+    content: text('content').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (n) => ({
+    studentIdIdx: index('ai_notes_student_id_idx').on(n.studentId),
+    fk_notes_student: foreignKey({ columns: [n.studentId], foreignColumns: [students.id] }),
+  })
+);

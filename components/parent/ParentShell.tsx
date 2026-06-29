@@ -110,7 +110,7 @@ export default function ParentShell({ children, user, alerts = [] }: ParentShell
     };
 
     pollNotifications();
-    const interval = setInterval(pollNotifications, 60000);
+    const interval = setInterval(pollNotifications, 30000); // poll every 30 seconds
     return () => clearInterval(interval);
   }, [hydrate]);
 

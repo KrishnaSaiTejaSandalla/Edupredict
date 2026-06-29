@@ -64,9 +64,9 @@ const baseNavItems = [
     icon: "M4 19h16v2H4v-2Zm2-2h3V9H6v8Zm5 0h3V4h-3v13Zm5 0h3v-6h-3v6Z",
   },
   {
-    href: "/teacher/resources",
-    label: "Resources",
-    icon: "M20 6h-2.18c.07-.23.18-.45.18-.7V3.5A2.5 2.5 0 0 0 15.5 1h-7A2.5 2.5 0 0 0 6 3.5v1.8c0 .25.11.47.18.7H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2ZM8 3.5c0-.28.22-.5.5-.5h7c.28 0 .5.22.5.5V5H8V3.5ZM20 20H4V8h16v12Z",
+    href: "/teacher/diary",
+    label: "Diary",
+    icon: "M18 2h-3a3 3 0 0 0-6 0H6C4.9 2 4 2.9 4 4v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2Zm-6 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1Zm6 18H6V4h2v3h8V4h2v16Z",
   },
   {
     href: "/teacher/leaves",
@@ -113,7 +113,7 @@ export default function TeacherShell({
     };
 
     pollNotifications();
-    const interval = setInterval(pollNotifications, 60000);
+    const interval = setInterval(pollNotifications, 30000); // poll every 30 seconds
     return () => clearInterval(interval);
   }, [hydrate]);
 

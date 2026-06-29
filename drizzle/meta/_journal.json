@@ -64,6 +64,20 @@
       "when": 1781614554017,
       "tag": "0008_great_jack_murdock",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1782637913761,
+      "tag": "0009_safe_loki",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1782750215743,
+      "tag": "0010_panoramic_secret_warriors",
+      "breakpoints": true
     }
   ]
 }

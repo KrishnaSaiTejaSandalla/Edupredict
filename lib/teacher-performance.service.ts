@@ -7,7 +7,7 @@ import {
   attendance,
   results,
   students,
-  teacherClassAssignments,
+  classSubjects,
   classes,
   subjects,
 } from './schema';
@@ -36,6 +36,11 @@ export type TeacherPerformanceData = {
     why: string;
     solution: string;
   } | null;
+  feedbackStats: {
+    averageRating: number;
+    feedbackCount: number;
+    recentFeedback: string[];
+  };
 };
 
 export async function getTeacherPerformance(teacherId: number, userId: number): Promise<TeacherPerformanceData> {
@@ -55,6 +60,7 @@ export async function getTeacherPerformance(teacherId: number, userId: number): 
 
     // 2. Student Satisfaction (% ratings >= 4)
     let studentSatisfaction = 0;
+    let feedbackCount = 0;
     try {
       const [totalFbRow] = await db
         .select({ count: sql<number>`count(*)` })
@@ -65,6 +71,7 @@ export async function getTeacherPerformance(teacherId: number, userId: number): 
         .from(teacherFeedback)
         .where(and(eq(teacherFeedback.teacherId, teacherId), sql`${teacherFeedback.rating} >= 4`));
       const totalFb = Number(totalFbRow?.count || 0);
+      feedbackCount = totalFb;
       const positiveFb = Number(positiveFbRow?.count || 0);
       studentSatisfaction = totalFb > 0 ? Math.round((positiveFb / totalFb) * 100) : 0;
     } catch (error) {
@@ -72,13 +79,30 @@ export async function getTeacherPerformance(teacherId: number, userId: number): 
       studentSatisfaction = 0;
     }
 
+    // Recent feedback comments
+    let recentFeedback: string[] = [];
+    try {
+      const fbRows = await db
+        .select({ comment: teacherFeedback.comment })
+        .from(teacherFeedback)
+        .where(eq(teacherFeedback.teacherId, teacherId))
+        .orderBy(desc(teacherFeedback.createdAt))
+        .limit(5);
+      recentFeedback = fbRows
+        .map((r) => r.comment)
+        .filter((c): c is string => !!c);
+    } catch (error) {
+      console.error('Error fetching recent feedback:', error);
+    }
+
     // 3. Attendance Completion Rate (days marked / expected days in last 30 days)
     let classRows: Array<{ classId: number }> = [];
     try {
       classRows = await db
-        .select({ classId: teacherClassAssignments.classId })
-        .from(teacherClassAssignments)
-        .where(eq(teacherClassAssignments.teacherId, teacherId));
+        .select({ classId: classSubjects.classId })
+        .from(classSubjects)
+        .where(eq(classSubjects.teacherId, teacherId))
+        .groupBy(classSubjects.classId);
     } catch (error) {
       console.error('Error fetching class assignments:', error);
       classRows = [];
@@ -254,6 +278,11 @@ export async function getTeacherPerformance(teacherId: number, userId: number): 
       teachingEffectiveness,
       classOutcomes,
       aiInsights,
+      feedbackStats: {
+        averageRating: teacherRating,
+        feedbackCount,
+        recentFeedback,
+      },
     };
   } catch (error) {
     console.error('Critical error in getTeacherPerformance:', error);
@@ -268,6 +297,11 @@ export async function getTeacherPerformance(teacherId: number, userId: number): 
       teachingEffectiveness: [],
       classOutcomes: [],
       aiInsights: null,
+      feedbackStats: {
+        averageRating: 0,
+        feedbackCount: 0,
+        recentFeedback: [],
+      },
     };
   }
 }

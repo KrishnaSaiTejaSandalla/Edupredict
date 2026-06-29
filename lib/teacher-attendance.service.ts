@@ -4,7 +4,7 @@ import {
   students,
   attendance,
   classes,
-  teacherClassAssignments,
+  classSubjects,
 } from './schema';
 import { eq, and, gte, lte, desc, sql, inArray } from 'drizzle-orm';
 import { users } from './schema';
@@ -14,13 +14,14 @@ import { users } from './schema';
 export async function getTeacherClasses(teacherId: number) {
   const rows = await db
     .select({
-      classId: teacherClassAssignments.classId,
+      classId: classSubjects.classId,
       className: classes.name,
       classSection: classes.section,
     })
-    .from(teacherClassAssignments)
-    .leftJoin(classes, eq(teacherClassAssignments.classId, classes.id))
-    .where(eq(teacherClassAssignments.teacherId, teacherId));
+    .from(classSubjects)
+    .leftJoin(classes, eq(classSubjects.classId, classes.id))
+    .where(eq(classSubjects.teacherId, teacherId))
+    .groupBy(classSubjects.classId, classes.name, classes.section);
 
   return rows
     .map((r) => ({

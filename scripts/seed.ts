@@ -1,5 +1,5 @@
 import { db, closeDB } from '@/lib/db';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import {
   users,
   schools,
@@ -11,19 +11,36 @@ import {
   classSubjects,
   studentParents,
   buses,
+  teacherClassAssignments,
+  teacherSubjectAssignments,
 } from '@/lib/schema';
 
 async function seed() {
   console.log('Seeding database...');
 
   try {
-    // Check if data already exists
-    const existingSchools = await db.select().from(schools).limit(1);
-    if (existingSchools.length > 0) {
-      console.log('✓ Database already seeded');
-      await closeDB();
-      process.exit(0);
+    console.log('Cleaning database tables...');
+    await db.execute(sql`SET FOREIGN_KEY_CHECKS = 0`);
+    const tables = [
+      'class_subjects', 'teacher_class_assignments', 'teacher_subject_assignments',
+      'student_parents', 'parents', 'students', 'teachers', 'classes', 'subjects',
+      'users', 'schools', 'buses', 'attendance', 'assignments', 'assignment_submissions',
+      'results', 'exams', 'predictions', 'notifications', 'diaries', 'user_preferences',
+      'ai_generated_notes', 'teacher_feedback', 'feedback'
+    ];
+    for (const table of tables) {
+      try {
+        await db.execute(sql.raw(`TRUNCATE TABLE \`${table}\``));
+      } catch {
+        try {
+          await db.execute(sql.raw(`DELETE FROM \`${table}\``));
+        } catch (e) {
+          // ignore
+        }
+      }
     }
+    await db.execute(sql`SET FOREIGN_KEY_CHECKS = 1`);
+    console.log('✓ Database cleaned');
 
     // Create a school
     await db.insert(schools).values({
@@ -249,6 +266,22 @@ async function seed() {
     ]);
 
     console.log('✓ Class-Subject mappings created');
+
+    // Create legacy teacher assignments to support fallback queries
+    await db.insert(teacherClassAssignments).values([
+      { teacherId: teacher1.id, classId: class10A.id },
+      { teacherId: teacher1.id, classId: class10B.id },
+      { teacherId: teacher2.id, classId: class10A.id },
+      { teacherId: teacher2.id, classId: class10B.id },
+    ]);
+
+    await db.insert(teacherSubjectAssignments).values([
+      { teacherId: teacher1.id, subjectId: subjectEnglish.id },
+      { teacherId: teacher2.id, subjectId: subjectMath.id },
+      { teacherId: teacher2.id, subjectId: subjectScience.id },
+    ]);
+
+    console.log('✓ Legacy teacher assignments created');
 
     // Create students
     await db.insert(students).values([

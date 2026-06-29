@@ -11,7 +11,7 @@ import { getCurrentUser } from './auth';
 
 // ==================== FEEDBACK ACTIONS ====================
 
-const VALID_CATEGORIES = ['Academic', 'Facilities', 'Transport', 'Administration', 'Other'];
+const VALID_CATEGORIES = ['Academic', 'Facilities', 'Transport', 'Administration', 'Other', 'Monthly Survey', 'School Survey'];
 
 export async function submitFeedback(data: {
   title: string;
@@ -100,4 +100,43 @@ export async function deleteFeedback(id: number) {
 
   revalidatePath('/admin/feedback');
   revalidatePath('/admin');
+}
+
+export async function submitTeacherFeedbackAction(data: {
+  teacherId: number;
+  rating: number;
+  comment: string;
+  category: string;
+}) {
+  const { students, teacherFeedback } = await import('./schema');
+  
+  if (data.rating < 1 || data.rating > 5) throw new Error('Rating must be between 1 and 5 stars.');
+  if (!data.comment || data.comment.trim().length < 5) throw new Error('Comment must be at least 5 characters.');
+
+  const user = await getCurrentUser();
+  if (!user) throw new Error('You must be logged in.');
+
+  const [studentRow] = await db
+    .select({ id: students.id, classId: students.classId })
+    .from(students)
+    .where(eq(students.userId, user.id))
+    .limit(1);
+
+  if (!studentRow) throw new Error('Student record not found.');
+
+  try {
+    await db.insert(teacherFeedback).values({
+      teacherId: data.teacherId,
+      studentId: studentRow.id,
+      classId: studentRow.classId,
+      rating: data.rating,
+      comment: data.comment.trim(),
+      category: data.category || 'overall',
+      academicYear: '2026-2027',
+    });
+  } catch (err) {
+    throw new Error(parseDbError(err));
+  }
+
+  revalidatePath('/student/feedback');
 }

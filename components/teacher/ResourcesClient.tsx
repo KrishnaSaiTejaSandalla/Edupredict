@@ -187,7 +187,16 @@ export default function ResourcesClient({ teacherId, department }: Props) {
       const res = await fetch(`/api/teacher/resources?id=${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error((await res.json()).error || "Failed");
       toast.success("Resource deleted");
-      fetchResources();
+      
+      setResources((prev) => {
+        const updated = prev.filter((r) => r.id !== id);
+        if (updated.length === 0 && page > 1) {
+          setPage((p) => p - 1);
+        } else {
+          fetchResources();
+        }
+        return updated;
+      });
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -198,12 +207,6 @@ export default function ResourcesClient({ teacherId, department }: Props) {
   const typeIcon = (type: string) => RESOURCE_TYPES.find((r) => r.value === type)?.icon || "📁";
   const typeLabel = (type: string) => RESOURCE_TYPES.find((r) => r.value === type)?.label || type;
 
-  // KPI Calculations
-  const totalResources = resources.length;
-  const aiGeneratedCount = resources.filter(r => r.isAIGenerated).length;
-  const manualCount = totalResources - aiGeneratedCount;
-  const totalViews = resources.reduce((sum, r) => sum + r.downloadCount, 0);
-
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-8">
       {/* Header */}
@@ -211,21 +214,6 @@ export default function ResourcesClient({ teacherId, department }: Props) {
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-400">Faculty Portal</p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Resources</h1>
         <p className="mt-2 text-sm text-muted-foreground">Build your teaching material library with AI-powered content generation.</p>
-      </div>
-
-      {/* KPI Strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {[
-          { label: "Total Resources", value: totalResources, color: "text-primary border-border" },
-          { label: "AI Generated", value: aiGeneratedCount, color: "text-cyan-500 dark:text-cyan-400 border-cyan-500/10 bg-cyan-500/5" },
-          { label: "Manual Library", value: manualCount, color: "text-violet-500 dark:text-violet-400 border-violet-500/10 bg-violet-500/5" },
-          { label: "Total Views", value: totalViews, color: "text-emerald-500 dark:text-emerald-400 border-emerald-500/10 bg-emerald-500/5" },
-        ].map(({ label, value, color }) => (
-          <div key={label} className={`rounded-2xl border bg-card p-5 shadow-sm hover:shadow-md transition duration-200 ${color.includes("border-") ? color.split(" ")[1] + " " + color.split(" ")[2] : "border-border"}`}>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
-            <p className={`mt-2 text-2xl font-black ${color.split(" ")[0]}`}>{value}</p>
-          </div>
-        ))}
       </div>
 
       {/* AI Toolkit */}
@@ -311,7 +299,7 @@ export default function ResourcesClient({ teacherId, department }: Props) {
       ) : resources.length === 0 ? (
         <div className="rounded-2xl border-2 border-dashed border-border bg-card p-16 text-center shadow-sm max-w-lg mx-auto">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-hover text-muted-foreground text-2xl">📁</div>
-          <h3 className="text-sm font-bold text-foreground">No Resources Yet</h3>
+          <h3 className="text-sm font-bold text-foreground">No resources available yet.</h3>
           <p className="mt-2 text-xs text-muted-foreground max-w-xs mx-auto leading-relaxed">
             Use the AI Toolkit above to generate teaching materials or add your own resources.
           </p>
@@ -504,10 +492,14 @@ export default function ResourcesClient({ teacherId, department }: Props) {
                 <span className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">Title *</span>
                 <input type="text" className="input-theme" value={uploadForm.title} onChange={e => setUploadForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Class Notes - Algebra" />
               </label>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <label className="block space-y-1.5">
                   <span className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">Subject</span>
                   <input type="text" className="input-theme" value={uploadForm.subject} onChange={e => setUploadForm(f => ({ ...f, subject: e.target.value }))} placeholder="e.g. Math" />
+                </label>
+                <label className="block space-y-1.5">
+                  <span className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">Class / Level</span>
+                  <input type="text" className="input-theme" value={uploadForm.classLevel} onChange={e => setUploadForm(f => ({ ...f, classLevel: e.target.value }))} placeholder="e.g. Class 8A" />
                 </label>
                 <label className="block space-y-1.5">
                   <span className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">Type *</span>

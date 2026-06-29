@@ -6,8 +6,7 @@ import {
   results,
   subjects,
   classes,
-  teacherClassAssignments,
-  teacherSubjectAssignments,
+  classSubjects,
   users,
 } from './schema';
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
@@ -15,19 +14,14 @@ import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 // ==================== TEACHER MARKS SERVICE ====================
 
 export async function getTeacherExams(teacherId: number) {
-  // Get assigned classes for the teacher
-  const classRows = await db
-    .select({ classId: teacherClassAssignments.classId })
-    .from(teacherClassAssignments)
-    .where(eq(teacherClassAssignments.teacherId, teacherId));
-  const assignedClassIds = classRows.map((r) => r.classId);
+  // Get assigned classes and subjects for the teacher directly from classSubjects
+  const classSubjRows = await db
+    .select({ classId: classSubjects.classId, subjectId: classSubjects.subjectId })
+    .from(classSubjects)
+    .where(eq(classSubjects.teacherId, teacherId));
 
-  // Get assigned subjects for the teacher
-  const subjectRows = await db
-    .select({ subjectId: teacherSubjectAssignments.subjectId })
-    .from(teacherSubjectAssignments)
-    .where(eq(teacherSubjectAssignments.teacherId, teacherId));
-  const assignedSubjectIds = subjectRows.map((r) => r.subjectId);
+  const assignedClassIds = Array.from(new Set(classSubjRows.map((r) => r.classId).filter(Boolean))) as number[];
+  const assignedSubjectIds = Array.from(new Set(classSubjRows.map((r) => r.subjectId).filter(Boolean))) as number[];
 
   if (assignedClassIds.length === 0 || assignedSubjectIds.length === 0) return [];
 
@@ -155,17 +149,13 @@ export async function getTeacherResults(teacherId: number, filter: ResultFilter 
   const offset = (page - 1) * pageSize;
 
   // Get teacher's assigned classes and subjects
-  const classRows = await db
-    .select({ classId: teacherClassAssignments.classId })
-    .from(teacherClassAssignments)
-    .where(eq(teacherClassAssignments.teacherId, teacherId));
-  const assignedClassIds = classRows.map((r) => r.classId);
+  const classSubjRows = await db
+    .select({ classId: classSubjects.classId, subjectId: classSubjects.subjectId })
+    .from(classSubjects)
+    .where(eq(classSubjects.teacherId, teacherId));
 
-  const subjectRows = await db
-    .select({ subjectId: teacherSubjectAssignments.subjectId })
-    .from(teacherSubjectAssignments)
-    .where(eq(teacherSubjectAssignments.teacherId, teacherId));
-  const assignedSubjectIds = subjectRows.map((r) => r.subjectId);
+  const assignedClassIds = Array.from(new Set(classSubjRows.map((r) => r.classId).filter(Boolean))) as number[];
+  const assignedSubjectIds = Array.from(new Set(classSubjRows.map((r) => r.subjectId).filter(Boolean))) as number[];
 
   if (assignedClassIds.length === 0 || assignedSubjectIds.length === 0) {
     return { items: [], total: 0, pages: 0 };
@@ -250,17 +240,13 @@ export async function getEditableMarks(teacherId: number, page = 1, pageSize = 1
 
 export async function getMarksAnalytics(teacherId: number) {
   // Get teacher's assigned classes and subjects
-  const classRows = await db
-    .select({ classId: teacherClassAssignments.classId })
-    .from(teacherClassAssignments)
-    .where(eq(teacherClassAssignments.teacherId, teacherId));
-  const assignedClassIds = classRows.map((r) => r.classId);
+  const classSubjRows = await db
+    .select({ classId: classSubjects.classId, subjectId: classSubjects.subjectId })
+    .from(classSubjects)
+    .where(eq(classSubjects.teacherId, teacherId));
 
-  const subjectRows = await db
-    .select({ subjectId: teacherSubjectAssignments.subjectId })
-    .from(teacherSubjectAssignments)
-    .where(eq(teacherSubjectAssignments.teacherId, teacherId));
-  const assignedSubjectIds = subjectRows.map((r) => r.subjectId);
+  const assignedClassIds = Array.from(new Set(classSubjRows.map((r) => r.classId).filter(Boolean))) as number[];
+  const assignedSubjectIds = Array.from(new Set(classSubjRows.map((r) => r.subjectId).filter(Boolean))) as number[];
 
   if (assignedClassIds.length === 0 || assignedSubjectIds.length === 0) {
     return {

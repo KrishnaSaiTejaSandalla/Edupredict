@@ -14,6 +14,7 @@ import {
   uploadSchoolLogo,
   uploadUserProfileImage,
   updateUserNotificationPreferences,
+  updateSchoolFeedbackSettings,
 } from "@/lib/settings-actions";
 import {
   generateUserAvatars,
@@ -53,6 +54,9 @@ interface SchoolProps {
   logoUrl: string | null;
   primaryColor: string | null;
   accentColor: string | null;
+  monthlyFeedbackOpen: boolean;
+  teacherFeedbackOpen: boolean;
+  schoolSurveyOpen: boolean;
 }
 
 interface UserPreferencesProps {
@@ -166,6 +170,11 @@ export default function SettingsClient({
   const [primaryColor, setPrimaryColor] = useState<string>(school?.primaryColor || "#06b6d4");
   const [accentColor, setAccentColor] = useState<string>(school?.accentColor || "#a78bfa");
   const [logoPreview, setLogoPreview] = useState<string | null>(school?.logoUrl || null);
+
+  // Survey / Feedback toggles
+  const [monthlyFeedbackOpen, setMonthlyFeedbackOpen] = useState<boolean>(school?.monthlyFeedbackOpen ?? false);
+  const [teacherFeedbackOpen, setTeacherFeedbackOpen] = useState<boolean>(school?.teacherFeedbackOpen ?? false);
+  const [schoolSurveyOpen, setSchoolSurveyOpen] = useState<boolean>(school?.schoolSurveyOpen ?? false);
 
   // Ref to monitor forms
   const formRef = useRef<HTMLFormElement>(null);
@@ -294,6 +303,14 @@ export default function SettingsClient({
         const newDensity = formData.get("density") as string | null;
         if (newDensity) setDensity(newDensity as any);
         toast.success("Appearance saved! Your color preset is now active.");
+      } else if (activeTab === "surveys") {
+        if (!school) throw new Error("No school record associated.");
+        await updateSchoolFeedbackSettings(school.id, {
+          monthlyFeedbackOpen,
+          teacherFeedbackOpen,
+          schoolSurveyOpen,
+        });
+        toast.success("Survey settings saved! Students and teachers will see updated forms.");
       } else if (activeTab === "security") {
         const currentPassword = formData.get("currentPassword") as string;
         const newPassword = formData.get("newPassword") as string;
@@ -491,6 +508,7 @@ export default function SettingsClient({
               { id: "branding", label: "Branding", icon: "🎨" },
               { id: "appearance", label: "Appearance", icon: "👁️" },
               { id: "notifications", label: "Notifications", icon: "🔔" },
+              { id: "surveys", label: "Surveys & Feedback", icon: "📋" },
               { id: "security", label: "Security", icon: "🔒" },
               { id: "avatars", label: "AI Avatars", icon: "✨" },
             ].map((tab) => {
@@ -1318,8 +1336,131 @@ export default function SettingsClient({
             </form>
           )}
 
+          {/* SURVEYS & FEEDBACK MODULE */}
+          {activeTab === "surveys" && (
+            <form
+              id="surveys-form"
+              onSubmit={executeSave}
+              className="rounded-2xl border border-theme bg-surface/60 p-6 shadow-sm space-y-6 animate-in fade-in duration-300"
+            >
+              <div className="border-b border-subtle pb-4">
+                <h2 className="text-sm font-semibold text-primary uppercase tracking-wider flex items-center gap-2">
+                  <span>📋</span> Surveys &amp; Feedback Control
+                </h2>
+                <p className="text-xs text-secondary mt-1">
+                  Open or close feedback windows for students and teachers. Changes take effect immediately across all portals.
+                </p>
+              </div>
+
+              {!school && (
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-xs text-amber-400 flex items-center gap-2">
+                  <span>⚠️</span>
+                  <span>No school profile is linked to this admin account. Create a school profile first.</span>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                {/* Monthly Student Feedback */}
+                <div className={`relative flex items-start gap-4 rounded-2xl border p-5 transition-all duration-200 ${monthlyFeedbackOpen ? "border-violet-500/30 bg-violet-500/5" : "border-theme bg-hover/20"}`}>
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-lg">
+                    🎓
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-primary">Monthly Student Feedback</p>
+                    <p className="text-xs text-secondary mt-0.5 leading-relaxed">
+                      When enabled, students can submit a monthly satisfaction &amp; experience form in their portal under the Feedback section.
+                    </p>
+                    <div className="flex items-center gap-2 mt-3">
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border ${monthlyFeedbackOpen ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-slate-500/10 text-slate-400 border-slate-500/20"}`}>
+                        {monthlyFeedbackOpen ? "● Open" : "○ Closed"}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={monthlyFeedbackOpen}
+                    onClick={() => { setMonthlyFeedbackOpen((v) => !v); setIsDirty(true); }}
+                    className={`relative shrink-0 inline-flex h-7 w-12 items-center rounded-full border-2 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-violet-400 focus:ring-offset-2 focus:ring-offset-base ${monthlyFeedbackOpen ? "bg-violet-500 border-violet-400" : "bg-hover border-subtle"}`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition-transform duration-300 ${monthlyFeedbackOpen ? "translate-x-5" : "translate-x-0.5"}`}
+                    />
+                  </button>
+                </div>
+
+                {/* Teacher Feedback */}
+                <div className={`relative flex items-start gap-4 rounded-2xl border p-5 transition-all duration-200 ${teacherFeedbackOpen ? "border-cyan-500/30 bg-cyan-500/5" : "border-theme bg-hover/20"}`}>
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-500/10 text-lg">
+                    👨‍🏫
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-primary">Teacher Feedback Round</p>
+                    <p className="text-xs text-secondary mt-0.5 leading-relaxed">
+                      Enables teachers to submit structured feedback on student performance, classroom observations, and resource needs.
+                    </p>
+                    <div className="flex items-center gap-2 mt-3">
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border ${teacherFeedbackOpen ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-slate-500/10 text-slate-400 border-slate-500/20"}`}>
+                        {teacherFeedbackOpen ? "● Open" : "○ Closed"}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={teacherFeedbackOpen}
+                    onClick={() => { setTeacherFeedbackOpen((v) => !v); setIsDirty(true); }}
+                    className={`relative shrink-0 inline-flex h-7 w-12 items-center rounded-full border-2 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-base ${teacherFeedbackOpen ? "bg-cyan-500 border-cyan-400" : "bg-hover border-subtle"}`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition-transform duration-300 ${teacherFeedbackOpen ? "translate-x-5" : "translate-x-0.5"}`}
+                    />
+                  </button>
+                </div>
+
+                {/* School-wide Survey */}
+                <div className={`relative flex items-start gap-4 rounded-2xl border p-5 transition-all duration-200 ${schoolSurveyOpen ? "border-amber-500/30 bg-amber-500/5" : "border-theme bg-hover/20"}`}>
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-lg">
+                    🏫
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-primary">School-Wide Survey</p>
+                    <p className="text-xs text-secondary mt-0.5 leading-relaxed">
+                      Opens a comprehensive school climate survey that appears for all students and staff. Use for annual assessments or special events.
+                    </p>
+                    <div className="flex items-center gap-2 mt-3">
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border ${schoolSurveyOpen ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-slate-500/10 text-slate-400 border-slate-500/20"}`}>
+                        {schoolSurveyOpen ? "● Open" : "○ Closed"}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={schoolSurveyOpen}
+                    onClick={() => { setSchoolSurveyOpen((v) => !v); setIsDirty(true); }}
+                    className={`relative shrink-0 inline-flex h-7 w-12 items-center rounded-full border-2 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-base ${schoolSurveyOpen ? "bg-amber-500 border-amber-400" : "bg-hover border-subtle"}`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition-transform duration-300 ${schoolSurveyOpen ? "translate-x-5" : "translate-x-0.5"}`}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {/* Info banner */}
+              <div className="rounded-xl border border-theme bg-hover/30 p-4 text-xs text-secondary leading-relaxed flex items-start gap-2.5">
+                <span className="text-base">💡</span>
+                <span>
+                  Toggle changes are saved using the sticky <strong className="text-primary">Save Changes</strong> bar that appears below. Students and teachers will see the updated forms instantly after you save.
+                </span>
+              </div>
+            </form>
+          )}
+
           {/* AI AVATARS MODULE */}
           {activeTab === "avatars" && (
+
             <div className="rounded-2xl border border-theme bg-surface/60 p-6 shadow-sm space-y-6 animate-in fade-in duration-300">
               <div className="border-b border-subtle pb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>

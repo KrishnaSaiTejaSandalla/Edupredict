@@ -48,7 +48,7 @@ export async function POST(request: Request) {
   try {
     const user = await requireRole("teacher");
     const [teacher] = await db
-      .select({ id: teachers.id })
+      .select({ id: teachers.id, schoolId: teachers.schoolId })
       .from(teachers)
       .where(eq(teachers.userId, user.id))
       .limit(1);
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Title and resource type are required" }, { status: 400 });
     }
 
-    const schoolId = user.school?.id || 1;
+    const schoolId = teacher.schoolId;
 
     await createResource(teacher.id, schoolId, {
       title, description, subject, classLevel, resourceType, fileUrl, isAIGenerated, aiPrompt, aiContent,

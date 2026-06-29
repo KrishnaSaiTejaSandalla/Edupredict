@@ -23,6 +23,7 @@ export default async function TeacherPerformancePage() {
         teachingEffectiveness: [],
         classOutcomes: [],
         aiInsights: null,
+        feedbackStats: { averageRating: 0, feedbackCount: 0, recentFeedback: [] },
       };
 
   return <TeacherPerformanceClient performance={performance} />;

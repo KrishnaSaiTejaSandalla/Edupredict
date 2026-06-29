@@ -12,8 +12,7 @@ import {
   exams,
   predictions,
   notifications,
-  teacherClassAssignments,
-  teacherSubjectAssignments,
+  classSubjects,
 } from './schema';
 import { eq, and, gte, lte, lt, sql, desc, isNull, inArray } from 'drizzle-orm';
 
@@ -88,19 +87,14 @@ export async function getTeacherDashboardData(userId: number): Promise<TeacherDa
   const todayDate = today.toISOString().split('T')[0];
   const currentTime = today.toTimeString().slice(0, 5); // HH:MM
 
-  // Get assigned classes for the teacher
-  const classRows = await db
-    .select({ classId: teacherClassAssignments.classId })
-    .from(teacherClassAssignments)
-    .where(eq(teacherClassAssignments.teacherId, teacher.id));
-  const assignedClassIds = classRows.map((r) => r.classId);
+  // Get assigned classes and subjects for the teacher directly from classSubjects
+  const classSubjRows = await db
+    .select({ classId: classSubjects.classId, subjectId: classSubjects.subjectId })
+    .from(classSubjects)
+    .where(eq(classSubjects.teacherId, teacher.id));
 
-  // Get assigned subjects for the teacher
-  const subjectRows = await db
-    .select({ subjectId: teacherSubjectAssignments.subjectId })
-    .from(teacherSubjectAssignments)
-    .where(eq(teacherSubjectAssignments.teacherId, teacher.id));
-  const assignedSubjectIds = subjectRows.map((r) => r.subjectId);
+  const assignedClassIds = Array.from(new Set(classSubjRows.map((r) => r.classId).filter(Boolean))) as number[];
+  const assignedSubjectIds = Array.from(new Set(classSubjRows.map((r) => r.subjectId).filter(Boolean))) as number[];
 
   // 2. Today's timetable entries (filtered by assignments)
   let todayEntries: any[] = [];

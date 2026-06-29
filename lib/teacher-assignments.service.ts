@@ -6,8 +6,7 @@ import {
   students,
   classes,
   subjects,
-  teacherClassAssignments,
-  teacherSubjectAssignments,
+  classSubjects,
 } from './schema';
 import { eq, and, desc, sql, isNull, isNotNull, inArray } from 'drizzle-orm';
 import { users } from './schema';
@@ -24,19 +23,14 @@ export async function getTeacherAssignments(teacherId: number, filter: Assignmen
   const { page = 1, pageSize = 12, search } = filter;
   const offset = (page - 1) * pageSize;
 
-  // Get assigned classes for the teacher
-  const classRows = await db
-    .select({ classId: teacherClassAssignments.classId })
-    .from(teacherClassAssignments)
-    .where(eq(teacherClassAssignments.teacherId, teacherId));
-  const assignedClassIds = classRows.map((r) => r.classId);
+  // Get assigned classes and subjects for the teacher directly from classSubjects
+  const classSubjRows = await db
+    .select({ classId: classSubjects.classId, subjectId: classSubjects.subjectId })
+    .from(classSubjects)
+    .where(eq(classSubjects.teacherId, teacherId));
 
-  // Get assigned subjects for the teacher
-  const subjectRows = await db
-    .select({ subjectId: teacherSubjectAssignments.subjectId })
-    .from(teacherSubjectAssignments)
-    .where(eq(teacherSubjectAssignments.teacherId, teacherId));
-  const assignedSubjectIds = subjectRows.map((r) => r.subjectId);
+  const assignedClassIds = Array.from(new Set(classSubjRows.map((r) => r.classId).filter(Boolean))) as number[];
+  const assignedSubjectIds = Array.from(new Set(classSubjRows.map((r) => r.subjectId).filter(Boolean))) as number[];
 
   if (assignedClassIds.length === 0 || assignedSubjectIds.length === 0) {
     return { items: [], total: 0, pages: 0 };
@@ -252,33 +246,23 @@ export async function getAssignmentAnalytics(assignmentId: number) {
 }
 
 export async function getTeacherClassSubjects(teacherId: number) {
-  // Get assigned classes
-  const classRows = await db
-    .select({ classId: teacherClassAssignments.classId, className: classes.name, classSection: classes.section })
-    .from(teacherClassAssignments)
-    .leftJoin(classes, eq(teacherClassAssignments.classId, classes.id))
-    .where(eq(teacherClassAssignments.teacherId, teacherId));
+  const rows = await db
+    .select({
+      classId: classSubjects.classId,
+      subjectId: classSubjects.subjectId,
+      className: classes.name,
+      classSection: classes.section,
+      subjectName: subjects.name,
+    })
+    .from(classSubjects)
+    .leftJoin(classes, eq(classSubjects.classId, classes.id))
+    .leftJoin(subjects, eq(classSubjects.subjectId, subjects.id))
+    .where(eq(classSubjects.teacherId, teacherId));
 
-  // Get assigned subjects
-  const subjectRows = await db
-    .select({ subjectId: teacherSubjectAssignments.subjectId, subjectName: subjects.name })
-    .from(teacherSubjectAssignments)
-    .leftJoin(subjects, eq(teacherSubjectAssignments.subjectId, subjects.id))
-    .where(eq(teacherSubjectAssignments.teacherId, teacherId));
-
-  const classSubjects: { classId: number; subjectId: number; className: string; subjectName: string }[] = [];
-  for (const c of classRows) {
-    for (const s of subjectRows) {
-      if (c.classId && s.subjectId) {
-        classSubjects.push({
-          classId: c.classId,
-          subjectId: s.subjectId,
-          className: `${c.className ?? ''}${c.classSection ? ` ${c.classSection}` : ''}`,
-          subjectName: s.subjectName ?? 'N/A',
-        });
-      }
-    }
-  }
-
-  return classSubjects;
+  return rows.map(r => ({
+    classId: r.classId!,
+    subjectId: r.subjectId!,
+    className: `${r.className ?? ''}${r.classSection ? ` ${r.classSection}` : ''}`,
+    subjectName: r.subjectName ?? 'N/A',
+  }));
 }

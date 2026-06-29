@@ -1,19 +1,70 @@
 import { requireRole } from "@/lib/auth";
-import PageHeader from "@/components/shared/PageHeader";
-import EmptyState from "@/components/shared/EmptyState";
+import { db } from "@/lib/db";
+import { students, assignments, assignmentSubmissions, subjects } from "@/lib/schema";
+import { eq, desc, and } from "drizzle-orm";
+import StudentAssignmentsClient from "@/components/student/StudentAssignmentsClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function StudentAssignmentsPage() {
-  await requireRole("student");
+  const user = await requireRole("student");
+
+  const [studentRow] = await db
+    .select({ id: students.id, classId: students.classId })
+    .from(students)
+    .where(eq(students.userId, user.id))
+    .limit(1);
+
+  if (!studentRow) {
+    return (
+      <div className="p-4 sm:p-6 lg:p-8 text-center text-muted">
+        Student profile not found.
+      </div>
+    );
+  }
+
+  const list = await db
+    .select({
+      id: assignments.id,
+      title: assignments.title,
+      description: assignments.description,
+      dueDate: assignments.dueDate,
+      maxMarks: assignments.maxMarks,
+      subjectId: assignments.subjectId,
+      subjectName: subjects.name,
+    })
+    .from(assignments)
+    .leftJoin(subjects, eq(subjects.id, assignments.subjectId))
+    .where(eq(assignments.classId, studentRow.classId))
+    .orderBy(desc(assignments.dueDate));
+
+  const submissions = await db
+    .select({
+      assignmentId: assignmentSubmissions.assignmentId,
+      content: assignmentSubmissions.content,
+      fileUrl: assignmentSubmissions.fileUrl,
+      submittedAt: assignmentSubmissions.submittedAt,
+      grade: assignmentSubmissions.grade,
+      feedback: assignmentSubmissions.feedback,
+      isLate: assignmentSubmissions.isLate,
+    })
+    .from(assignmentSubmissions)
+    .where(eq(assignmentSubmissions.studentId, studentRow.id));
+
+  const formattedList = list.map(a => ({
+    ...a,
+    dueDate: a.dueDate instanceof Date ? a.dueDate.toISOString().split('T')[0] : String(a.dueDate)
+  }));
+
+  const formattedSubmissions = submissions.map(s => ({
+    ...s,
+    submittedAt: s.submittedAt instanceof Date ? s.submittedAt.toISOString() : s.submittedAt ? String(s.submittedAt) : null
+  }));
+
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-8">
-      <PageHeader tag="Student Portal" title="Assignments" description="View pending and completed assignments from your teachers." />
-      <EmptyState
-        icon={<svg viewBox="0 0 24 24" className="h-6 w-6 fill-current"><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2Zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1Zm-2 14-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8Z" /></svg>}
-        title="Assignments"
-        message="Your pending and completed assignments will appear here. This is a read-only view of assignments posted by your teachers."
-      />
-    </div>
+    <StudentAssignmentsClient
+      initialAssignments={formattedList}
+      submissions={formattedSubmissions}
+    />
   );
 }

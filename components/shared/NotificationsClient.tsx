@@ -331,11 +331,10 @@ export default function SharedNotificationsClient({
                   <button
                     key={tab.id}
                     onClick={() => setPriorityFilter(tab.id)}
-                    className={`flex items-center gap-2 rounded-xl px-4 py-2.5 transition duration-200 ${
-                      isActive
-                        ? "bg-accent-bg text-primary ring-1 ring-accent border border-accent-bg"
-                        : "text-secondary hover:bg-hover hover:text-primary"
-                    }`}
+                    className={`flex items-center gap-2 rounded-xl px-4 py-2.5 transition duration-200 ${isActive
+                      ? "bg-accent-bg text-primary ring-1 ring-accent border border-accent-bg"
+                      : "text-secondary hover:bg-hover hover:text-primary"
+                      }`}
                   >
                     {tab.label}
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${badgeColor}`}>
@@ -355,10 +354,10 @@ export default function SharedNotificationsClient({
               </span>
               <input
                 type="text"
+                placeholder="Search alerts..."
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
-                placeholder="Search alerts..."
-                className="input-theme h-10 w-full sm:w-60 pl-9"
+                className="h-11 w-full sm:w-60 rounded-xl border border-border bg-background pl-10 pr-4 text-sm focus-visible:outline-none focus:ring-accent focus:border-transparent"
               />
             </div>
           </div>

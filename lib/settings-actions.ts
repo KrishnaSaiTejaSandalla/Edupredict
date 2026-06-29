@@ -321,6 +321,37 @@ export async function getUserPreferences(userId: number) {
   };
 }
 
+// ==================== School Feedback / Survey Toggles ====================
+
+export async function updateSchoolFeedbackSettings(
+  schoolId: number,
+  data: {
+    monthlyFeedbackOpen: boolean;
+    teacherFeedbackOpen: boolean;
+    schoolSurveyOpen: boolean;
+  }
+) {
+  try {
+    await db
+      .update(schools)
+      .set({
+        monthlyFeedbackOpen: data.monthlyFeedbackOpen,
+        teacherFeedbackOpen: data.teacherFeedbackOpen,
+        schoolSurveyOpen: data.schoolSurveyOpen,
+        updatedAt: new Date(),
+      })
+      .where(eq(schools.id, schoolId));
+  } catch (err) {
+    throw new Error(parseDbError(err));
+  }
+
+  revalidatePath('/admin/settings');
+  revalidatePath('/admin/feedback');
+  revalidatePath('/student/feedback');
+  revalidatePath('/teacher');
+  return { success: true };
+}
+
 // ==================== Legacy appearance preferences (kept for compatibility) ====================
 
 export async function updateUserAppearancePreferences(

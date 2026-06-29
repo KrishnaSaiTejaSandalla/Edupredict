@@ -1,8 +1,8 @@
 import StudentShell from "@/components/student/StudentShell";
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { notifications } from "@/lib/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { notifications, students, attendance, predictions, subjects } from "@/lib/schema";
+import { eq, desc, and, sql } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +53,48 @@ export default async function StudentLayout({
     time: "",
   }];
 
+  const [studentRow] = await db
+    .select({ id: students.id })
+    .from(students)
+    .where(eq(students.userId, user.id))
+    .limit(1);
+
+  let customPhrases = [
+    'track your assignments. 📝',
+    'explore learning resources. 📚',
+    'view your academic progress. 📈',
+  ];
+
+  if (studentRow) {
+    const [totalAttRow] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(attendance)
+      .where(eq(attendance.studentId, studentRow.id));
+    const [presentAttRow] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(attendance)
+      .where(and(eq(attendance.studentId, studentRow.id), eq(attendance.status, 'present')));
+    
+    if (totalAttRow?.count && Number(totalAttRow.count) > 0) {
+      const attendanceRate = Math.round((Number(presentAttRow.count) / Number(totalAttRow.count)) * 100);
+      customPhrases.push(`maintain your ${attendanceRate}% attendance. 📈`);
+    }
+
+    const studentPredictions = await db
+      .select({
+        subjectName: subjects.name,
+        predictedScore: predictions.predictedScore,
+      })
+      .from(predictions)
+      .leftJoin(subjects, eq(subjects.id, predictions.subjectId))
+      .where(eq(predictions.studentId, studentRow.id))
+      .limit(1);
+
+    if (studentPredictions.length > 0 && studentPredictions[0].subjectName && studentPredictions[0].predictedScore) {
+      customPhrases.push(`conquer ${studentPredictions[0].subjectName} (AI predicts ${Math.round(Number(studentPredictions[0].predictedScore))}%). 🔮`);
+    }
+  }
+
   return (
     <StudentShell
       user={{
@@ -62,6 +104,7 @@ export default async function StudentLayout({
         school: user.school ?? null,
       }}
       alerts={finalAlerts}
+      phrases={customPhrases}
     >
       {children}
     </StudentShell>

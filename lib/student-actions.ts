@@ -323,13 +323,22 @@ export async function generateStudentAIAvatars(userId: number) {
 
   const sessionSeed = `${userId}-${Date.now()}`;
   
+  // Vibrant background colours — one per persona for a distinct look
+  const BG_COLORS = {
+    Astronaut:       ['b5c4ff'],   // sky blue
+    'Football player': ['a3f4b0'], // mint green
+    Scientist:       ['ffd6a5'],   // warm peach
+    Gamer:           ['ffadde'],   // hot pink
+    Wizard:          ['c4b5fd'],   // lavender
+  };
+
   // Define the 5 student avatars style & seed
   const avatarSpecs = [
-    { type: "Astronaut", style: "adventurer" as const, seed: `astronaut-${sessionSeed}` },
-    { type: "Football player", style: "adventurer" as const, seed: `football-${sessionSeed}` },
-    { type: "Scientist", style: "adventurer" as const, seed: `scientist-${sessionSeed}` },
-    { type: "Gamer", style: "adventurer" as const, seed: `gamer-${sessionSeed}` },
-    { type: "Wizard", style: "adventurer" as const, seed: `wizard-${sessionSeed}` },
+    { type: 'Astronaut',        style: 'lorelei' as const, seed: `astronaut-${sessionSeed}` },
+    { type: 'Football player',  style: 'lorelei' as const, seed: `football-${sessionSeed}` },
+    { type: 'Scientist',        style: 'lorelei' as const, seed: `scientist-${sessionSeed}` },
+    { type: 'Gamer',            style: 'lorelei' as const, seed: `gamer-${sessionSeed}` },
+    { type: 'Wizard',           style: 'lorelei' as const, seed: `wizard-${sessionSeed}` },
   ];
 
   const generated = avatarSpecs.map(spec => ({
@@ -338,6 +347,7 @@ export async function generateStudentAIAvatars(userId: number) {
       seed: spec.seed,
       style: spec.style,
       size: 256,
+      backgroundColor: BG_COLORS[spec.type as keyof typeof BG_COLORS] ?? ['b5c4ff'],
     }),
   }));
 

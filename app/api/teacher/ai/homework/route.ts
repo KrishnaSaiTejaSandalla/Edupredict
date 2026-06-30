@@ -142,7 +142,7 @@ export async function POST(request: Request) {
           revision: `Create a complete revision sheet for ${classLevel} ${subject} students on "${topic}". Include key points to know, quick recall drill, self-assessment checklist, and exam tips.`,
         };
         const prompt = prompts[tool] || prompts['homework'];
-        const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+        const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7, maxOutputTokens: 1500 } }),

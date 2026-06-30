@@ -1,6 +1,6 @@
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { teachers, teacherSubjectAssignments, subjects } from "@/lib/schema";
+import { teachers, classSubjects, subjects } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import {
   getTeacherClasses,
@@ -45,20 +45,20 @@ export default async function TeacherAttendancePage() {
           name: subjects.name,
           code: subjects.code,
         })
-        .from(teacherSubjectAssignments)
-        .leftJoin(subjects, eq(teacherSubjectAssignments.subjectId, subjects.id))
-        .where(eq(teacherSubjectAssignments.teacherId, teacher.id))
+        .from(classSubjects)
+        .leftJoin(subjects, eq(classSubjects.subjectId, subjects.id))
+        .where(eq(classSubjects.teacherId, teacher.id))
     : [];
 
+  // Deduplicate by subject id (teacher may teach same subject in multiple classes)
+  const seenSubjectIds = new Set<number>();
+
   const formattedSubjects = assignedSubjects
-    .map((s) => {
-      if (!s.id) return null;
-      return {
-        id: s.id,
-        name: s.name ? `${s.name}${s.code ? ` (${s.code})` : ""}` : "Unknown Subject",
-      };
-    })
-    .filter((s): s is { id: number; name: string } => s !== null);
+    .filter((s): s is typeof s & { id: number } => !!s.id && !seenSubjectIds.has(s.id) && seenSubjectIds.add(s.id) !== undefined)
+    .map((s) => ({
+      id: s.id,
+      name: s.name ? `${s.name}${s.code ? ` (${s.code})` : ""}` : "Unknown Subject",
+    }));
 
   const formattedClasses = classes.map(c => ({
     classId: c.classId,

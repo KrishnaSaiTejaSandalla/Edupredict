@@ -101,7 +101,7 @@ export default function StudentShell({ children, user, alerts = [], phrases }: S
           </span>
           <span>
             <span className="block text-lg font-semibold tracking-wide text-primary">EduPredict AI</span>
-            <span className="block text-[11px] font-bold text-violet-400 uppercase tracking-widest">Student Portal</span>
+            <span className="block text-[11px] font-bold text-accent uppercase tracking-widest">Student Portal</span>
           </span>
         </Link>
         <div className="mb-2 border-t border-theme" />
@@ -114,15 +114,15 @@ export default function StudentShell({ children, user, alerts = [], phrases }: S
           return (
             <Link key={item.href} href={item.href as Route}
               className={["group relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition duration-200",
-                active ? "bg-violet-500/10 text-violet-400 shadow-lg shadow-violet-950/20 ring-1 ring-violet-500/15" : "text-secondary hover:bg-hover hover:text-primary"].join(' ')}>
+                active ? "bg-cyan-500/10 text-cyan-400 shadow-lg shadow-cyan-950/20 ring-1 ring-cyan-500/15" : "text-secondary hover:bg-hover hover:text-primary"].join(' ')}>
               <span className={["flex h-8 w-8 items-center justify-center rounded-lg transition duration-200",
-                active ? "bg-gradient-to-br from-violet-400 to-purple-500 text-white shadow-md shadow-violet-500/30" : "bg-hover text-muted"].join(' ')}>
+                active ? "bg-gradient-to-br from-cyan-400 to-cyan-600 text-white shadow-md shadow-cyan-500/30" : "bg-hover text-muted"].join(' ')}>
                 <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d={item.icon} />
                 </svg>
               </span>
               {item.label}
-              {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-violet-400" />}
+              {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-cyan-400" />}
             </Link>
           );
         })}
@@ -130,14 +130,14 @@ export default function StudentShell({ children, user, alerts = [], phrases }: S
 
       {/* User Card */}
       <div className="shrink-0 px-4 pb-3">
-        <div className="rounded-xl p-2 bg-gradient-to-r from-violet-500/10 to-purple-500/10 border border-violet-500/20">
+        <div className="rounded-xl p-2 bg-gradient-to-r from-cyan-500/10 to-cyan-600/10 border border-cyan-500/20">
           <div className="flex items-center gap-3">
             {user.profileImageUrl
-              ? <div className="relative h-10 w-10 overflow-hidden rounded-xl border-2 border-violet-400/30 shrink-0"><img src={user.profileImageUrl} alt={user.name} className="h-full w-full object-cover" /></div>
-              : <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-400 to-purple-500 text-xs font-bold text-white shrink-0">{initials || 'ST'}</span>}
+              ? <div className="relative h-10 w-10 overflow-hidden rounded-xl border-2 border-cyan-400/30 shrink-0"><img src={user.profileImageUrl} alt={user.name} className="h-full w-full object-cover" /></div>
+              : <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400 to-cyan-600 text-xs font-bold text-white shrink-0">{initials || 'ST'}</span>}
             <span className="min-w-0 flex-1">
               <span className="block truncate text-xs font-semibold text-primary">{user.name}</span>
-              <span className="block truncate text-[10px] text-violet-400 font-semibold uppercase tracking-wider">Student</span>
+              <span className="block truncate text-[10px] text-accent font-semibold uppercase tracking-wider">Student</span>
             </span>
             <LogoutButton compact />
           </div>
@@ -147,7 +147,7 @@ export default function StudentShell({ children, user, alerts = [], phrases }: S
   );
 
   return (
-    <div className="min-h-screen bg-base text-primary antialiased selection:bg-violet-500/30 transition-colors duration-200">
+    <div className="min-h-screen bg-base text-primary antialiased selection:bg-cyan-500/30 transition-colors duration-200">
       {/* Desktop Sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[260px] border-r border-theme bg-surface/95 shadow-2xl shadow-black/20 backdrop-blur-xl lg:flex flex-col transition-colors duration-200">
         <SidebarContent />

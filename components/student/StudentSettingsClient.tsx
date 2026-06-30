@@ -256,7 +256,7 @@ export default function StudentSettingsClient({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-theme pb-5">
         <div>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center rounded-full bg-violet-500/10 px-2.5 py-0.5 text-[10px] font-bold text-violet-400 uppercase tracking-wider border border-violet-500/10">
+            <span className="inline-flex items-center rounded-full bg-cyan-500/10 px-2.5 py-0.5 text-[10px] font-bold text-accent uppercase tracking-wider border border-cyan-500/10">
               Student Portal
             </span>
             {saveStatus === "saving" && <span className="text-xs text-secondary animate-pulse">Saving...</span>}
@@ -271,7 +271,7 @@ export default function StudentSettingsClient({
           <div className="relative flex h-12 w-12 shrink-0 items-center justify-center">
             <svg className="h-full w-full transform -rotate-90">
               <circle cx="24" cy="24" r="21" className="stroke-subtle fill-none" strokeWidth="3" />
-              <circle cx="24" cy="24" r="21" className="stroke-violet-400 fill-none transition-all duration-700 ease-out" strokeWidth="3" strokeDasharray="132" strokeDashoffset={132 - (132 * profileCompletionPercent) / 100} strokeLinecap="round" />
+              <circle cx="24" cy="24" r="21" className="stroke-accent fill-none transition-all duration-700 ease-out" strokeWidth="3" strokeDasharray="132" strokeDashoffset={132 - (132 * profileCompletionPercent) / 100} strokeLinecap="round" />
             </svg>
             <span className="absolute text-[10px] font-bold text-primary">{profileCompletionPercent}%</span>
           </div>
@@ -294,7 +294,7 @@ export default function StudentSettingsClient({
                 {user.profileImageUrl ? (
                   <img src={user.profileImageUrl} alt={user.name} className="h-full w-full object-cover" />
                 ) : (
-                  <span className="flex h-full w-full items-center justify-center bg-violet-400 text-sm font-bold text-white">{initials || "ST"}</span>
+                  <span className="flex h-full w-full items-center justify-center bg-accent text-sm font-bold text-white">{initials || "ST"}</span>
                 )}
               </div>
               <div className="min-w-0 flex-1">
@@ -314,14 +314,14 @@ export default function StudentSettingsClient({
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold tracking-wide uppercase transition duration-150 border border-transparent ${
-                    isActive ? "bg-violet-500/10 text-violet-400 border-violet-500/20 shadow-sm" : "text-secondary hover:bg-hover hover:text-primary"
+                    isActive ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/20 shadow-sm" : "text-secondary hover:bg-hover hover:text-primary"
                   }`}
                 >
                   <span className="flex items-center gap-3">
                     <span className="text-sm">{tab.icon}</span>
                     <span>{tab.label}</span>
                   </span>
-                  {isActive && <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />}
+                  {isActive && <span className="h-1.5 w-1.5 rounded-full bg-accent" />}
                 </button>
               );
             })}
@@ -344,7 +344,7 @@ export default function StudentSettingsClient({
                       <div className="relative h-14 w-14 rounded-2xl overflow-hidden border border-theme bg-hover flex items-center justify-center shrink-0">
                         {isUploadingProfile && (
                           <div className="absolute inset-0 bg-surface/80 flex items-center justify-center">
-                            <span className="h-4 w-4 animate-spin border-2 border-violet-400 border-t-transparent rounded-full" />
+                            <span className="h-4 w-4 animate-spin border-2 border-accent border-t-transparent rounded-full" />
                           </div>
                         )}
                         {user.profileImageUrl ? (
@@ -365,7 +365,7 @@ export default function StudentSettingsClient({
                   <div className="grid gap-5 md:grid-cols-2">
                     <label className="block space-y-2">
                       <span className="block text-xs font-semibold uppercase tracking-wider text-secondary">Full Name</span>
-                      <input type="text" name="name" defaultValue={user.name} required className="input-theme w-full rounded-xl border border-theme bg-hover p-2.5 text-xs text-primary focus:outline-none focus:ring-1 focus:ring-violet-500" />
+                      <input type="text" name="name" defaultValue={user.name} required className="input-theme w-full rounded-xl border border-theme bg-hover p-2.5 text-xs text-primary focus:outline-none focus:ring-1 focus:ring-accent" />
                     </label>
                     <label className="block space-y-2">
                       <span className="block text-xs font-semibold uppercase tracking-wider text-secondary">Email Address</span>
@@ -374,19 +374,19 @@ export default function StudentSettingsClient({
                     </label>
                     <label className="block space-y-2">
                       <span className="block text-xs font-semibold uppercase tracking-wider text-secondary">Phone Number</span>
-                      <input type="text" name="phoneNumber" defaultValue={user.phoneNumber || ""} placeholder="+91 XXXXX XXXXX" className="input-theme w-full rounded-xl border border-theme bg-hover p-2.5 text-xs text-primary focus:outline-none focus:ring-1 focus:ring-violet-500" />
+                      <input type="text" name="phoneNumber" defaultValue={user.phoneNumber || ""} placeholder="+91 XXXXX XXXXX" className="input-theme w-full rounded-xl border border-theme bg-hover p-2.5 text-xs text-primary focus:outline-none focus:ring-1 focus:ring-accent" />
                     </label>
                     <label className="block md:col-span-2 space-y-2">
                       <span className="block text-xs font-semibold uppercase tracking-wider text-secondary">Bio</span>
-                      <textarea name="bio" defaultValue={user.bio || ""} placeholder="Tell us about yourself..." className="textarea-theme w-full rounded-xl border border-theme bg-hover p-3 text-xs text-primary focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none h-24" />
+                      <textarea name="bio" defaultValue={user.bio || ""} placeholder="Tell us about yourself..." className="textarea-theme w-full rounded-xl border border-theme bg-hover p-3 text-xs text-primary focus:outline-none focus:ring-1 focus:ring-accent resize-none h-24" />
                     </label>
                     <label className="block md:col-span-2 space-y-2">
                       <span className="block text-xs font-semibold uppercase tracking-wider text-secondary">Learning Goal</span>
-                      <textarea name="learningGoal" defaultValue={user.learningGoal || ""} placeholder="What is your learning goal (e.g. get an A in Math, improve science scores)..." className="textarea-theme w-full rounded-xl border border-theme bg-hover p-3 text-xs text-primary focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none h-20" />
+                      <textarea name="learningGoal" defaultValue={user.learningGoal || ""} placeholder="What is your learning goal (e.g. get an A in Math, improve science scores)..." className="textarea-theme w-full rounded-xl border border-theme bg-hover p-3 text-xs text-primary focus:outline-none focus:ring-1 focus:ring-accent resize-none h-20" />
                     </label>
                     <label className="block md:col-span-2 space-y-2">
                       <span className="block text-xs font-semibold uppercase tracking-wider text-secondary">Interests</span>
-                      <input type="text" name="interests" defaultValue={user.interests || ""} placeholder="Hobbies, subjects you like, sports, science fiction..." className="input-theme w-full rounded-xl border border-theme bg-hover p-2.5 text-xs text-primary focus:outline-none focus:ring-1 focus:ring-violet-500" />
+                      <input type="text" name="interests" defaultValue={user.interests || ""} placeholder="Hobbies, subjects you like, sports, science fiction..." className="input-theme w-full rounded-xl border border-theme bg-hover p-2.5 text-xs text-primary focus:outline-none focus:ring-1 focus:ring-accent" />
                     </label>
                   </div>
                 </>
@@ -408,7 +408,7 @@ export default function StudentSettingsClient({
                       { name: "exams", label: "Exam Updates", desc: "Alerts for upcoming test releases and marksheets" },
                     ].map((item) => (
                       <label key={item.name} className="flex items-start gap-4 rounded-xl border border-theme bg-hover/30 p-4 cursor-pointer hover:bg-hover transition">
-                        <input type="checkbox" name={item.name} defaultChecked={parsedNotifs[item.name] !== false} className="mt-0.5 h-4 w-4 rounded border-theme accent-violet-500" />
+                        <input type="checkbox" name={item.name} defaultChecked={parsedNotifs[item.name] !== false} className="mt-0.5 h-4 w-4 rounded border-theme accent-cyan-500" />
                         <div>
                           <p className="text-xs font-semibold text-primary">{item.label}</p>
                           <p className="text-[10px] text-secondary mt-0.5">{item.desc}</p>
@@ -455,7 +455,7 @@ export default function StudentSettingsClient({
                               }}
                               className={`flex flex-col items-stretch rounded-xl border p-4 text-left transition-all ${
                                 isSelected
-                                  ? "border-violet-400 bg-violet-500/10 ring-1 ring-violet-400"
+                                  ? "border-cyan-400 bg-cyan-500/10 ring-1 ring-cyan-400"
                                   : "border-subtle bg-hover/20 hover:bg-hover hover:border-theme"
                               }`}
                             >
@@ -465,7 +465,7 @@ export default function StudentSettingsClient({
                                   <span className="text-xs font-bold text-primary truncate">{preset.name}</span>
                                 </div>
                                 {isSelected && (
-                                  <span className="h-1.5 w-1.5 rounded-full bg-violet-400 shrink-0" />
+                                  <span className="h-1.5 w-1.5 rounded-full bg-accent shrink-0" />
                                 )}
                               </div>
                               <p className="text-[10px] text-secondary mb-3 leading-relaxed truncate">
@@ -481,7 +481,7 @@ export default function StudentSettingsClient({
                       <div className="flex gap-2">
                         {["comfortable", "compact"].map((d) => (
                           <label key={d} className="flex items-center gap-2 rounded-xl border border-subtle bg-hover/30 p-3 cursor-pointer hover:bg-hover transition">
-                            <input type="radio" name="density" value={d} defaultChecked={currentDensity === d} className="accent-violet-500" />
+                            <input type="radio" name="density" value={d} defaultChecked={currentDensity === d} className="accent-cyan-500" />
                             <span className="text-xs font-semibold text-primary capitalize">{d}</span>
                           </label>
                         ))}
@@ -495,7 +495,7 @@ export default function StudentSettingsClient({
                             key={t}
                             type="button"
                             onClick={() => setTheme(t as Theme)}
-                            className={`rounded-xl border px-4 py-2 text-xs font-semibold capitalize transition ${currentTheme === t ? "border-violet-400 bg-violet-500/10 text-violet-400" : "border-subtle text-secondary hover:bg-hover"}`}
+                            className={`rounded-xl border px-4 py-2 text-xs font-semibold capitalize transition ${currentTheme === t ? "border-cyan-400 bg-cyan-500/10 text-accent" : "border-subtle text-secondary hover:bg-hover"}`}
                           >
                             {t}
                           </button>
@@ -516,11 +516,11 @@ export default function StudentSettingsClient({
                   <div className="grid gap-5 md:grid-cols-2 max-w-lg">
                     <label className="block md:col-span-2 space-y-2">
                       <span className="block text-xs font-semibold uppercase tracking-wider text-secondary">Current Password</span>
-                      <input type="password" name="currentPassword" required className="w-full rounded-xl border border-theme bg-hover p-2.5 text-xs text-primary focus:outline-none focus:ring-1 focus:ring-violet-500" placeholder="••••••••" />
+                      <input type="password" name="currentPassword" required className="w-full rounded-xl border border-theme bg-hover p-2.5 text-xs text-primary focus:outline-none focus:ring-1 focus:ring-accent" placeholder="••••••••" />
                     </label>
                     <label className="block md:col-span-2 space-y-2">
                       <span className="block text-xs font-semibold uppercase tracking-wider text-secondary">New Password</span>
-                      <input type="password" name="newPassword" required minLength={8} className="w-full rounded-xl border border-theme bg-hover p-2.5 text-xs text-primary focus:outline-none focus:ring-1 focus:ring-violet-500" placeholder="Min. 8 characters" />
+                      <input type="password" name="newPassword" required minLength={8} className="w-full rounded-xl border border-theme bg-hover p-2.5 text-xs text-primary focus:outline-none focus:ring-1 focus:ring-accent" placeholder="Min. 8 characters" />
                     </label>
                   </div>
                 </>
@@ -531,7 +531,7 @@ export default function StudentSettingsClient({
                 <button
                   type="submit"
                   disabled={saveStatus === "saving"}
-                  className="rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white px-6 py-2.5 text-sm font-semibold disabled:opacity-50 transition"
+                  className="rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-700 hover:from-cyan-600 hover:to-cyan-800 text-white px-6 py-2.5 text-sm font-semibold disabled:opacity-50 transition"
                 >
                   {saveStatus === "saving" ? "Saving..." : saveStatus === "saved" ? "Saved ✓" : "Save Changes"}
                 </button>
@@ -548,7 +548,7 @@ export default function StudentSettingsClient({
               <button
                 onClick={handleGenerateAvatars}
                 disabled={isGeneratingAvatars}
-                className="rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white px-5 py-2.5 text-sm font-semibold disabled:opacity-50 flex items-center gap-2"
+                className="rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-700 hover:from-cyan-600 hover:to-cyan-800 text-white px-5 py-2.5 text-sm font-semibold disabled:opacity-50 flex items-center gap-2"
               >
                 {isGeneratingAvatars ? (
                   <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Generating...</>
@@ -584,7 +584,7 @@ export default function StudentSettingsClient({
                             onClick={() => handleSelectAvatar(av.id, av.imageUrl)}
                             className={`flex flex-col items-center p-3 rounded-xl border bg-hover/20 hover:bg-hover hover:scale-[1.03] transition-all duration-200 group relative ${
                               isCurrentSelection
-                                ? "border-violet-400 ring-2 ring-violet-400 ring-opacity-50 bg-violet-400/5"
+                                ? "border-cyan-400 ring-2 ring-cyan-400 ring-opacity-50 bg-cyan-400/5"
                                 : "border-theme"
                             }`}
                           >
@@ -599,7 +599,7 @@ export default function StudentSettingsClient({
                               {av.avatarType}
                             </span>
                             {isCurrentSelection && (
-                              <span className="absolute top-1 right-1 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-violet-400 text-[9px] font-bold text-white">
+                              <span className="absolute top-1 right-1 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-accent text-[9px] font-bold text-white">
                                 ✓
                               </span>
                             )}

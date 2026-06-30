@@ -273,17 +273,22 @@ export default function StudentAssignmentsClient({ initialAssignments, submissio
                       {selectedSubmission.fileUrl && (
                         <div className="mt-3 p-3 bg-surface/30 border border-theme rounded-xl flex items-center justify-between flex-wrap gap-2">
                           <span className="text-[10px] font-bold uppercase tracking-wider text-secondary">Attached Document Submission</span>
-                          {selectedSubmission.fileUrl.startsWith("data:image/") ? (
-                            <img src={selectedSubmission.fileUrl} className="max-w-md max-h-60 rounded-xl object-contain border border-theme shadow-md" alt="Submission file" />
-                          ) : (
-                            <a
-                              href={selectedSubmission.fileUrl}
-                              download={`submission-${selectedAssignment.title}`}
-                              className="rounded-xl bg-violet-500/10 text-violet-400 border border-violet-500/20 px-3.5 py-2 text-xs font-bold hover:bg-violet-500/20 transition flex items-center gap-1.5"
-                            >
-                              📄 Download File Attachment
-                            </a>
-                          )}
+                          {(() => {
+                            const url = selectedSubmission.fileUrl;
+                            const isImage = url.startsWith("data:image/") ||
+                              /\.(png|jpg|jpeg|gif|webp)$/i.test(url);
+                            return isImage ? (
+                              <img src={url} className="max-w-md max-h-60 rounded-xl object-contain border border-theme shadow-md" alt="Submission file" />
+                            ) : (
+                              <a
+                                href={url}
+                                download={`submission-${selectedAssignment.title}`}
+                                className="rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-3.5 py-2 text-xs font-bold hover:bg-cyan-500/20 transition flex items-center gap-1.5"
+                              >
+                                📄 Download File Attachment
+                              </a>
+                            );
+                          })()}
                         </div>
                       )}
                       
@@ -293,10 +298,10 @@ export default function StudentAssignmentsClient({ initialAssignments, submissio
                     </div>
 
                     {selectedSubmission.grade && (
-                      <div className="rounded-2xl bg-violet-500/5 border border-violet-500/20 p-4 space-y-2">
+                      <div className="rounded-2xl bg-cyan-500/5 border border-cyan-500/20 p-4 space-y-2">
                         <div className="flex items-center justify-between">
-                          <p className="text-xs font-bold text-violet-400 uppercase tracking-wider">Teacher Grade / Marks</p>
-                          <span className="text-lg font-black text-violet-400">{selectedSubmission.grade} / {selectedAssignment.maxMarks || "100"}</span>
+                          <p className="text-xs font-bold text-cyan-400 uppercase tracking-wider">Teacher Grade / Marks</p>
+                          <span className="text-lg font-black text-accent">{selectedSubmission.grade} / {selectedAssignment.maxMarks || "100"}</span>
                         </div>
                         {selectedSubmission.feedback && (
                           <div>

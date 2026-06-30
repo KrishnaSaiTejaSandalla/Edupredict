@@ -4,6 +4,7 @@ import { useState, useEffect, useTransition } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import { toast } from "sonner";
 import CustomSelect from "@/components/ui/CustomSelect";
+import DeleteConfirmModal from "@/components/ui/DeleteConfirmModal";
 
 type MappingType = {
   classId: number;
@@ -21,6 +22,7 @@ type DiaryEntry = {
   subjectName: string;
   classId: number;
   className: string;
+  isAiGenerated: boolean;
 };
 
 type Props = {
@@ -32,6 +34,8 @@ export default function TeacherDiaryClient({ teacherId, mappings }: Props) {
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [showAIModal, setShowAIModal] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   const [isPending, startTransition] = useTransition();
 
   // Form states
@@ -46,6 +50,10 @@ export default function TeacherDiaryClient({ teacherId, mappings }: Props) {
   const [aiTool, setAiTool] = useState("homework");
   const [aiTopic, setAiTopic] = useState("");
   const [generatingAI, setGeneratingAI] = useState(false);
+
+  // Delete Modal states
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [diaryToDelete, setDiaryToDelete] = useState<number | null>(null);
 
   const filteredSubjects = mappings.filter(m => m.classId === selectedClassId);
   const [selectedSubjectId, setSelectedSubjectId] = useState<number>(filteredSubjects[0]?.subjectId || 0);
@@ -105,6 +113,7 @@ export default function TeacherDiaryClient({ teacherId, mappings }: Props) {
           setTopicTaught("");
           setHomework("");
           setShowForm(false);
+          setCurrentPage(1);
           fetchEntries();
         } else {
           const data = await res.json();
@@ -116,10 +125,16 @@ export default function TeacherDiaryClient({ teacherId, mappings }: Props) {
     });
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this entry?")) return;
+  const askDeleteDiary = (id: number) => {
+    setDiaryToDelete(id);
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (diaryToDelete === null) return;
+    setDeleteModalOpen(false);
     try {
-      const res = await fetch(`/api/teacher/diary?id=${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/teacher/diary?id=${diaryToDelete}`, { method: "DELETE" });
       if (res.ok) {
         toast.success("Diary entry deleted.");
         fetchEntries();
@@ -128,6 +143,8 @@ export default function TeacherDiaryClient({ teacherId, mappings }: Props) {
       }
     } catch {
       toast.error("Error deleting entry");
+    } finally {
+      setDiaryToDelete(null);
     }
   };
 
@@ -141,38 +158,45 @@ export default function TeacherDiaryClient({ teacherId, mappings }: Props) {
 
     setGeneratingAI(true);
     try {
-      const res = await fetch("/api/teacher/ai/homework", {
+      const res = await fetch("/api/teacher/ai-assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          tool: aiTool,
-          subject: activeMapping.subjectName,
-          classLevel: activeMapping.className,
           topic: searchTopic,
+          subject: activeMapping.subjectName,
+          tool: aiTool,
         }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        setHomework(data.content);
+      const data = await res.json();
+      if (res.ok && data.text) {
+        setHomework(data.text);
+        if (!topicTaught.trim()) {
+          setTopicTaught(searchTopic);
+        }
         setShowAIModal(false);
-        setAiTopic("");
-        toast.success("AI Homework generated successfully! 🪄");
+        toast.success("AI Content inserted into homework!");
       } else {
-        toast.error("Failed to generate AI homework");
+        toast.error(data.error || "AI Generation failed.");
       }
     } catch {
-      toast.error("Error calling AI service");
+      toast.error("Network error during AI Generation.");
     } finally {
       setGeneratingAI(false);
     }
   };
 
-  // Compute stats
+  // Stats
   const totalEntries = entries.length;
-  const entriesToday = entries.filter((e) => e.date === new Date().toISOString().split("T")[0]).length;
-  const classesCovered = Array.from(new Set(entries.map((e) => e.classId))).length;
-  const aiGeneratedCount = entries.filter((e) => e.homework && e.homework.includes("─")).length; // Simple proxy for structured content
+  const entriesToday = entries.filter((e) => {
+    const todayStr = new Date().toISOString().split("T")[0];
+    return e.date.startsWith(todayStr);
+  }).length;
+  const classesCovered = new Set(entries.map((e) => e.classId)).size;
+  const aiGeneratedCount = entries.filter((e) => e.isAiGenerated).length;
+
+  const totalPages = Math.ceil(entries.length / itemsPerPage) || 1;
+  const paginatedEntries = entries.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-7xl mx-auto">
@@ -186,42 +210,31 @@ export default function TeacherDiaryClient({ teacherId, mappings }: Props) {
         </button>
       </div>
 
-      {/* KPI Cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div className="rounded-2xl p-5 border border-theme bg-surface relative overflow-hidden">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider">Total Entries</p>
           <p className="mt-2 text-3xl font-black text-violet-400">{totalEntries}</p>
-          <p className="mt-1 text-xs text-secondary">Logged in class diary</p>
-          <div className="absolute top-0 right-0 p-3 text-4xl opacity-10">📖</div>
         </div>
         <div className="rounded-2xl p-5 border border-theme bg-surface relative overflow-hidden">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider">Entries Today</p>
           <p className="mt-2 text-3xl font-black text-emerald-400">{entriesToday}</p>
-          <p className="mt-1 text-xs text-secondary">Keep daily logs updated</p>
-          <div className="absolute top-0 right-0 p-3 text-4xl opacity-10">📅</div>
         </div>
         <div className="rounded-2xl p-5 border border-theme bg-surface relative overflow-hidden">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider">Classes Mapped</p>
           <p className="mt-2 text-3xl font-black text-amber-400">{classesCovered}</p>
-          <p className="mt-1 text-xs text-secondary">Active learning cohorts</p>
-          <div className="absolute top-0 right-0 p-3 text-4xl opacity-10">🏫</div>
         </div>
         <div className="rounded-2xl p-5 border border-theme bg-surface relative overflow-hidden">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider">AI Homework Tasks</p>
           <p className="mt-2 text-3xl font-black text-purple-400">{aiGeneratedCount}</p>
-          <p className="mt-1 text-xs text-secondary">Generated using AI Toolkit</p>
-          <div className="absolute top-0 right-0 p-3 text-4xl opacity-10">🪄</div>
         </div>
       </div>
 
-      {/* Log Progress Form */}
       {showForm && (
         <div className="rounded-3xl border border-theme bg-surface p-6 shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-300">
           <h2 className="text-xs font-extrabold uppercase tracking-widest text-violet-400 mb-6">
             Log Class Progress & Homework
           </h2>
           <form onSubmit={handleSave} className="grid gap-5 md:grid-cols-2">
-            {/* Class Selector */}
             <div>
               <label className="block text-[10px] font-bold uppercase text-secondary mb-1.5">Select Class</label>
               <CustomSelect
@@ -231,8 +244,6 @@ export default function TeacherDiaryClient({ teacherId, mappings }: Props) {
                 className="w-full"
               />
             </div>
-
-            {/* Subject Selector */}
             <div>
               <label className="block text-[10px] font-bold uppercase text-secondary mb-1.5">Select Subject</label>
               <CustomSelect
@@ -242,8 +253,6 @@ export default function TeacherDiaryClient({ teacherId, mappings }: Props) {
                 className="w-full"
               />
             </div>
-
-            {/* Date */}
             <div>
               <label className="block text-[10px] font-bold uppercase text-secondary mb-1.5">Log Date</label>
               <input
@@ -253,8 +262,6 @@ export default function TeacherDiaryClient({ teacherId, mappings }: Props) {
                 className="w-full rounded-xl border border-theme bg-hover p-2.5 text-xs text-primary focus:outline-none focus:ring-1 focus:ring-violet-500"
               />
             </div>
-
-            {/* Topic Taught */}
             <div className="md:col-span-2">
               <label className="block text-[10px] font-bold uppercase text-secondary mb-1.5">Topic Taught *</label>
               <input
@@ -266,8 +273,6 @@ export default function TeacherDiaryClient({ teacherId, mappings }: Props) {
                 className="w-full rounded-xl border border-theme bg-hover p-2.5 text-xs text-primary focus:outline-none focus:ring-1 focus:ring-violet-500"
               />
             </div>
-
-            {/* Homework & AI Helper */}
             <div className="md:col-span-2 space-y-2">
               <div className="flex items-center justify-between">
                 <label className="block text-[10px] font-bold uppercase text-secondary">Homework Assignment (Optional)</label>
@@ -287,8 +292,6 @@ export default function TeacherDiaryClient({ teacherId, mappings }: Props) {
                 className="w-full rounded-xl border border-theme bg-hover p-4 text-xs text-primary focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none transition"
               />
             </div>
-
-            {/* Actions */}
             <div className="md:col-span-2 flex gap-3 mt-2">
               <button
                 type="submit"
@@ -309,7 +312,6 @@ export default function TeacherDiaryClient({ teacherId, mappings }: Props) {
         </div>
       )}
 
-      {/* Diary Logs Table */}
       <div className="rounded-2xl border border-theme bg-surface overflow-hidden">
         <div className="p-5 border-b border-theme">
           <h2 className="text-sm font-bold text-primary flex items-center gap-2">
@@ -318,7 +320,7 @@ export default function TeacherDiaryClient({ teacherId, mappings }: Props) {
           </h2>
         </div>
 
-        {entries.length > 0 ? (
+        {paginatedEntries.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -332,7 +334,7 @@ export default function TeacherDiaryClient({ teacherId, mappings }: Props) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-theme">
-                {entries.map((e) => (
+                {paginatedEntries.map((e) => (
                   <tr key={e.id} className="hover:bg-hover/30 transition-colors">
                     <td className="py-4 px-6 text-xs font-semibold text-primary">
                       {new Date(e.date).toLocaleDateString()}
@@ -349,7 +351,7 @@ export default function TeacherDiaryClient({ teacherId, mappings }: Props) {
                     </td>
                     <td className="py-4 px-6 text-right">
                       <button
-                        onClick={() => handleDelete(e.id)}
+                        onClick={() => askDeleteDiary(e.id)}
                         className="rounded-xl border border-theme bg-surface text-muted hover:text-rose-500 hover:border-rose-500/30 px-3 py-1.5 text-[10px] font-bold uppercase transition"
                       >
                         Delete
@@ -365,9 +367,34 @@ export default function TeacherDiaryClient({ teacherId, mappings }: Props) {
             No diary entries logged yet. Click "+ Log Class Progress" to create one.
           </div>
         )}
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground p-4 border-t border-theme w-full">
+            <div>
+              {currentPage > 1 && (
+                <button
+                  onClick={() => setCurrentPage((p) => p - 1)}
+                  className="rounded-xl border border-theme bg-card px-4 py-2.5 hover:bg-hover transition duration-150 text-foreground"
+                >
+                  ← Previous
+                </button>
+              )}
+            </div>
+            <span className="tabular-nums">Page {currentPage} of {totalPages} ({entries.length} total entries)</span>
+            <div>
+              {currentPage < totalPages && (
+                <button
+                  onClick={() => setCurrentPage((p) => p + 1)}
+                  className="rounded-xl border border-theme bg-card px-4 py-2.5 hover:bg-hover transition duration-150 text-foreground"
+                >
+                  Next →
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* AI Helper Modal */}
       {showAIModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowAIModal(false)} />
@@ -375,7 +402,6 @@ export default function TeacherDiaryClient({ teacherId, mappings }: Props) {
             <h3 className="text-xs font-extrabold uppercase tracking-widest text-violet-400 mb-4 flex items-center gap-1.5">
               🪄 AI Homework Assistant
             </h3>
-            
             <div className="space-y-4">
               <div>
                 <label className="block text-[10px] font-bold uppercase text-secondary mb-1.5">Topic Name</label>
@@ -387,7 +413,6 @@ export default function TeacherDiaryClient({ teacherId, mappings }: Props) {
                   className="w-full rounded-xl border border-theme bg-hover p-2.5 text-xs text-primary focus:outline-none focus:ring-1 focus:ring-violet-500"
                 />
               </div>
-
               <div>
                 <label className="block text-[10px] font-bold uppercase text-secondary mb-1.5">Task Format</label>
                 <CustomSelect
@@ -402,7 +427,6 @@ export default function TeacherDiaryClient({ teacherId, mappings }: Props) {
                   className="w-full"
                 />
               </div>
-
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={handleGenerateAI}
@@ -422,6 +446,17 @@ export default function TeacherDiaryClient({ teacherId, mappings }: Props) {
           </div>
         </div>
       )}
+
+      <DeleteConfirmModal
+        isOpen={deleteModalOpen}
+        title="Delete Diary Entry?"
+        message="Are you sure you want to permanently delete this diary entry? This action cannot be undone."
+        onConfirm={confirmDelete}
+        onCancel={() => {
+          setDeleteModalOpen(false);
+          setDiaryToDelete(null);
+        }}
+      />
     </div>
   );
 }

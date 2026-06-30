@@ -1,8 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useTransition } from "react";
 import Link from "next/link";
 import type { Route } from "next";
+import { toast } from "sonner";
+import DeleteConfirmModal from "@/components/ui/DeleteConfirmModal";
+import { deleteAuditLog } from "@/lib/audit-utils";
 
 type AuditLog = {
   id: number;
@@ -61,6 +64,18 @@ export default function AuditLogsClient({ initialLogs, stats }: Props) {
   const [moduleFilter, setModuleFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
   const [refreshing, setRefreshing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  const [isPending, startTransition] = useTransition();
+
+  // Delete modal state
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [logToDelete, setLogToDelete] = useState<AuditLog | null>(null);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, actionFilter, moduleFilter, roleFilter]);
 
   const reload = async () => {
     setRefreshing(true);
@@ -72,6 +87,27 @@ export default function AuditLogsClient({ initialLogs, stats }: Props) {
     } finally {
       setRefreshing(false);
     }
+  };
+
+  const handleDeleteClick = (log: AuditLog) => {
+    setLogToDelete(log);
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!logToDelete) return;
+    setDeleteModalOpen(false);
+    startTransition(async () => {
+      try {
+        await deleteAuditLog(logToDelete.id);
+        toast.success("Audit log entry deleted successfully.");
+        setLogs((prev) => prev.filter((l) => l.id !== logToDelete.id));
+      } catch (err: any) {
+        toast.error(err.message || "Failed to delete log");
+      } finally {
+        setLogToDelete(null);
+      }
+    });
   };
 
   const filtered = logs.filter((log) => {
@@ -95,6 +131,9 @@ export default function AuditLogsClient({ initialLogs, stats }: Props) {
     return matchesSearch && matchesAction && matchesModule && matchesRole;
   });
 
+  const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
+  const paginatedLogs = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -107,7 +146,7 @@ export default function AuditLogsClient({ initialLogs, stats }: Props) {
             System Audit Logs
           </h1>
           <p className="mt-2 text-sm text-secondary">
-            Read-only chronological trail of the last 100 administrative and operational changes.
+            Chronological trail of the last 100 administrative and operational changes.
           </p>
         </div>
         <button
@@ -217,17 +256,18 @@ export default function AuditLogsClient({ initialLogs, stats }: Props) {
               <th className="p-4 px-6">Action</th>
               <th className="p-4 px-6">Priority</th>
               <th className="p-4 px-6">Details</th>
+              <th className="p-4 px-6 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-subtle">
-            {filtered.length === 0 ? (
+            {paginatedLogs.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-12 text-center text-sm font-medium text-muted-foreground">
+                <td colSpan={7} className="p-12 text-center text-sm font-medium text-muted-foreground">
                   No system logs found matching criteria.
                 </td>
               </tr>
             ) : (
-              filtered.map((log) => (
+              paginatedLogs.map((log) => (
                 <tr key={log.id} className="hover:bg-hover transition duration-200">
                   <td className="p-4 px-6 text-xs text-secondary whitespace-nowrap">
                     {new Date(log.createdAt).toLocaleString([], {
@@ -261,12 +301,62 @@ export default function AuditLogsClient({ initialLogs, stats }: Props) {
                   <td className="p-4 px-6 text-xs text-secondary max-w-xs truncate" title={log.details ?? ""}>
                     {log.details || "—"}
                   </td>
+                  <td className="p-4 px-6 text-right">
+                    <button
+                      onClick={() => handleDeleteClick(log)}
+                      title="Delete Log"
+                      className="flex h-8 w-8 items-center justify-center rounded-xl border border-subtle bg-hover text-muted-foreground hover:text-rose-500 hover:border-rose-500/30 transition duration-150 ml-auto"
+                    >
+                      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6" />
+                      </svg>
+                    </button>
+                  </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground pt-4 border-t border-border mt-4 w-full">
+          <div>
+            {currentPage > 1 && (
+              <button
+                onClick={() => setCurrentPage((p) => p - 1)}
+                className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150 text-foreground"
+              >
+                ← Previous
+              </button>
+            )}
+          </div>
+          <span className="tabular-nums">Page {currentPage} of {totalPages} ({filtered.length} total logs)</span>
+          <div>
+            {currentPage < totalPages && (
+              <button
+                onClick={() => setCurrentPage((p) => p + 1)}
+                className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150 text-foreground"
+              >
+                Next →
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={deleteModalOpen}
+        title="Delete Audit Log?"
+        message="Are you sure you want to permanently delete this audit log entry? This action cannot be undone."
+        onConfirm={confirmDelete}
+        onCancel={() => {
+          setDeleteModalOpen(false);
+          setLogToDelete(null);
+        }}
+      />
     </div>
   );
 }

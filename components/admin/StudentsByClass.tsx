@@ -96,10 +96,10 @@ export default function StudentsByClass({ data = [] }: Props) {
             {/* Scrollable Legend */}
             <div className="w-full max-h-[75px] overflow-y-auto pr-1 scrollbar-hide space-y-1.5">
               <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-                {chartData.map((entry) => {
+                {chartData.map((entry, idx) => {
                   const pct = totalStudents > 0 ? ((entry.value / totalStudents) * 100).toFixed(0) : 0;
                   return (
-                    <div key={entry.name} className="flex items-center justify-between text-xs gap-2">
+                    <div key={`${entry.name}-${idx}`} className="flex items-center justify-between text-xs gap-2">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span
                           className="h-2 w-2 rounded-full shrink-0"

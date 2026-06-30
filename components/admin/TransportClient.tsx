@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { toast } from "sonner";
 import DeleteConfirmModal from "@/components/ui/DeleteConfirmModal";
 import { createBus, updateBus, deleteBus } from "@/lib/transport-actions";
@@ -29,6 +29,8 @@ const selectCls = "select-theme";
 export default function TransportClient({ initialBuses }: Props) {
   const [busesList, setBusesList] = useState<Bus[]>(initialBuses);
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const [isPending, startTransition] = useTransition();
   const [showForm, setShowForm] = useState(false);
@@ -47,6 +49,11 @@ export default function TransportClient({ initialBuses }: Props) {
   // Delete modal state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [busToDelete, setBusToDelete] = useState<{ id: number; regNum: string } | null>(null);
+
+  // Reset page when search query changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
 
   const reloadData = async () => {
     try {
@@ -170,6 +177,9 @@ export default function TransportClient({ initialBuses }: Props) {
     );
   });
 
+  const totalPages = Math.ceil(filteredBuses.length / itemsPerPage) || 1;
+  const paginatedBuses = filteredBuses.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   return (
     <div className="space-y-8">
       {/* Header Row */}
@@ -188,7 +198,7 @@ export default function TransportClient({ initialBuses }: Props) {
 
         <button
           onClick={() => (showForm && !editingId ? closeForm() : openCreate())}
-          className="rounded-xl btn-blue px-5 py-3 text-xs font-bold whitespace-nowrap self-start sm:self-auto"
+          className="rounded-xl btn-blue px-5 py-3 text-xs font-bold whitespace-nowrap self-start sm:self-auto transition duration-200"
         >
           {showForm && !editingId ? "Close Panel" : "+ Register Bus"}
         </button>
@@ -350,14 +360,14 @@ export default function TransportClient({ initialBuses }: Props) {
             </tr>
           </thead>
           <tbody className="divide-y divide-subtle">
-            {filteredBuses.length === 0 ? (
+            {paginatedBuses.length === 0 ? (
               <tr>
                 <td colSpan={6} className="p-12 text-center text-sm font-medium text-muted-foreground">
                   No vehicles registered.
                 </td>
               </tr>
             ) : (
-              filteredBuses.map((bus) => (
+              paginatedBuses.map((bus) => (
                 <tr key={bus.id} className="hover:bg-hover transition duration-200">
                   <td className="p-4 px-6 font-semibold text-primary">{bus.registrationNumber}</td>
                   <td className="p-4 px-6 font-medium text-foreground">{bus.routeName || "—"}</td>
@@ -416,6 +426,33 @@ export default function TransportClient({ initialBuses }: Props) {
           </tbody>
         </table>
       </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground pt-4 border-t border-border mt-4 w-full">
+          <div>
+            {currentPage > 1 && (
+              <button
+                onClick={() => setCurrentPage((p) => p - 1)}
+                className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150 text-foreground"
+              >
+                ← Previous
+              </button>
+            )}
+          </div>
+          <span className="tabular-nums">Page {currentPage} of {totalPages} ({filteredBuses.length} total buses)</span>
+          <div>
+            {currentPage < totalPages && (
+              <button
+                onClick={() => setCurrentPage((p) => p + 1)}
+                className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150 text-foreground"
+              >
+                Next →
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       <DeleteConfirmModal

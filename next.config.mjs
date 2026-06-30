@@ -4,6 +4,9 @@ const nextConfig = {
   experimental: {
     typedRoutes: true,
     optimizePackageImports: ['recharts'],
+    serverActions: {
+      bodySizeLimit: '4mb',
+    },
   },
   images: {
     remotePatterns: [

@@ -229,6 +229,10 @@ export default function TeacherSettingsClient({
   const handleProfileImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > 3 * 1024 * 1024) {
+      toast.error("File size too large.");
+      return;
+    }
     setIsUploadingProfile(true);
     const data = new FormData();
     data.append("image", file);

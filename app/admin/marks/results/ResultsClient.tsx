@@ -8,22 +8,33 @@ type Props = {
   classList: { id: number; name: string }[];
   subjectList: { id: number; name: string }[];
   examTypeList: string[];
+  examMonthList: string[];
 };
 
-export default function ResultsClient({ classList, subjectList, examTypeList }: Props) {
+export default function ResultsClient({ classList, subjectList, examTypeList, examMonthList }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const [classId, setClassId] = useState("");
   const [subjectId, setSubjectId] = useState("");
   const [type, setType] = useState("");
+  const [month, setMonth] = useState("");
 
   // Hydrate state from URL on first mount or searchParams change
   useEffect(() => {
     setClassId(searchParams.get("classId") || "");
     setSubjectId(searchParams.get("subjectId") || "");
     setType(searchParams.get("type") || "");
+    setMonth(searchParams.get("month") || "");
   }, [searchParams]);
+
+  const formatMonthYear = (my: string) => {
+    if (!my || !my.includes("-")) return my;
+    const [y, m] = my.split("-");
+    const date = new Date(Number(y), Number(m) - 1, 1);
+    const monthName = date.toLocaleString("default", { month: "long" });
+    return `${monthName} ${y}`;
+  };
 
   const applyFilter = () => {
     if (!classId) {
@@ -38,15 +49,19 @@ export default function ResultsClient({ classList, subjectList, examTypeList }: 
       toast.error("Please Select an Exam Type");
       return;
     }
+    if (!month) {
+      toast.error("Please Select an Exam Month");
+      return;
+    }
 
-    const params = new URLSearchParams({ classId, subjectId, type, page: "1" });
+    const params = new URLSearchParams({ classId, subjectId, type, month, page: "1" });
     router.replace(`/admin/marks/results?${params.toString()}`);
   };
 
-  const isReady = !!classId && !!subjectId && !!type;
+  const isReady = !!classId && !!subjectId && !!type && !!month;
 
   return (
-    <div className="grid gap-5 md:grid-cols-4 items-end bg-card p-5 rounded-2xl border border-border">
+    <div className="grid gap-5 md:grid-cols-5 items-end bg-card p-5 rounded-2xl border border-border">
       {/* CLASS */}
       <div>
         <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
@@ -99,6 +114,25 @@ export default function ResultsClient({ classList, subjectList, examTypeList }: 
           {examTypeList.map((t) => (
             <option key={t} value={t}>
               {t}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* EXAM MONTH */}
+      <div>
+        <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+          Exam Month
+        </label>
+        <select
+          value={month}
+          onChange={(e) => setMonth(e.target.value)}
+          className="select-theme w-full"
+        >
+          <option value="">Select Month</option>
+          {examMonthList.map((m) => (
+            <option key={m} value={m}>
+              {formatMonthYear(m)}
             </option>
           ))}
         </select>

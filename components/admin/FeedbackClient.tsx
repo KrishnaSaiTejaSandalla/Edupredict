@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { toast } from "sonner";
 import DeleteConfirmModal from "@/components/ui/DeleteConfirmModal";
 import { deleteFeedback } from "@/lib/feedback-actions";
@@ -26,12 +26,19 @@ export default function FeedbackClient({ initialFeedback }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const [isPending, startTransition] = useTransition();
 
   // Delete modal state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [feedbackToDelete, setFeedbackToDelete] = useState<{ id: number; title: string } | null>(null);
+
+  // Reset page when search or filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, categoryFilter, roleFilter]);
 
   const reloadData = async () => {
     try {
@@ -84,6 +91,9 @@ export default function FeedbackClient({ initialFeedback }: Props) {
 
     return matchesSearch && matchesCategory && matchesRole;
   });
+
+  const totalPages = Math.ceil(filteredFeedback.length / itemsPerPage) || 1;
+  const paginatedFeedback = filteredFeedback.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const getCategoryBadge = (category: string) => {
     switch (category) {
@@ -189,13 +199,13 @@ export default function FeedbackClient({ initialFeedback }: Props) {
       </div>
 
       {/* Feedback Card Layout */}
-      {filteredFeedback.length === 0 ? (
+      {paginatedFeedback.length === 0 ? (
         <div className="rounded-2xl border border-theme bg-surface p-12 text-center text-sm font-medium text-muted">
           No feedback entries found.
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2">
-          {filteredFeedback.map((item) => {
+          {paginatedFeedback.map((item) => {
             const roleBadge =
               item.userRole === "parent"
                 ? "bg-purple-500/10 text-purple-400 border-purple-500/20"
@@ -254,6 +264,33 @@ export default function FeedbackClient({ initialFeedback }: Props) {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground pt-4 border-t border-border mt-4 w-full">
+          <div>
+            {currentPage > 1 && (
+              <button
+                onClick={() => setCurrentPage((p) => p - 1)}
+                className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150 text-foreground"
+              >
+                ← Previous
+              </button>
+            )}
+          </div>
+          <span className="tabular-nums">Page {currentPage} of {totalPages} ({filteredFeedback.length} total feedback)</span>
+          <div>
+            {currentPage < totalPages && (
+              <button
+                onClick={() => setCurrentPage((p) => p + 1)}
+                className="rounded-xl border border-border bg-card px-4 py-2.5 hover:bg-hover transition duration-150 text-foreground"
+              >
+                Next →
+              </button>
+            )}
+          </div>
         </div>
       )}
 

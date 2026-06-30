@@ -1,6 +1,6 @@
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { teachers, classSubjects, subjects } from "@/lib/schema";
+import { teachers, classSubjects, subjects, classTeacherAssignments } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import {
   getTeacherClasses,
@@ -50,6 +50,15 @@ export default async function TeacherAttendancePage() {
         .where(eq(classSubjects.teacherId, teacher.id))
     : [];
 
+  const classTeacherAssignmentsList = teacher
+    ? await db
+        .select({ classId: classTeacherAssignments.classId })
+        .from(classTeacherAssignments)
+        .where(eq(classTeacherAssignments.teacherId, teacher.id))
+    : [];
+
+  const classTeacherClassIds = classTeacherAssignmentsList.map((a) => a.classId);
+
   // Deduplicate by subject id (teacher may teach same subject in multiple classes)
   const seenSubjectIds = new Set<number>();
 
@@ -72,6 +81,7 @@ export default async function TeacherAttendancePage() {
       classes={formattedClasses}
       subjects={formattedSubjects}
       kpis={kpis}
+      classTeacherClassIds={classTeacherClassIds}
     />
   );
 }

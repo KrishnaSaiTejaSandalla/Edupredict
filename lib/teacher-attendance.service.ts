@@ -120,7 +120,7 @@ export async function markBulkAttendance(
 
 export async function getAttendanceHistory(
   teacherId: number,
-  classId?: number,
+  classId?: number | number[],
   startDate?: string,
   endDate?: string
 ) {
@@ -131,7 +131,17 @@ export async function getAttendanceHistory(
 
   const conditions: any[] = [inArray(attendance.classId, teacherClassIds)];
 
-  if (classId) conditions.push(eq(attendance.classId, classId));
+  if (classId) {
+    if (Array.isArray(classId)) {
+      if (classId.length > 0) {
+        conditions.push(inArray(attendance.classId, classId));
+      } else {
+        return [];
+      }
+    } else {
+      conditions.push(eq(attendance.classId, classId));
+    }
+  }
   if (startDate) {
     const startObj = new Date(startDate + 'T00:00:00');
     conditions.push(gte(attendance.attendanceDate, startObj));

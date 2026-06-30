@@ -49,6 +49,7 @@ type Props = {
   classes: ClassInfo[];
   subjects: { id: number; name: string }[];
   kpis: KPIs;
+  classTeacherClassIds?: number[];
 };
 
 function KpiCard({
@@ -126,23 +127,32 @@ const statusLabel = (status: string) => {
   return status;
 };
 
-export default function AttendanceClient({ teacherId, teacherUserId, classes, subjects, kpis }: Props) {
+export default function AttendanceClient({
+  teacherId,
+  teacherUserId,
+  classes,
+  subjects,
+  kpis,
+  classTeacherClassIds = [],
+}: Props) {
+  const classTeacherClasses = classes.filter(c => classTeacherClassIds.includes(c.classId));
+
   const [activeTab, setActiveTab] = useState<"mark" | "history" | "reports">("mark");
   const [selectedSubject, setSelectedSubject] = useState<number | "">("");
-  const [topicTaught, setTopicTaught] = useState<string>("");
-  const [selectedClass, setSelectedClass] = useState<number | "">(classes.length === 1 ? classes[0].classId : "");
+  const [topicTaught, setTopicTaught] = useState<string>("General Class Attendance");
+  const [selectedClass, setSelectedClass] = useState<number | "">(classTeacherClasses.length === 1 ? classTeacherClasses[0].classId : "");
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [historyRecords, setHistoryRecords] = useState<HistoryRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const [historyClass, setHistoryClass] = useState<number | "">(classes.length === 1 ? classes[0].classId : "");
+  const [historyClass, setHistoryClass] = useState<number | "">(classTeacherClasses.length === 1 ? classTeacherClasses[0].classId : "");
   const [historyPage, setHistoryPage] = useState<number>(1);
 
   const [reportRecords, setReportRecords] = useState<ReportRecord[]>([]);
   const [loadingReport, setLoadingReport] = useState(false);
-  const [reportClass, setReportClass] = useState<number | "">(classes.length === 1 ? classes[0].classId : "");
+  const [reportClass, setReportClass] = useState<number | "">(classTeacherClasses.length === 1 ? classTeacherClasses[0].classId : "");
   const [reportPage, setReportPage] = useState<number>(1);
 
   // Reset pages on filters/tabs change
@@ -157,13 +167,17 @@ export default function AttendanceClient({ teacherId, teacherUserId, classes, su
   // Load students when class or date changes
   useEffect(() => {
     if (!selectedClass) { setStudents([]); return; }
+    if (!classTeacherClassIds.includes(Number(selectedClass))) {
+      setStudents([]);
+      return;
+    }
     setLoadingStudents(true);
     fetch(`/api/teacher/attendance?classId=${selectedClass}&date=${selectedDate}`)
       .then((r) => r.json())
       .then((data) => { setStudents(data.students || []); })
       .catch(() => toast.error("Failed to load students"))
       .finally(() => setLoadingStudents(false));
-  }, [selectedClass, selectedDate]);
+  }, [selectedClass, selectedDate, classTeacherClassIds]);
 
   // Load history
   useEffect(() => {
@@ -376,7 +390,7 @@ export default function AttendanceClient({ teacherId, teacherUserId, classes, su
       {activeTab === "mark" && (
         <div className="space-y-6 rounded-2xl border border-border bg-card p-6 shadow-md">
           {/* Filters */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 items-end">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 items-end">
             <label className="block space-y-1.5">
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Select Class</span>
               <select
@@ -385,7 +399,7 @@ export default function AttendanceClient({ teacherId, teacherUserId, classes, su
                 onChange={(e) => setSelectedClass(e.target.value ? Number(e.target.value) : "")}
               >
                 <option value="">Choose a class...</option>
-                {classes.map((c) => (
+                {classTeacherClasses.map((c) => (
                   <option key={c.classId} value={c.classId}>{c.className}</option>
                 ))}
               </select>
@@ -406,17 +420,6 @@ export default function AttendanceClient({ teacherId, teacherUserId, classes, su
             </label>
 
             <label className="block space-y-1.5">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Topic Taught</span>
-              <input
-                type="text"
-                placeholder="e.g. Chapter 3: Quadratic Equations"
-                className="input-theme w-full"
-                value={topicTaught}
-                onChange={(e) => setTopicTaught(e.target.value)}
-              />
-            </label>
-
-            <label className="block space-y-1.5">
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Date</span>
               <input
                 type="date"
@@ -428,20 +431,30 @@ export default function AttendanceClient({ teacherId, teacherUserId, classes, su
             </label>
           </div>
 
-          {classes.length === 0 && (
+          {selectedClass && !classTeacherClassIds.includes(Number(selectedClass)) && (
+            <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-6 text-center text-rose-400">
+              <svg className="mx-auto h-10 w-10 text-rose-500/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <p className="mt-4 text-sm font-bold">Access Denied</p>
+              <p className="mt-1 text-xs">Only the assigned Class Teacher for this class is permitted to mark or view attendance logs.</p>
+            </div>
+          )}
+
+          {classTeacherClasses.length === 0 && (
             <div className="rounded-xl border-2 border-dashed border-border bg-background p-12 text-center">
               <svg className="mx-auto h-10 w-10 text-muted-foreground/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
               </svg>
-              <p className="mt-4 text-sm font-semibold text-foreground">No classes assigned</p>
-              <p className="mt-1 text-xs text-muted-foreground">Contact admin to assign classes.</p>
+              <p className="mt-4 text-sm font-semibold text-foreground">No classes assigned as Class Teacher</p>
+              <p className="mt-1 text-xs text-muted-foreground">Only assigned Class Teachers can mark or review student attendance.</p>
             </div>
           )}
 
-          {!selectedClass && classes.length > 0 && (
+          {!selectedClass && classTeacherClasses.length > 0 && (
             <div className="rounded-xl border-2 border-dashed border-border bg-background p-12 text-center">
               <p className="text-sm font-semibold text-foreground">Select a class to begin</p>
-              <p className="mt-1 text-xs text-muted-foreground">Choose class, subject, and topic above to load the student list.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Choose class, subject, and date above to load the student list.</p>
             </div>
           )}
 
@@ -557,7 +570,7 @@ export default function AttendanceClient({ teacherId, teacherUserId, classes, su
               onChange={(e) => setHistoryClass(e.target.value ? Number(e.target.value) : "")}
             >
               <option value="">All Classes</option>
-              {classes.map((c) => (
+              {classTeacherClasses.map((c) => (
                 <option key={c.classId} value={c.classId}>{c.className}</option>
               ))}
             </select>
@@ -651,7 +664,7 @@ export default function AttendanceClient({ teacherId, teacherUserId, classes, su
               onChange={(e) => setReportClass(e.target.value ? Number(e.target.value) : "")}
             >
               <option value="">All Classes</option>
-              {classes.map((c) => (
+              {classTeacherClasses.map((c) => (
                 <option key={c.classId} value={c.classId}>{c.className}</option>
               ))}
             </select>

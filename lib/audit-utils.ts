@@ -387,3 +387,7 @@ export async function archiveOldLogs(): Promise<{ archived: number }> {
 export async function deleteArchivedLog(id: number): Promise<void> {
   await db.delete(auditLogsArchive).where(eq(auditLogsArchive.id, id));
 }
+
+export async function deleteAuditLog(id: number): Promise<void> {
+  await db.delete(auditLogs).where(eq(auditLogs.id, id));
+}

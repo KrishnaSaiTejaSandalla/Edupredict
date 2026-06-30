@@ -127,6 +127,7 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
     pathname.startsWith("/admin/leaves") ||
     pathname.startsWith("/admin/transport") ||
     pathname.startsWith("/admin/feedback") ||
+    pathname.startsWith("/admin/announcements") ||
     pathname.startsWith("/admin/audit-logs");
 
   const initials = user.name
@@ -308,6 +309,7 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
                 ["Leaves",    "/admin/leaves"],
                 ["Transport", "/admin/transport"],
                 ["Feedback",  "/admin/feedback"],
+                ["Announcements", "/admin/announcements"],
               ].map(([label, href]) => (
                 <Link
                   key={href}

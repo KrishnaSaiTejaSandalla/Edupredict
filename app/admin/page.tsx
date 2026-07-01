@@ -194,24 +194,33 @@ export default async function AdminPage() {
               <p className="text-xs text-muted-foreground mt-0.5">Unread notifications and urgent feeds</p>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto pr-1 scrollbar-hide space-y-2.5">
-              {dashboard.alerts.map((alert) => {
-                const borderTone =
-                  alert.tone === "danger"
-                    ? "border-l-4 border-l-rose-500 bg-rose-500/5 border-subtle"
-                    : alert.tone === "warning"
-                      ? "border-l-4 border-l-amber-500 bg-amber-500/5 border-subtle"
-                      : "border-l-4 border-l-cyan-500 bg-cyan-500/5 border-subtle";
+              {(() => {
+                const seen = new Set<string>();
+                const uniqueAlerts = dashboard.alerts.filter((alert) => {
+                  const key = `${alert.title?.trim()}|||${alert.message?.trim()}`;
+                  if (seen.has(key)) return false;
+                  seen.add(key);
+                  return true;
+                });
+                return uniqueAlerts.map((alert) => {
+                  const borderTone =
+                    alert.tone === "danger"
+                      ? "border-l-4 border-l-rose-500 bg-rose-500/5 border-subtle"
+                      : alert.tone === "warning"
+                        ? "border-l-4 border-l-amber-500 bg-amber-500/5 border-subtle"
+                        : "border-l-4 border-l-cyan-500 bg-cyan-500/5 border-subtle";
 
-                return (
-                  <div
-                    key={alert.id}
-                    className={`rounded-xl border p-3 transition hover:bg-hover duration-200 ${borderTone}`}
-                  >
-                    <p className="text-xs font-semibold text-foreground">{alert.title}</p>
-                    <p className="mt-1 text-[10px] text-muted-foreground leading-relaxed">{alert.message}</p>
-                  </div>
-                );
-              })}
+                  return (
+                    <div
+                      key={alert.id}
+                      className={`rounded-xl border p-3 transition hover:bg-hover duration-200 ${borderTone}`}
+                    >
+                      <p className="text-xs font-semibold text-foreground">{alert.title}</p>
+                      <p className="mt-1 text-[10px] text-muted-foreground leading-relaxed">{alert.message}</p>
+                    </div>
+                  );
+                });
+              })()}
             </div>
           </div>
         </div>

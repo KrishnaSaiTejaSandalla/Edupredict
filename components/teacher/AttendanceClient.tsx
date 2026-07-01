@@ -138,7 +138,6 @@ export default function AttendanceClient({
   const classTeacherClasses = classes.filter(c => classTeacherClassIds.includes(c.classId));
 
   const [activeTab, setActiveTab] = useState<"mark" | "history" | "reports">("mark");
-  const [selectedSubject, setSelectedSubject] = useState<number | "">("");
   const [topicTaught, setTopicTaught] = useState<string>("General Class Attendance");
   const [selectedClass, setSelectedClass] = useState<number | "">(classTeacherClasses.length === 1 ? classTeacherClasses[0].classId : "");
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0]);
@@ -252,14 +251,12 @@ export default function AttendanceClient({
   };
 
   const handleMarkAll = (status: "present" | "absent" | "half_day") => {
-    if (!selectedSubject) { toast.error("Please select a subject first."); return; }
     if (!topicTaught.trim()) { toast.error("Please enter the topic taught first."); return; }
     setStudents((prev) => prev.map((s) => ({ ...s, status })));
   };
 
   const handleSubmit = async () => {
     if (!selectedClass || students.length === 0) return;
-    if (!selectedSubject) { toast.error("Please select a subject first."); return; }
     if (!topicTaught.trim()) { toast.error("Please enter the topic taught first."); return; }
     setSubmitting(true);
     try {
@@ -268,7 +265,6 @@ export default function AttendanceClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           classId: selectedClass,
-          subjectId: selectedSubject,
           topicTaught: topicTaught.trim(),
           date: selectedDate,
           records: students.map((s) => ({ studentId: s.id, status: s.status })),
@@ -390,7 +386,7 @@ export default function AttendanceClient({
       {activeTab === "mark" && (
         <div className="space-y-6 rounded-2xl border border-border bg-card p-6 shadow-md">
           {/* Filters */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 items-end">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2 items-end">
             <label className="block space-y-1.5">
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Select Class</span>
               <select
@@ -401,20 +397,6 @@ export default function AttendanceClient({
                 <option value="">Choose a class...</option>
                 {classTeacherClasses.map((c) => (
                   <option key={c.classId} value={c.classId}>{c.className}</option>
-                ))}
-              </select>
-            </label>
-
-            <label className="block space-y-1.5">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Select Subject</span>
-              <select
-                className="select-theme w-full"
-                value={selectedSubject}
-                onChange={(e) => setSelectedSubject(e.target.value ? Number(e.target.value) : "")}
-              >
-                <option value="">Choose a subject...</option>
-                {subjects.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
             </label>
@@ -485,7 +467,7 @@ export default function AttendanceClient({
                     <button
                       key={s}
                       onClick={() => handleMarkAll(s)}
-                      disabled={!selectedSubject || !topicTaught.trim()}
+                      disabled={!topicTaught.trim()}
                       className={`rounded-xl px-4 py-2 text-xs font-bold border transition disabled:opacity-40 disabled:cursor-not-allowed ${statusBadge(s)}`}
                     >
                       Mark All {statusLabel(s)}
@@ -545,7 +527,7 @@ export default function AttendanceClient({
               <div className="flex justify-end pt-2 border-t border-border">
                 <button
                   onClick={handleSubmit}
-                  disabled={submitting || !selectedSubject || !topicTaught.trim()}
+                  disabled={submitting || !topicTaught.trim()}
                   className="rounded-xl btn-cyan px-6 py-3 text-sm font-semibold disabled:opacity-50"
                 >
                   {submitting ? "Saving..." : "Save Attendance Logs"}

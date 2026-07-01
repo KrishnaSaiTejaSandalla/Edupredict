@@ -69,8 +69,8 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { classId, subjectId, topicTaught, date, records } = body;
 
-    if (!classId || !subjectId || !date || !Array.isArray(records)) {
-      return NextResponse.json({ error: "Invalid request. Class, Subject, and Date are required." }, { status: 400 });
+    if (!classId || !date || !Array.isArray(records)) {
+      return NextResponse.json({ error: "Invalid request. Class and Date are required." }, { status: 400 });
     }
 
     // Restrict POST to Class Teacher only
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
 
     const finalTopicTaught = topicTaught?.trim() || "General Class Attendance";
 
-    await markBulkAttendance(Number(classId), Number(subjectId), finalTopicTaught, date, records, user.id);
+    await markBulkAttendance(Number(classId), subjectId ? Number(subjectId) : null, finalTopicTaught, date, records, user.id);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 401 });

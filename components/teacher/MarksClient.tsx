@@ -87,6 +87,12 @@ export default function MarksClient({ teacherId, teacherUserId, exams, classSubj
   const [marksInput, setMarksInput] = useState<Record<number, { marks: string; remarks: string }>>({});
   const [submitting, setSubmitting] = useState(false);
 
+  const exam = safeExams.find((e) => e.id === selectedExam);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const examDateVal = exam?.examDate ? new Date(exam.examDate + "T00:00:00") : null;
+  const isExamInFuture = examDateVal ? today < examDateVal : false;
+
   // Results tab
   const [resultsData, setResultsData] = useState<{ items: ResultItem[]; total: number; pages: number }>({ items: [], total: 0, pages: 0 });
   const [loadingResults, setLoadingResults] = useState(false);
@@ -109,10 +115,16 @@ export default function MarksClient({ teacherId, teacherUserId, exams, classSubj
   // Load students when exam changes
   useEffect(() => {
     if (!selectedExam) { setStudents([]); setMarksInput({}); return; }
+    if (isExamInFuture) { setStudents([]); setMarksInput({}); return; }
     setLoadingStudents(true);
     fetch(`/api/teacher/marks?action=students&examId=${selectedExam}`)
       .then((r) => r.json())
       .then((data) => {
+        if (data.error) {
+          toast.error(data.error);
+          setStudents([]);
+          return;
+        }
         const studentList = Array.isArray(data?.students) ? data.students : [];
         setStudents(studentList);
         const initial: Record<number, { marks: string; remarks: string }> = {};
@@ -126,7 +138,7 @@ export default function MarksClient({ teacherId, teacherUserId, exams, classSubj
       })
       .catch(() => toast.error("Failed to load students"))
       .finally(() => setLoadingStudents(false));
-  }, [selectedExam]);
+  }, [selectedExam, isExamInFuture]);
 
   // Load results
   useEffect(() => {
@@ -339,7 +351,21 @@ export default function MarksClient({ teacherId, teacherUserId, exams, classSubj
             </div>
           )}
 
-          {selectedExam && !loadingStudents && students.length === 0 && (
+          {selectedExam && isExamInFuture && (
+            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-12 text-center shadow-sm max-w-lg mx-auto">
+              <div className="flex items-center justify-center h-14 w-14 rounded-2xl bg-amber-500/10 mx-auto mb-4">
+                <svg viewBox="0 0 24 24" className="h-7 w-7 text-amber-500" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <p className="text-sm font-bold text-foreground">Marks Entry Restricted</p>
+              <p className="text-xs text-muted-foreground mt-1.5 max-w-xs mx-auto leading-relaxed">
+                Marks can only be entered after the examination date.
+              </p>
+            </div>
+          )}
+
+          {selectedExam && !loadingStudents && !isExamInFuture && students.length === 0 && (
             <div className="rounded-2xl border-2 border-dashed border-border bg-card p-10 text-center shadow-sm max-w-lg mx-auto">
               <p className="text-xs font-semibold text-muted-foreground">No students found associated with this class and exam.</p>
             </div>

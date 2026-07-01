@@ -287,7 +287,7 @@ export async function getTeacherDashboardData(userId: number): Promise<TeacherDa
   }
 
   // 10. Recent announcements (teacher-scoped notifications)
-  const recentAnnouncements = await db
+  const recentAnnouncementsRaw = await db
     .select({
       id: notifications.id,
       title: notifications.title,
@@ -296,9 +296,26 @@ export async function getTeacherDashboardData(userId: number): Promise<TeacherDa
       createdAt: notifications.createdAt,
     })
     .from(notifications)
-    .where(eq(notifications.userId, userId))
+    .where(
+      and(
+        eq(notifications.userId, userId),
+        eq(notifications.isRead, false)
+      )
+    )
     .orderBy(desc(notifications.createdAt))
-    .limit(5);
+    .limit(50);
+
+  const uniqueAnnouncements: typeof recentAnnouncementsRaw = [];
+  const seenAnnKeys = new Set<string>();
+  for (const row of recentAnnouncementsRaw) {
+    const key = `${row.title?.trim()}|||${row.message?.trim()}`;
+    if (!seenAnnKeys.has(key)) {
+      seenAnnKeys.add(key);
+      uniqueAnnouncements.push(row);
+    }
+  }
+
+  const recentAnnouncements = uniqueAnnouncements.slice(0, 5);
 
   return {
     kpis: {

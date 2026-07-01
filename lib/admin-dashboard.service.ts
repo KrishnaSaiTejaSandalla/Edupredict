@@ -188,7 +188,7 @@ export async function getAdminDashboardData(): Promise<DashboardPayload> {
       .from(notifications)
       .where(eq(notifications.isRead, false))
       .orderBy(desc(notifications.createdAt))
-      .limit(5),
+      .limit(50),
 
     // 8. Class distribution
     db
@@ -327,8 +327,18 @@ export async function getAdminDashboardData(): Promise<DashboardPayload> {
   });
 
   // ─── Alerts ───────────────────────────────────────────────────────────────
-  const alerts: DashboardAlert[] = notificationsRaw.length
-    ? notificationsRaw.map((alert) => {
+  const uniqueRawAlerts: typeof notificationsRaw = [];
+  const seenAlertKeys = new Set<string>();
+  for (const raw of notificationsRaw) {
+    const key = `${raw.title?.trim()}|||${raw.message?.trim()}`;
+    if (!seenAlertKeys.has(key)) {
+      seenAlertKeys.add(key);
+      uniqueRawAlerts.push(raw);
+    }
+  }
+
+  const alerts: DashboardAlert[] = uniqueRawAlerts.length
+    ? uniqueRawAlerts.slice(0, 5).map((alert) => {
         const tone: DashboardAlert["tone"] =
           alert.priority === "high"
             ? "danger"

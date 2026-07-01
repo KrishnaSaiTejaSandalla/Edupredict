@@ -396,12 +396,22 @@ export default function TeacherDashboardClient({ userName, dashboard, teacherDep
             </div>
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide space-y-2">
-            {recentAnnouncements.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-24 rounded-xl border border-dashed border-border text-center">
-                <p className="text-xs text-muted-foreground">No announcements available</p>
-              </div>
-            ) : (
-              recentAnnouncements.map((ann) => {
+            {(() => {
+              const seen = new Set<string>();
+              const uniqueAnn = recentAnnouncements.filter((ann) => {
+                const key = `${ann.title?.trim()}|||${ann.message?.trim()}`;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+              });
+              if (uniqueAnn.length === 0) {
+                return (
+                  <div className="flex flex-col items-center justify-center h-24 rounded-xl border border-dashed border-border text-center">
+                    <p className="text-xs text-muted-foreground">No announcements available</p>
+                  </div>
+                );
+              }
+              return uniqueAnn.map((ann) => {
                 const priorityColor =
                   ann.priority === "high"
                     ? "border-l-rose-500 bg-rose-500/5"
@@ -420,8 +430,8 @@ export default function TeacherDashboardClient({ userName, dashboard, teacherDep
                     </p>
                   </div>
                 );
-              })
-            )}
+              });
+            })()}
           </div>
           <div className="shrink-0 mt-3 pt-3 border-t border-subtle">
             <Link

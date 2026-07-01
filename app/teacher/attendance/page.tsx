@@ -1,9 +1,8 @@
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { teachers, classSubjects, subjects, classTeacherAssignments } from "@/lib/schema";
+import { teachers, classTeacherAssignments, classes as dbClasses } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import {
-  getTeacherClasses,
   getAttendanceKPIs,
 } from "@/lib/teacher-attendance.service";
 import AttendanceClient from "@/components/teacher/AttendanceClient";
@@ -32,42 +31,54 @@ export default async function TeacherAttendancePage() {
     .where(eq(teachers.userId, user.id))
     .limit(1);
 
-  const classesRaw = teacher ? await getTeacherClasses(teacher.id) : [];
-  const classes = sortClasses(classesRaw.map(c => ({ classId: c.classId, className: c.className })));
-  const kpis = teacher ? await getAttendanceKPIs(teacher.id) : {
-    presentPct: 0, absentPct: 0, leavePct: 0, atRiskPct: 0, totalStudents: 0,
-  };
+  if (!teacher) {
+    return (
+      <main className="min-h-screen bg-base p-4 sm:p-6 lg:p-8 text-primary flex items-center justify-center">
+        <div className="text-center bg-card border border-border rounded-2xl p-8 max-w-md shadow-md">
+          <h2 className="text-xl font-bold text-rose-500 mb-2">Access Denied</h2>
+          <p className="text-sm text-secondary">Teacher record not found.</p>
+        </div>
+      </main>
+    );
+  }
 
-  const assignedSubjects = teacher
-    ? await db
-        .select({
-          id: subjects.id,
-          name: subjects.name,
-          code: subjects.code,
-        })
-        .from(classSubjects)
-        .leftJoin(subjects, eq(classSubjects.subjectId, subjects.id))
-        .where(eq(classSubjects.teacherId, teacher.id))
-    : [];
+  const classTeacherAssignmentsList = await db
+    .select({
+      classId: classTeacherAssignments.classId,
+      className: dbClasses.name,
+      classSection: dbClasses.section,
+    })
+    .from(classTeacherAssignments)
+    .leftJoin(dbClasses, eq(classTeacherAssignments.classId, dbClasses.id))
+    .where(eq(classTeacherAssignments.teacherId, teacher.id));
 
-  const classTeacherAssignmentsList = teacher
-    ? await db
-        .select({ classId: classTeacherAssignments.classId })
-        .from(classTeacherAssignments)
-        .where(eq(classTeacherAssignments.teacherId, teacher.id))
-    : [];
+  const classTeacherClassIds = classTeacherAssignmentsList
+    .map((a) => a.classId)
+    .filter((id): id is number => id !== null);
 
-  const classTeacherClassIds = classTeacherAssignmentsList.map((a) => a.classId);
+  if (classTeacherClassIds.length === 0) {
+    return (
+      <main className="min-h-screen bg-base p-4 sm:p-6 lg:p-8 text-primary flex items-center justify-center">
+        <div className="text-center bg-card border border-border rounded-2xl p-8 max-w-md shadow-md">
+          <h2 className="text-xl font-bold text-rose-500 mb-2">Access Denied</h2>
+          <p className="text-sm text-secondary">Only Class Teachers can access the Attendance page.</p>
+        </div>
+      </main>
+    );
+  }
 
-  // Deduplicate by subject id (teacher may teach same subject in multiple classes)
-  const seenSubjectIds = new Set<number>();
+  const classes = sortClasses(
+    classTeacherAssignmentsList
+      .filter((c): c is typeof c & { classId: number } => c.classId !== null)
+      .map((c) => ({
+        classId: c.classId,
+        className: c.className
+          ? `${c.className}${c.classSection ? ` ${c.classSection}` : ""}`
+          : "N/A",
+      }))
+  );
 
-  const formattedSubjects = assignedSubjects
-    .filter((s): s is typeof s & { id: number } => !!s.id && !seenSubjectIds.has(s.id) && seenSubjectIds.add(s.id) !== undefined)
-    .map((s) => ({
-      id: s.id,
-      name: s.name ? `${s.name}${s.code ? ` (${s.code})` : ""}` : "Unknown Subject",
-    }));
+  const kpis = await getAttendanceKPIs(teacher.id);
 
   const formattedClasses = classes.map(c => ({
     classId: c.classId,
@@ -76,10 +87,10 @@ export default async function TeacherAttendancePage() {
 
   return (
     <AttendanceClient
-      teacherId={teacher?.id ?? null}
+      teacherId={teacher.id}
       teacherUserId={user.id}
       classes={formattedClasses}
-      subjects={formattedSubjects}
+      subjects={[]}
       kpis={kpis}
       classTeacherClassIds={classTeacherClassIds}
     />

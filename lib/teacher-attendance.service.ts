@@ -84,7 +84,7 @@ export type AttendanceRecord = {
 
 export async function markBulkAttendance(
   classId: number,
-  subjectId: number,
+  subjectId: number | null,
   topicTaught: string,
   date: string,
   records: AttendanceRecord[],

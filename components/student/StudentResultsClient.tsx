@@ -1,9 +1,82 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import CustomSelect from "../ui/CustomSelect";
+
+// ── Prediction Card ──────────────────────────────────────────────────────────
+function PredictionCard({ trendData, avgPct }: { trendData: { percentage: number }[]; avgPct: number }) {
+  const prediction = useMemo(() => {
+    const n = trendData.length;
+    if (n < 2) return { score: avgPct, confidence: 50, trend: "stable" as const };
+
+    // Simple linear regression on index → percentage
+    const xs = trendData.map((_, i) => i);
+    const ys = trendData.map((d) => d.percentage);
+    const meanX = xs.reduce((a, b) => a + b, 0) / n;
+    const meanY = ys.reduce((a, b) => a + b, 0) / n;
+    const num = xs.reduce((s, x, i) => s + (x - meanX) * (ys[i] - meanY), 0);
+    const den = xs.reduce((s, x) => s + (x - meanX) ** 2, 0);
+    const slope = den !== 0 ? num / den : 0;
+    const intercept = meanY - slope * meanX;
+    const predicted = Math.min(100, Math.max(0, Math.round(intercept + slope * n)));
+
+    // Confidence: lower variance → higher confidence
+    const variance = ys.reduce((s, y) => s + (y - meanY) ** 2, 0) / n;
+    const confidence = Math.max(30, Math.min(95, Math.round(100 - variance / 10)));
+
+    const trend = slope > 1 ? "up" : slope < -1 ? "down" : "stable";
+    return { score: predicted, confidence, trend } as const;
+  }, [trendData, avgPct]);
+
+  const trendColor =
+    prediction.trend === "up" ? "text-emerald-400" : prediction.trend === "down" ? "text-rose-400" : "text-amber-400";
+  const trendIcon = prediction.trend === "up" ? "▲" : prediction.trend === "down" ? "▼" : "→";
+  const trendLabel = prediction.trend === "up" ? "Improving" : prediction.trend === "down" ? "Declining" : "Stable";
+
+  const tips =
+    prediction.trend === "down"
+      ? ["Review last 3 exam topics", "Increase practice time", "Ask teacher for feedback"]
+      : prediction.trend === "up"
+      ? ["Keep up the momentum!", "Focus on weak subjects", "Try harder practice papers"]
+      : ["Maintain consistency", "Target areas below 60%", "Review exam notes weekly"];
+
+  return (
+    <div className="rounded-2xl border border-theme bg-surface p-6 shadow-xl flex flex-col justify-between gap-5">
+      <div>
+        <p className="text-xs font-bold text-secondary uppercase tracking-wider mb-3 flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-fuchsia-400" />
+          Predicted Next Score
+        </p>
+        <div className="flex items-end gap-2">
+          <span className="text-5xl font-black text-fuchsia-400">{prediction.score}%</span>
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <span className={`text-xs font-bold ${trendColor}`}>{trendIcon} {trendLabel}</span>
+          <span className="text-[10px] text-muted">· {prediction.confidence}% confidence</span>
+        </div>
+        {/* Confidence bar */}
+        <div className="mt-3 h-1.5 w-full bg-hover rounded-full overflow-hidden">
+          <div
+            className="h-full rounded-full bg-fuchsia-500 transition-all duration-700"
+            style={{ width: `${prediction.confidence}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="border-t border-theme pt-4 space-y-2">
+        <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">AI Tips</p>
+        {tips.map((tip) => (
+          <div key={tip} className="flex items-start gap-1.5">
+            <span className="mt-0.5 text-fuchsia-400 text-xs">✦</span>
+            <span className="text-[11px] text-primary leading-snug">{tip}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 type ResultType = {
   id: number;
@@ -140,30 +213,36 @@ export default function StudentResultsClient({ initialResults, classRank, classS
             </div>
           </div>
 
-          {/* Results Trend Chart */}
+          {/* Results Trend Chart + Prediction Card */}
           {trendData.length > 0 && (
-            <div className="rounded-2xl border border-theme bg-surface p-6 shadow-xl">
-              <h3 className="text-sm font-bold text-primary flex items-center gap-2 mb-4">
-                <span className="h-2.5 w-2.5 rounded-full bg-violet-400" />
-                Result Trend Chart
-              </h3>
-              <div className="h-[220px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={trendData} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
-                    <defs>
-                      <linearGradient id="resultsGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                    <XAxis dataKey="date" tick={{ fill: "#64748b", fontSize: 10 }} />
-                    <YAxis tick={{ fill: "#64748b", fontSize: 10 }} domain={[0, 100]} />
-                    <Tooltip contentStyle={{ background: "#1e1b4b", border: "1px solid rgba(139,92,246,0.3)", borderRadius: 16, color: "#e2e8f0", fontSize: 11 }} />
-                    <Area type="monotone" dataKey="percentage" stroke="#8b5cf6" strokeWidth={3} fill="url(#resultsGrad)" dot={{ fill: "#8b5cf6", r: 4 }} />
-                  </AreaChart>
-                </ResponsiveContainer>
+            <div className="grid gap-4 lg:grid-cols-3">
+              {/* Trend Chart (spans 2/3) */}
+              <div className="lg:col-span-2 rounded-2xl border border-theme bg-surface p-6 shadow-xl">
+                <h3 className="text-sm font-bold text-primary flex items-center gap-2 mb-4">
+                  <span className="h-2.5 w-2.5 rounded-full bg-violet-400" />
+                  Performance Trend
+                </h3>
+                <div className="h-[220px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={trendData} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
+                      <defs>
+                        <linearGradient id="resultsGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                      <XAxis dataKey="date" tick={{ fill: "#64748b", fontSize: 10 }} />
+                      <YAxis tick={{ fill: "#64748b", fontSize: 10 }} domain={[0, 100]} />
+                      <Tooltip contentStyle={{ background: "#1e1b4b", border: "1px solid rgba(139,92,246,0.3)", borderRadius: 16, color: "#e2e8f0", fontSize: 11 }} />
+                      <Area type="monotone" dataKey="percentage" stroke="#8b5cf6" strokeWidth={3} fill="url(#resultsGrad)" dot={{ fill: "#8b5cf6", r: 4 }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
+
+              {/* Predicted Next Exam Score Card (1/3) */}
+              <PredictionCard trendData={trendData} avgPct={avgPct} />
             </div>
           )}
 

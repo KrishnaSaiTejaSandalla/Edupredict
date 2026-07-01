@@ -3,6 +3,8 @@
 import { useState, useTransition, useEffect } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import { toast } from "sonner";
+import { deleteAIGeneratedNote } from "@/lib/student-actions";
+import { createPortal } from "react-dom";
 
 type ResourceType = {
   id: number;
@@ -58,6 +60,8 @@ export default function StudentResourcesClient({
   const [topic, setTopic] = useState("");
   const [style, setStyle] = useState("cheatsheet");
   const [isPending, startTransition] = useTransition();
+  const [deleteTarget, setDeleteTarget] = useState<NoteType | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleGenerate = () => {
     if (!subject) {
@@ -107,6 +111,24 @@ export default function StudentResourcesClient({
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success("Copied to clipboard! 📋");
+  };
+
+  const handleDeleteNote = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    try {
+      await deleteAIGeneratedNote(deleteTarget.id);
+      setNotes((prev) => prev.filter((n) => n.id !== deleteTarget.id));
+      if (selectedNote?.id === deleteTarget.id) {
+        setSelectedNote(notes.find((n) => n.id !== deleteTarget.id) || null);
+      }
+      toast.success("Note deleted successfully.");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to delete note.");
+    } finally {
+      setIsDeleting(false);
+      setDeleteTarget(null);
+    }
   };
 
   // Helper to filter classroom files
@@ -331,10 +353,10 @@ export default function StudentResourcesClient({
                     onChange={(e) => setStyle(e.target.value)}
                     className="w-full rounded-xl border border-theme bg-hover p-2.5 text-xs text-primary focus:outline-none focus:ring-1 focus:ring-violet-500"
                   >
-                    <option value="cheatsheet">🎯 Cheat Sheet</option>
-                    <option value="revision">📝 Revision Notes</option>
-                    <option value="mnemonic">🧠 Memory Mnemonics</option>
-                    <option value="practice">💪 Practice Problems</option>
+                    <option value="cheatsheet" className="bg-surface text-primary">🎯 Cheat Sheet</option>
+                    <option value="revision" className="bg-surface text-primary">📝 Revision Notes</option>
+                    <option value="mnemonic" className="bg-surface text-primary">🧠 Memory Mnemonics</option>
+                    <option value="practice" className="bg-surface text-primary">💪 Practice Problems</option>
                   </select>
                 </div>
 
@@ -405,12 +427,20 @@ export default function StudentResourcesClient({
                     <span className="rounded-xl bg-violet-500/15 text-violet-400 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider">{selectedNote.subjectName}</span>
                     <h2 className="text-base font-black text-primary mt-2">{selectedNote.title}</h2>
                   </div>
-                  <button
-                    onClick={() => copyToClipboard(selectedNote.content)}
-                    className="rounded-xl border border-theme bg-hover hover:bg-surface px-3.5 py-2 text-xs font-bold text-primary transition flex items-center gap-1.5"
-                  >
-                    📋 Copy Note
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => copyToClipboard(selectedNote.content)}
+                      className="rounded-xl border border-theme bg-hover hover:bg-surface px-3.5 py-2 text-xs font-bold text-primary transition flex items-center gap-1.5"
+                    >
+                      📋 Copy Note
+                    </button>
+                    <button
+                      onClick={() => setDeleteTarget(selectedNote)}
+                      className="rounded-xl border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 px-3.5 py-2 text-xs font-bold text-rose-400 transition flex items-center gap-1.5"
+                    >
+                      🗑️ Delete
+                    </button>
+                  </div>
                 </div>
                 <div className="prose prose-sm prose-invert max-w-none text-xs text-primary leading-relaxed whitespace-pre-wrap font-sans">
                   {selectedNote.content}
@@ -424,6 +454,46 @@ export default function StudentResourcesClient({
             )}
           </div>
         </div>
+      )}
+
+      {/* Personalized Delete Confirmation Modal */}
+      {deleteTarget && typeof window !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setDeleteTarget(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-theme bg-surface p-6 shadow-2xl space-y-4 mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-rose-500/10">
+              <span className="text-2xl">🗑️</span>
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-primary">Delete This Note?</h3>
+              <p className="mt-1.5 text-xs text-secondary leading-relaxed">
+                You're about to delete <span className="text-primary font-semibold">"{deleteTarget.title}"</span> for{" "}
+                <span className="text-violet-400 font-semibold">{deleteTarget.subjectName}</span>. This can't be undone.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="flex-1 rounded-xl border border-theme bg-hover px-4 py-2.5 text-xs font-semibold text-secondary hover:text-primary transition"
+              >
+                Keep Note
+              </button>
+              <button
+                onClick={handleDeleteNote}
+                disabled={isDeleting}
+                className="flex-1 rounded-xl bg-rose-500 hover:bg-rose-600 disabled:opacity-60 px-4 py-2.5 text-xs font-semibold text-white transition"
+              >
+                {isDeleting ? "Deleting..." : "Yes, Delete"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

@@ -1,7 +1,7 @@
 import { requireRole } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { classes, exams, results, students, users, subjects, classSubjects } from '@/lib/schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, or, like, sql } from 'drizzle-orm';
 import ResultsClient from "./ResultsClient";
 
 type SearchParams = {
@@ -69,7 +69,7 @@ export default async function ResultsPage({ searchParams }: Props) {
     .orderBy(sql`DATE_FORMAT(${exams.examDate}, '%Y-%m') desc`);
   const examMonthList = distinctMonths.map((row) => row.month).filter(Boolean);
 
-  // Strict exam query: Try (classId + subjectId + type + month) exact match.
+  // Strict exam query: Try (classId + subjectId + type + month) match.
   let examRows: (typeof exams.$inferSelect)[] = [];
   if (classId && subjectId && type && month) {
     examRows = await db
@@ -79,8 +79,16 @@ export default async function ResultsPage({ searchParams }: Props) {
         and(
           eq(exams.classId, classId),
           eq(exams.subjectId, subjectId),
-          eq(exams.type, type),
-          eq(sql`DATE_FORMAT(${exams.examDate}, '%Y-%m')`, month)
+          eq(sql`DATE_FORMAT(${exams.examDate}, '%Y-%m')`, month),
+          or(
+            eq(exams.type, type),
+            and(
+              sql`${exams.type} IS NULL`,
+              type === "Weekly Test"
+                ? or(like(exams.name, "%Weekly%"), like(exams.name, "%Test%"))
+                : like(exams.name, `%${type}%`)
+            )
+          )
         )
       )
       .limit(1);

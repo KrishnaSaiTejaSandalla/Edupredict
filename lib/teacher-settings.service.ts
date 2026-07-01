@@ -10,6 +10,9 @@ import {
 import { eq } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { revalidatePath } from 'next/cache';
+import { writeFile, mkdir } from 'fs/promises';
+import { join } from 'path';
+import { existsSync } from 'fs';
 
 // ==================== TEACHER SETTINGS SERVICE ====================
 // COMPLETELY ISOLATED from admin settings actions.
@@ -181,26 +184,34 @@ export async function changeTeacherPassword(
 }
 
 export async function uploadTeacherProfileImage(userId: number, formData: FormData) {
-  // Use existing file upload pattern from settings-actions (re-implemented separately)
   const file = formData.get('image') as File | null;
-  if (!file) throw new Error('No file provided');
-  if (file.size > 3 * 1024 * 1024) throw new Error('File too large. Maximum 3MB.');
+  if (!file || file.size === 0) throw new Error('No file provided');
+  if (file.size > 3 * 1024 * 1024) throw new Error('File size must be under 3MB');
 
   const allowedTypes = ['image/png', 'image/jpeg', 'image/webp'];
-  if (!allowedTypes.includes(file.type)) throw new Error('Only PNG, JPG, WEBP accepted');
+  if (!allowedTypes.includes(file.type)) {
+    throw new Error('Only PNG, JPG, and WEBP files are allowed');
+  }
 
-  // Convert to base64 data URL for storage (same pattern as admin)
+  const uploadsDir = join(process.cwd(), 'public', 'uploads', 'profiles');
+  if (!existsSync(uploadsDir)) {
+    await mkdir(uploadsDir, { recursive: true });
+  }
+
+  const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+  const fileName = `user-${userId}-${Date.now()}.${ext}`;
+  const filePath = join(uploadsDir, fileName);
+  const publicUrl = `/uploads/profiles/${fileName}`;
+
   const buffer = Buffer.from(await file.arrayBuffer());
-  const base64 = buffer.toString('base64');
-  const mimeType = file.type;
-  const dataUrl = `data:${mimeType};base64,${base64}`;
+  await writeFile(filePath, buffer);
 
   await db
     .update(users)
-    .set({ profileImageUrl: dataUrl, updatedAt: new Date() })
+    .set({ profileImageUrl: publicUrl, updatedAt: new Date() })
     .where(eq(users.id, userId));
 
   revalidatePath('/teacher');
   revalidatePath('/teacher/settings');
-  return { profileImageUrl: dataUrl };
+  return { success: true, profileImageUrl: publicUrl };
 }

@@ -81,9 +81,8 @@ if (!tab || tab === "personal") {
         );
 
       const presentCount = attendanceRows.filter((a) => a.status === "present").length;
-      const leaveCount = attendanceRows.filter((a) => a.status === "leave").length;
-      const totalCount = attendanceRows.filter((a) => a.status === "present" || a.status === "leave").length;
-      const attendancePct = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0;
+      const totalCount = attendanceRows.length;
+      const attendancePct = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 100;
 
       const resultRows = await db
         .select({ marks: results.marks, maxMarks: exams.maxMarks })
@@ -211,9 +210,8 @@ if (!tab || tab === "personal") {
         );
 
       const presentCount = attendanceRows.filter((a) => a.status === "present").length;
-      const leaveCount = attendanceRows.filter((a) => a.status === "leave").length;
-      const totalAtt = presentCount + leaveCount;
-      const attendancePct = totalAtt > 0 ? Math.round((presentCount / totalAtt) * 100) : 0;
+      const totalAtt = attendanceRows.length;
+      const attendancePct = totalAtt > 0 ? Math.round((presentCount / totalAtt) * 100) : 100;
 
       const resultRows = await db
         .select({ marks: results.marks, maxMarks: exams.maxMarks })

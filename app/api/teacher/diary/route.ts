@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireRole } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { studentDiaries, teachers, subjects, classes, users } from '@/lib/schema';
+import { studentDiaries, studentDiaryProgress, teachers, subjects, classes, users } from '@/lib/schema';
 import { eq, and, desc } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
@@ -73,6 +73,10 @@ export async function DELETE(request: Request) {
     const id = Number(searchParams.get('id'));
     if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
 
+    // Delete progress entries referencing this diary entry first
+    await db.delete(studentDiaryProgress).where(eq(studentDiaryProgress.diaryId, id));
+
+    // Delete the diary entry
     await db.delete(studentDiaries).where(and(eq(studentDiaries.id, id), eq(studentDiaries.teacherId, teacher.id)));
     return NextResponse.json({ success: true });
   } catch (e: any) {

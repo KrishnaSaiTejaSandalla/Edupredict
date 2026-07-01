@@ -157,6 +157,20 @@ export async function saveAIGeneratedNote(data: { subjectName: string; topic: st
   return { success: true };
 }
 
+export async function deleteAIGeneratedNote(noteId: number) {
+  const user = await requireRole('student');
+  const [studentRow] = await db.select({ id: students.id }).from(students).where(eq(students.userId, user.id)).limit(1);
+  if (!studentRow) throw new Error('Student not found');
+
+  // Only delete if it belongs to this student
+  await db
+    .delete(aiGeneratedNotes)
+    .where(and(eq(aiGeneratedNotes.id, noteId), eq(aiGeneratedNotes.studentId, studentRow.id)));
+
+  revalidatePath('/student/resources');
+  return { success: true };
+}
+
 export async function updateStudentProfile(name: string, email: string) {
   const user = await requireRole('student');
   await db.update(users).set({ name, email, updatedAt: new Date() }).where(eq(users.id, user.id));

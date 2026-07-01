@@ -87,12 +87,17 @@ export async function getAnnouncements() {
 export async function deleteAnnouncement(announcementId: string) {
   await requireRole('admin');
 
-  await db.delete(notifications).where(
-    and(
-      eq(notifications.type, 'announcement'),
-      like(notifications.actionUrl, `%announcementId=${announcementId}%`)
-    )
-  );
+  if (announcementId.startsWith('ann_fallback_')) {
+    const id = Number(announcementId.replace('ann_fallback_', ''));
+    await db.delete(notifications).where(eq(notifications.id, id));
+  } else {
+    await db.delete(notifications).where(
+      and(
+        eq(notifications.type, 'announcement'),
+        like(notifications.actionUrl, `%announcementId=${announcementId}%`)
+      )
+    );
+  }
 
   revalidatePath('/admin/announcements');
   revalidatePath('/teacher/dashboard');

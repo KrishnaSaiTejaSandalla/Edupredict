@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, gte, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
 import {
   attendance,
   classes,
@@ -111,6 +112,8 @@ function calculateRiskLevel(
 // ─── Main Query ───────────────────────────────────────────────────────────────
 
 export async function getAdminDashboardData(): Promise<DashboardPayload> {
+  const user = await getCurrentUser();
+
   const [
     studentCountRow,
     teacherCountRow,
@@ -133,8 +136,8 @@ export async function getAdminDashboardData(): Promise<DashboardPayload> {
     // 3. Overall attendance
     db
       .select({
-        total: sql<number>`count(*)`,
-        present: sql<number>`sum(case when ${attendance.status} = 'present' then 1 else 0 end)`,
+        total: sql<number>`sum(case when ${attendance.status} != 'leave' then 1 else 0 end)`,
+        present: sql<number>`sum(case when ${attendance.status} = 'present' then 1 when ${attendance.status} = 'half_day' then 0.5 else 0 end)`,
       })
       .from(attendance),
 
@@ -186,7 +189,12 @@ export async function getAdminDashboardData(): Promise<DashboardPayload> {
         priority: notifications.priority,
       })
       .from(notifications)
-      .where(eq(notifications.isRead, false))
+      .where(
+        and(
+          eq(notifications.userId, user?.id ?? 0),
+          eq(notifications.isRead, false)
+        )
+      )
       .orderBy(desc(notifications.createdAt))
       .limit(50),
 
@@ -257,8 +265,8 @@ export async function getAdminDashboardData(): Promise<DashboardPayload> {
           db
             .select({
               studentId: attendance.studentId,
-              total: sql<number>`count(*)`,
-              present: sql<number>`sum(case when ${attendance.status} = 'present' then 1 else 0 end)`,
+              total: sql<number>`sum(case when ${attendance.status} != 'leave' then 1 else 0 end)`,
+              present: sql<number>`sum(case when ${attendance.status} = 'present' then 1 when ${attendance.status} = 'half_day' then 0.5 else 0 end)`,
             })
             .from(attendance)
             .where(
@@ -476,9 +484,13 @@ export async function getAdminDashboardData(): Promise<DashboardPayload> {
       if (dayIndex === -1) dayIndex = 6; // Sunday
 
       if (dayIndex >= 0 && dayIndex < 7) {
-        dailyData[dayIndex].total += 1;
-        if (r.status === "present") {
-          dailyData[dayIndex].present += 1;
+        if (r.status !== "leave") {
+          dailyData[dayIndex].total += 1;
+          if (r.status === "present") {
+            dailyData[dayIndex].present += 1;
+          } else if (r.status === "half_day") {
+            dailyData[dayIndex].present += 0.5;
+          }
         }
       }
     });

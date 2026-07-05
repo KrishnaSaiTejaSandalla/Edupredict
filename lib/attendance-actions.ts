@@ -74,5 +74,9 @@ export async function getMonthlyAttendancePercentage(studentId: number, month: s
     );
 
   const present = rows.filter((row) => row.status === "present").length;
-  return calculateAttendancePercentage({ present, total: rows.length });
+  const leave = rows.filter((row) => row.status === "leave").length;
+  const halfDay = rows.filter((row) => row.status === "half_day").length;
+  const workingDays = rows.length - leave;
+  const presentWeight = present + halfDay * 0.5;
+  return calculateAttendancePercentage({ present: presentWeight, total: workingDays });
 }

@@ -1,4 +1,4 @@
-export type AttendanceStatus = "present" | "absent" | "late" | "excused";
+export type AttendanceStatus = "present" | "absent" | "late" | "excused" | "half_day" | "leave";
 
 export type AttendanceRatio = {
   present: number;
@@ -11,8 +11,8 @@ export function calculateAttendancePercentage({ present, total }: AttendanceRati
 }
 
 export function normalizeAttendanceStatus(status: string): AttendanceStatus {
-  if (status === "present" || status === "late" || status === "excused") {
-    return status;
+  if (status === "present" || status === "late" || status === "excused" || status === "half_day" || status === "leave") {
+    return status as AttendanceStatus;
   }
 
   return "absent";

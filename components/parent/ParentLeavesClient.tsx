@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import DeleteConfirmModal from "@/components/ui/DeleteConfirmModal";
 import { submitLeaveRequest, deleteLeaveRequest } from "@/lib/leave-actions";
@@ -51,6 +52,7 @@ export default function ParentLeavesClient({ childrenList, initialHistory }: Pro
   const [history, setHistory] = useState<LeaveRequest[]>(initialHistory);
   const [showForm, setShowForm] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   // Form State
   const [formData, setFormData] = useState({
@@ -64,10 +66,11 @@ export default function ParentLeavesClient({ childrenList, initialHistory }: Pro
   // Delete modal state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [requestToDelete, setRequestToDelete] = useState<{ id: number; detail: string } | null>(null);
+  const [viewRequest, setViewRequest] = useState<LeaveRequest | null>(null);
 
   const reloadData = async () => {
     try {
-      const res = await fetch("/api/leaves/my-requests");
+      const res = await fetch("/api/leaves/my-requests?t=" + Date.now(), { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         setHistory(data);
@@ -106,6 +109,7 @@ export default function ParentLeavesClient({ childrenList, initialHistory }: Pro
         });
         toast.success("Leave request submitted successfully.");
         closeForm();
+        router.refresh();
         await reloadData();
       } catch (err: any) {
         toast.error(err.message || "Failed to submit request.");
@@ -124,19 +128,30 @@ export default function ParentLeavesClient({ childrenList, initialHistory }: Pro
 
   const confirmDelete = async () => {
     if (!requestToDelete) return;
+    const deletedId = requestToDelete.id;
     setDeleteModalOpen(false);
+    // Optimistic UI update
+    setHistory((prev) => prev.filter((item) => item.id !== deletedId));
     startTransition(async () => {
       try {
-        await deleteLeaveRequest(requestToDelete.id);
+        await deleteLeaveRequest(deletedId);
         toast.success("Leave request cancelled successfully.");
+        router.refresh();
         await reloadData();
       } catch (err: any) {
         toast.error(err.message || "Failed to delete request.");
+        await reloadData();
       } finally {
         setRequestToDelete(null);
       }
     });
   };
+
+  // KPI calculations
+  const pendingCount = history.filter((r) => r.status === "pending").length;
+  const approvedCount = history.filter((r) => r.status === "approved").length;
+  const rejectedCount = history.filter((r) => r.status === "rejected").length;
+  const totalCount = history.length;
 
   return (
     <div className="space-y-8">
@@ -162,6 +177,33 @@ export default function ParentLeavesClient({ childrenList, initialHistory }: Pro
             {showForm ? "Close Panel" : "+ Request Student Leave"}
           </button>
         )}
+      </div>
+
+      {/* Stats Cards - Admin style */}
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        {/* Total */}
+        <div className="rounded-2xl border border-theme bg-surface p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted">Total Leaves</p>
+          <p className="mt-2 text-3xl font-bold text-primary">{totalCount}</p>
+        </div>
+
+        {/* Pending */}
+        <div className="rounded-2xl border border-amber-500/10 bg-amber-500/5 p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wider text-amber-500">Pending</p>
+          <p className="mt-2 text-3xl font-bold text-amber-400">{pendingCount}</p>
+        </div>
+
+        {/* Approved */}
+        <div className="rounded-2xl border border-emerald-500/10 bg-emerald-500/5 p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wider text-emerald-500">Approved</p>
+          <p className="mt-2 text-3xl font-bold text-emerald-400">{approvedCount}</p>
+        </div>
+
+        {/* Rejected */}
+        <div className="rounded-2xl border border-rose-500/10 bg-rose-500/5 p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wider text-rose-500">Rejected</p>
+          <p className="mt-2 text-3xl font-bold text-rose-400">{rejectedCount}</p>
+        </div>
       </div>
 
       {/* Leave Request Form */}
@@ -311,13 +353,12 @@ export default function ParentLeavesClient({ childrenList, initialHistory }: Pro
                     </td>
                     <td className="p-4 px-6">
                       <span
-                        className={`inline-flex items-center rounded-lg px-2.5 py-1 text-[10px] font-semibold capitalize border ${
-                          row.status === "approved"
+                        className={`inline-flex items-center rounded-lg px-2.5 py-1 text-[10px] font-semibold capitalize border ${row.status === "approved"
                             ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                             : row.status === "rejected"
-                            ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
-                            : "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                        }`}
+                              ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                              : "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                          }`}
                       >
                         {row.status}
                       </span>
@@ -326,17 +367,27 @@ export default function ParentLeavesClient({ childrenList, initialHistory }: Pro
                       {row.remarks || "—"}
                     </td>
                     <td className="p-4 px-6 text-right">
-                      {row.status === "pending" ? (
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => setViewRequest(row)}
+                          title="View Details"
+                          className="rounded-lg p-1.5 text-muted-foreground hover:bg-hover hover:text-foreground transition duration-150"
+                        >
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                        </button>
                         <button
                           onClick={() => handleDeleteClick(row)}
-                          title="Cancel Leave Request"
-                          className="rounded-lg bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 text-xs font-semibold text-rose-500 transition duration-150"
+                          title="Cancel/Delete Leave Request"
+                          className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-500/10 transition duration-150"
                         >
-                          Cancel
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
                         </button>
-                      ) : (
-                        <span className="text-[10px] text-muted">Closed</span>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -349,14 +400,89 @@ export default function ParentLeavesClient({ childrenList, initialHistory }: Pro
       {/* Delete Confirmation Modal */}
       <DeleteConfirmModal
         isOpen={deleteModalOpen}
-        title="Cancel Student Leave Request?"
-        message={`Are you sure you want to cancel and delete the leave request: ${requestToDelete?.detail}? This action cannot be undone.`}
+        title="Delete Leave Application"
+        message="Are you sure you want to permanently delete this leave request?"
         onConfirm={confirmDelete}
         onCancel={() => {
           setDeleteModalOpen(false);
           setRequestToDelete(null);
         }}
       />
+
+      {/* View Details Modal */}
+      {viewRequest && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-border pb-3 mb-4">
+              <h3 className="text-lg font-bold text-foreground">Leave Request Details</h3>
+              <button onClick={() => setViewRequest(null)} className="text-muted-foreground hover:text-foreground">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Child:</span>
+                <span className="font-semibold text-foreground">
+                  {childrenList.find((c) => c.studentId === viewRequest.studentId)?.name || `Student #${viewRequest.studentId}`}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Leave Type:</span>
+                <span className="font-semibold text-foreground">{viewRequest.leaveType}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Start Date:</span>
+                <span className="font-medium text-foreground">{formatDate(viewRequest.startDate)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">End Date:</span>
+                <span className="font-medium text-foreground">{formatDate(viewRequest.endDate)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Duration:</span>
+                <span className="font-semibold text-foreground">
+                  {DAYS_DIFFERENCE(viewRequest.startDate, viewRequest.endDate)} {DAYS_DIFFERENCE(viewRequest.startDate, viewRequest.endDate) === 1 ? "day" : "days"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Applied On:</span>
+                <span className="text-foreground">{viewRequest.createdAt ? new Date(viewRequest.createdAt).toLocaleDateString() : "—"}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Status:</span>
+                <span className={`inline-flex items-center rounded-lg px-2.5 py-0.5 text-[10px] font-semibold capitalize border ${viewRequest.status === "approved"
+                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                    : viewRequest.status === "rejected"
+                      ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                      : "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                  }`}>
+                  {viewRequest.status}
+                </span>
+              </div>
+              <div className="pt-2 border-t border-border">
+                <span className="text-muted-foreground block mb-1">Reason:</span>
+                <p className="text-foreground bg-muted/30 p-2.5 rounded-lg border border-border text-xs break-words whitespace-pre-wrap">{viewRequest.reason}</p>
+              </div>
+              {viewRequest.remarks && (
+                <div className="pt-2 border-t border-border">
+                  <span className="text-muted-foreground block mb-1">Teacher Remarks:</span>
+                  <p className="text-foreground bg-rose-500/5 p-2.5 rounded-lg border border-rose-500/10 text-xs italic break-words">{viewRequest.remarks}</p>
+                </div>
+              )}
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setViewRequest(null)}
+                className="rounded-xl border border-border bg-muted/20 px-4 py-2 text-xs font-semibold hover:bg-muted/40 transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

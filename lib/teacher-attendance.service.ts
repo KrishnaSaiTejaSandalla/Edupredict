@@ -78,7 +78,7 @@ export async function getAttendanceForDate(classId: number, date: string) {
 
 export type AttendanceRecord = {
   studentId: number;
-  status: 'present' | 'absent' | 'leave';
+  status: 'present' | 'absent' | 'half_day' | 'leave';
   remarks?: string;
 };
 
@@ -116,6 +116,90 @@ export async function markBulkAttendance(
       updatedAt: new Date(),
     }))
   );
+
+  // Generate isolated notifications for parents and students
+  try {
+    const { inArray } = await import('drizzle-orm');
+    const { students, studentParents, parents, notifications, users } = await import('./schema');
+
+    const studentIds = records.map((r) => r.studentId);
+    if (studentIds.length > 0) {
+      const studentUsers = await db
+        .select({ id: students.id, userId: students.userId, name: users.name })
+        .from(students)
+        .leftJoin(users, eq(students.userId, users.id))
+        .where(inArray(students.id, studentIds));
+
+      const parentUsers = await db
+        .select({ studentId: studentParents.studentId, parentUserId: parents.userId })
+        .from(studentParents)
+        .leftJoin(parents, eq(studentParents.parentId, parents.id))
+        .where(inArray(studentParents.studentId, studentIds));
+
+      const studentUserMap: Record<number, { userId: number; name: string }> = {};
+      studentUsers.forEach((su) => {
+        if (su.userId) {
+          studentUserMap[su.id] = { userId: su.userId, name: su.name ?? "Student" };
+        }
+      });
+
+      const parentUserMap: Record<number, number[]> = {};
+      parentUsers.forEach((pu) => {
+        if (pu.parentUserId && pu.studentId) {
+          if (!parentUserMap[pu.studentId]) parentUserMap[pu.studentId] = [];
+          parentUserMap[pu.studentId].push(pu.parentUserId);
+        }
+      });
+
+      const notifValues: any[] = [];
+      const dateStr = dateObj.toLocaleDateString();
+
+      records.forEach((r) => {
+        const studentInfo = studentUserMap[r.studentId];
+        const statusStr = r.status === "present"
+          ? "Present"
+          : r.status === "half_day"
+          ? "Half Day"
+          : r.status === "leave"
+          ? "on Leave"
+          : "Absent";
+
+        if (studentInfo) {
+          // Student Notification
+          notifValues.push({
+            userId: studentInfo.userId,
+            title: "Attendance Marked",
+            message: `You have been marked ${statusStr} on ${dateStr}.`,
+            type: "attendance",
+            priority: (r.status === "absent" || r.status === "leave") ? "high" : "low",
+            isRead: false,
+          });
+
+          // Parent Notification
+          const parentsList = parentUserMap[r.studentId] || [];
+          parentsList.forEach((parentUserId) => {
+            notifValues.push({
+              userId: parentUserId,
+              title: "Attendance Marked",
+              message: `Your child ${studentInfo.name} has been marked ${statusStr} on ${dateStr}.`,
+              type: "attendance",
+              priority: r.status === "absent" ? "high" : "low",
+              isRead: false,
+            });
+          });
+        }
+      });
+
+      if (notifValues.length > 0) {
+        const chunkSize = 200;
+        for (let i = 0; i < notifValues.length; i += chunkSize) {
+          await db.insert(notifications).values(notifValues.slice(i, i + chunkSize));
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Failed to generate attendance notifications:", err);
+  }
 }
 
 export async function getAttendanceHistory(

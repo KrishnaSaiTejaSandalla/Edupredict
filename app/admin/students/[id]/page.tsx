@@ -1,13 +1,14 @@
 import { requireRole } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { users, students, parents, studentParents, classes } from '@/lib/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and, ne } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import StudentForm from '@/components/admin/StudentForm';
 import DeleteButton from '@/components/ui/DeleteButton';
 import { revalidatePath } from 'next/cache';
 import { createNotification } from '@/lib/notification-actions';
 import CredentialsManager from '@/components/admin/CredentialsManager';
+import { parseDbError } from '@/lib/db-errors';
 
 type Props = {
   params: Promise<{
@@ -64,57 +65,96 @@ export default async function StudentEditPage({ params }: Props) {
     const gender = String(formData.get('gender') || '');
     const parentNameInput = String(formData.get('parentName') || '');
     const parentPhoneInput = String(formData.get('parentPhone') || '');
-    const parentEmailInput = String(formData.get('parentEmail') || '');
+    const parentEmailInput = String(formData.get('parentEmail') || '').trim();
     const parentAddressInput = String(formData.get('parentAddress') || '');
 
-    await db.update(users).set({ name: fullName }).where(eq(users.id, s.userId));
+    if (parentEmailInput && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parentEmailInput)) {
+      throw new Error('Please enter a valid parent email address.');
+    }
 
-    await db.update(students).set({
-      classId: classId ?? undefined,
-      rollNumber: rollNumber || undefined,
-      dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
-      gender: gender || undefined,
-    }).where(eq(students.id, sid));
+    const [s] = await db.select().from(students).where(eq(students.id, sid)).limit(1);
+    if (!s) throw new Error('Student not found.');
 
-    const mappings = await db.select().from(studentParents).where(eq(studentParents.studentId, sid));
+    try {
+      await db.transaction(async (tx) => {
+        await tx.update(users).set({ name: fullName }).where(eq(users.id, s.userId));
 
-    if (mappings.length) {
-      const [parentRow] = await db.select().from(parents).where(eq(parents.id, mappings[0].parentId)).limit(1);
-      if (parentRow) {
-        if (parentNameInput) {
-          await db.update(users).set({ name: parentNameInput }).where(eq(users.id, parentRow.userId));
+        await tx.update(students).set({
+          classId: classId ?? undefined,
+          rollNumber: rollNumber || undefined,
+          dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
+          gender: gender || undefined,
+        }).where(eq(students.id, sid));
+
+        const mappings = await tx.select().from(studentParents).where(eq(studentParents.studentId, sid));
+
+        if (mappings.length) {
+          const [parentRow] = await tx.select().from(parents).where(eq(parents.id, mappings[0].parentId)).limit(1);
+          if (parentRow) {
+            if (parentNameInput) {
+              await tx.update(users).set({ name: parentNameInput }).where(eq(users.id, parentRow.userId));
+            }
+
+            if (parentEmailInput) {
+              const [existingUser] = await tx
+                .select()
+                .from(users)
+                .where(and(eq(users.email, parentEmailInput), ne(users.id, parentRow.userId)))
+                .limit(1);
+              if (existingUser) {
+                throw new Error('Email already exists.');
+              }
+
+              await tx.update(users).set({ email: parentEmailInput }).where(eq(users.id, parentRow.userId));
+            }
+
+            await tx.update(parents).set({
+              phoneNumber: parentPhoneInput || parentRow.phoneNumber,
+              parentEmail: parentEmailInput || parentRow.parentEmail,
+              address: parentAddressInput || null,
+              updatedAt: new Date(),
+            }).where(eq(parents.id, parentRow.id));
+          }
+        } else if (parentNameInput) {
+          const parentEmailAccount = parentEmailInput || `parent-${s.userId}@parents.local`;
+          
+          if (parentEmailInput) {
+            const [existingUser] = await tx
+              .select()
+              .from(users)
+              .where(eq(users.email, parentEmailInput))
+              .limit(1);
+            if (existingUser) {
+              throw new Error('Email already exists.');
+            }
+          }
+
+          const parentRaw = Math.random().toString(36).slice(2, 10) + 'Pp1!';
+          const parentHashed = await bcrypt.hash(parentRaw, 12);
+          const [parentInserted] = await tx
+            .insert(users)
+            .values({ name: parentNameInput, email: parentEmailAccount, password: parentHashed, role: 'parent' })
+            .$returningId();
+
+          if (parentInserted?.id) {
+            const [parentRow] = await tx
+              .insert(parents)
+              .values({
+                userId: parentInserted.id,
+                phoneNumber: parentPhoneInput || undefined,
+                parentEmail: parentEmailInput || undefined,
+                address: parentAddressInput || undefined,
+              })
+              .$returningId();
+
+            if (parentRow?.id) {
+              await tx.insert(studentParents).values({ studentId: sid, parentId: parentRow.id, relation: 'parent' });
+            }
+          }
         }
-
-        await db.update(parents).set({
-          phoneNumber: parentPhoneInput || parentRow.phoneNumber,
-          parentEmail: parentEmailInput || parentRow.parentEmail,
-          address: parentAddressInput || null,
-        }).where(eq(parents.id, parentRow.id));
-      }
-    } else if (parentNameInput) {
-      const parentEmailAccount = `parent-${s.userId}@parents.local`;
-      const parentRaw = Math.random().toString(36).slice(2, 10) + 'Pp1!';
-      const parentHashed = await bcrypt.hash(parentRaw, 12);
-      const [parentInserted] = await db
-        .insert(users)
-        .values({ name: parentNameInput, email: parentEmailAccount, password: parentHashed, role: 'parent' })
-        .$returningId();
-
-      if (parentInserted?.id) {
-        const [parentRow] = await db
-          .insert(parents)
-          .values({
-            userId: parentInserted.id,
-            phoneNumber: parentPhoneInput || undefined,
-            parentEmail: parentEmailInput || undefined,
-            address: parentAddressInput || undefined,
-          })
-          .$returningId();
-
-        if (parentRow?.id) {
-          await db.insert(studentParents).values({ studentId: sid, parentId: parentRow.id, relation: 'parent' });
-        }
-      }
+      });
+    } catch (err: any) {
+      throw new Error(err.message || parseDbError(err));
     }
 
     await createNotification(

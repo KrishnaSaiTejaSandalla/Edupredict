@@ -19,7 +19,7 @@ type StudentRecord = {
   rollNumber: string;
   gender: string;
   profileImageUrl: string | null;
-  status: "present" | "absent" | "half_day";
+  status: "present" | "absent" | "half_day" | "leave";
 };
 
 type HistoryRecord = {
@@ -40,6 +40,7 @@ type ReportRecord = {
   presentDays: number;
   absentDays: number;
   halfDays: number;
+  leaveDays: number;
   attendancePct: number;
 };
 
@@ -117,6 +118,7 @@ const statusBadge = (status: string) => {
   if (status === "present") return "bg-emerald-500/10 text-emerald-500 border-emerald-500/20";
   if (status === "absent") return "bg-rose-500/10 text-rose-500 border-rose-500/20";
   if (status === "half_day") return "bg-amber-500/10 text-amber-500 border-amber-500/20";
+  if (status === "leave") return "bg-blue-500/10 text-blue-500 border-blue-500/20";
   return "bg-blue-500/10 text-blue-500 border-blue-500/20";
 };
 
@@ -124,6 +126,7 @@ const statusLabel = (status: string) => {
   if (status === "present") return "Present";
   if (status === "absent") return "Absent";
   if (status === "half_day") return "Half Day";
+  if (status === "leave") return "Leave";
   return status;
 };
 
@@ -215,30 +218,37 @@ export default function AttendanceClient({
         const byStudent: Record<string, {
           studentName: string;
           rollNumber: string;
-          total: number; present: number; absent: number; halfDay: number;
+          total: number; present: number; absent: number; halfDay: number; leave: number;
         }> = {};
 
         records.forEach((r) => {
           const k = r.studentName;
           if (!byStudent[k]) {
-            byStudent[k] = { studentName: r.studentName, rollNumber: r.rollNumber, total: 0, present: 0, absent: 0, halfDay: 0 };
+            byStudent[k] = { studentName: r.studentName, rollNumber: r.rollNumber, total: 0, present: 0, absent: 0, halfDay: 0, leave: 0 };
           }
           byStudent[k].total++;
           if (r.status === "present") byStudent[k].present++;
           else if (r.status === "absent") byStudent[k].absent++;
           else if (r.status === "half_day") byStudent[k].halfDay++;
+          else if (r.status === "leave") byStudent[k].leave++;
         });
 
-        const reportData: ReportRecord[] = Object.values(byStudent).map((s, idx) => ({
-          studentId: idx,
-          studentName: s.studentName,
-          rollNumber: s.rollNumber,
-          totalDays: s.total,
-          presentDays: s.present,
-          absentDays: s.absent,
-          halfDays: s.halfDay,
-          attendancePct: s.total > 0 ? Math.round((s.present + s.halfDay * 0.5) / s.total * 100) : 0,
-        }));
+        const reportData: ReportRecord[] = Object.values(byStudent).map((s, idx) => {
+          const presentCount = s.present + s.halfDay * 0.5;
+          const workingDays = s.total - s.leave;
+          const attendancePct = workingDays > 0 ? Math.round(presentCount / workingDays * 100) : 0;
+          return {
+            studentId: idx,
+            studentName: s.studentName,
+            rollNumber: s.rollNumber,
+            totalDays: s.total,
+            presentDays: s.present,
+            absentDays: s.absent,
+            halfDays: s.halfDay,
+            leaveDays: s.leave,
+            attendancePct,
+          };
+        });
 
         setReportRecords(reportData.sort((a, b) => b.attendancePct - a.attendancePct));
       })
@@ -246,11 +256,11 @@ export default function AttendanceClient({
       .finally(() => setLoadingReport(false));
   }, [activeTab, reportClass]);
 
-  const handleStatusChange = (studentId: number, status: "present" | "absent" | "half_day") => {
+  const handleStatusChange = (studentId: number, status: "present" | "absent" | "half_day" | "leave") => {
     setStudents((prev) => prev.map((s) => (s.id === studentId ? { ...s, status } : s)));
   };
 
-  const handleMarkAll = (status: "present" | "absent" | "half_day") => {
+  const handleMarkAll = (status: "present" | "absent" | "half_day" | "leave") => {
     if (!topicTaught.trim()) { toast.error("Please enter the topic taught first."); return; }
     setStudents((prev) => prev.map((s) => ({ ...s, status })));
   };
@@ -284,7 +294,8 @@ export default function AttendanceClient({
     if (!isSelected) return "border border-theme bg-surface text-secondary hover:bg-hover hover:text-primary";
     if (option === "present") return "bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border border-emerald-500/30";
     if (option === "absent") return "bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/30";
-    return "bg-amber-500/10 text-amber-500 dark:text-amber-400 border border-amber-500/30"; // half_day
+    if (option === "half_day") return "bg-amber-500/10 text-amber-500 dark:text-amber-400 border border-amber-500/30";
+    return "bg-blue-500/10 text-blue-500 dark:text-blue-400 border border-blue-500/30";
   };
 
   const TABS = [
@@ -463,7 +474,7 @@ export default function AttendanceClient({
                   <p className="text-xs text-muted-foreground mt-1">{students.length} students · {selectedDate}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {(["present", "absent", "half_day"] as const).map((s) => (
+                  {(["present", "absent", "half_day", "leave"] as const).map((s) => (
                     <button
                       key={s}
                       onClick={() => handleMarkAll(s)}
@@ -504,7 +515,7 @@ export default function AttendanceClient({
                           <td className="p-4 px-6 font-medium text-muted-foreground">{student.rollNumber || "—"}</td>
                           <td className="p-4 px-6 text-right">
                             <div className="flex items-center justify-end gap-1.5">
-                              {(["present", "absent", "half_day"] as const).map((opt) => (
+                              {(["present", "absent", "half_day", "leave"] as const).map((opt) => (
                                 <button
                                   key={opt}
                                   type="button"
@@ -676,6 +687,7 @@ export default function AttendanceClient({
                       <th className="p-4 px-6 text-center">Present</th>
                       <th className="p-4 px-6 text-center">Absent</th>
                       <th className="p-4 px-6 text-center">Half Days</th>
+                      <th className="p-4 px-6 text-center">Leave</th>
                       <th className="p-4 px-6">Attendance %</th>
                     </tr>
                   </thead>
@@ -688,6 +700,7 @@ export default function AttendanceClient({
                         <td className="p-4 px-6 text-center font-semibold text-emerald-500">{r.presentDays}</td>
                         <td className="p-4 px-6 text-center font-semibold text-rose-500">{r.absentDays}</td>
                         <td className="p-4 px-6 text-center font-semibold text-amber-500">{r.halfDays}</td>
+                        <td className="p-4 px-6 text-center font-semibold text-blue-500">{r.leaveDays}</td>
                         <td className="p-4 px-6">
                           <div className="flex items-center gap-3">
                             <span className={`text-sm font-bold ${r.attendancePct >= 85 ? "text-emerald-500" : r.attendancePct >= 70 ? "text-amber-500" : "text-rose-500"}`}>

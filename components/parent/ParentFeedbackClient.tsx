@@ -1,9 +1,16 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import DeleteConfirmModal from "@/components/ui/DeleteConfirmModal";
 import { submitFeedback, deleteFeedback } from "@/lib/feedback-actions";
+
+type ReplyItem = {
+  sender: string;
+  message: string;
+  date: string;
+};
 
 type FeedbackHistory = {
   id: number;
@@ -12,6 +19,10 @@ type FeedbackHistory = {
   title: string;
   message: string;
   category: string;
+  priority: string;
+  attachmentUrl: string | null;
+  status: string;
+  replies: string | null; // JSON String
   createdAt: Date | string;
 };
 
@@ -19,20 +30,23 @@ type Props = {
   initialHistory: FeedbackHistory[];
 };
 
-const inputCls = "input-theme";
-const labelCls = "block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5";
-const selectCls = "select-theme";
+const inputCls = "h-10 w-full rounded-xl border border-theme bg-surface px-3 text-xs text-primary outline-none focus:border-cyan-500 transition placeholder:text-muted";
+const selectCls = "h-10 rounded-xl border border-theme bg-surface px-3 text-xs text-primary outline-none focus:border-cyan-500 transition";
+const labelCls = "block text-[10px] font-bold uppercase tracking-wider text-muted mb-1.5";
 
 export default function ParentFeedbackClient({ initialHistory }: Props) {
   const [history, setHistory] = useState<FeedbackHistory[]>(initialHistory);
   const [showForm, setShowForm] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   // Form State
   const [formData, setFormData] = useState({
     title: "",
     category: "Academic",
+    priority: "medium",
     message: "",
+    attachmentUrl: "",
   });
 
   // Delete modal state
@@ -41,7 +55,7 @@ export default function ParentFeedbackClient({ initialHistory }: Props) {
 
   const reloadData = async () => {
     try {
-      const res = await fetch("/api/feedback/my-feedback");
+      const res = await fetch("/api/feedback/my-feedback?t=" + Date.now(), { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         setHistory(data);
@@ -56,7 +70,9 @@ export default function ParentFeedbackClient({ initialHistory }: Props) {
     setFormData({
       title: "",
       category: "Academic",
+      priority: "medium",
       message: "",
+      attachmentUrl: "",
     });
   };
 
@@ -73,9 +89,12 @@ export default function ParentFeedbackClient({ initialHistory }: Props) {
           title: formData.title,
           category: formData.category,
           message: formData.message,
+          priority: formData.priority,
+          attachmentUrl: formData.attachmentUrl || undefined,
         });
         toast.success("Feedback submitted successfully.");
         closeForm();
+        router.refresh();
         await reloadData();
       } catch (err: any) {
         toast.error(err.message || "Failed to submit feedback.");
@@ -95,6 +114,7 @@ export default function ParentFeedbackClient({ initialHistory }: Props) {
       try {
         await deleteFeedback(feedbackToDelete.id);
         toast.success("Feedback deleted successfully.");
+        router.refresh();
         await reloadData();
       } catch (err: any) {
         toast.error(err.message || "Failed to delete feedback.");
@@ -119,8 +139,40 @@ export default function ParentFeedbackClient({ initialHistory }: Props) {
     }
   };
 
+  const getPriorityBadge = (prio: string) => {
+    switch (prio.toLowerCase()) {
+      case "high":
+        return "bg-rose-500/10 text-rose-400 border-rose-500/20";
+      case "medium":
+        return "bg-amber-500/10 text-amber-400 border-amber-500/20";
+      default:
+        return "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "resolved":
+      case "approved":
+        return "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+      case "rejected":
+        return "bg-rose-500/10 text-rose-400 border-rose-500/20";
+      default:
+        return "bg-amber-500/10 text-amber-400 border-amber-500/20";
+    }
+  };
+
+  const parseReplies = (repStr: string | null): ReplyItem[] => {
+    if (!repStr) return [];
+    try {
+      return JSON.parse(repStr);
+    } catch {
+      return [];
+    }
+  };
+
   return (
-    <div className="space-y-8">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-8 animate-in fade-in duration-300">
       {/* Header Row */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -149,10 +201,10 @@ export default function ParentFeedbackClient({ initialHistory }: Props) {
           <h2 className="text-sm font-semibold uppercase tracking-wider text-primary mb-6">
             Share New Feedback
           </h2>
-          <form onSubmit={handleSubmit} className="grid gap-5 md:grid-cols-2">
-            {/* Title */}
+          <form onSubmit={handleSubmit} className="grid gap-5 md:grid-cols-3">
+            {/* Title / Subject */}
             <div>
-              <label className={labelCls}>Title *</label>
+              <label className={labelCls}>Subject *</label>
               <input
                 type="text"
                 value={formData.title}
@@ -180,20 +232,47 @@ export default function ParentFeedbackClient({ initialHistory }: Props) {
               </select>
             </div>
 
+            {/* Priority */}
+            <div>
+              <label className={labelCls}>Priority *</label>
+              <select
+                value={formData.priority}
+                onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                className={selectCls}
+                required
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+
+            {/* Attachment URL */}
+            <div className="md:col-span-3">
+              <label className={labelCls}>Attachment Link / URL (Optional)</label>
+              <input
+                type="url"
+                value={formData.attachmentUrl}
+                onChange={(e) => setFormData({ ...formData, attachmentUrl: e.target.value })}
+                className={inputCls}
+                placeholder="e.g. https://domain.com/receipt.pdf"
+              />
+            </div>
+
             {/* Message */}
-            <div className="md:col-span-2">
-              <label className={labelCls}>Your Message *</label>
+            <div className="md:col-span-3">
+              <label className={labelCls}>Description *</label>
               <textarea
                 value={formData.message}
                 onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                 placeholder="Detail your feedback (minimum 10 characters)..."
-                className="w-full min-h-[100px] p-3 rounded-xl border border-theme bg-background text-sm text-primary outline-none focus:border-cyan-500 transition placeholder:text-muted"
+                className="w-full min-h-[100px] p-3 rounded-xl border border-theme bg-base text-xs text-primary outline-none focus:border-cyan-500 transition placeholder:text-muted"
                 required
               />
             </div>
 
             {/* Actions */}
-            <div className="md:col-span-2 flex gap-3 mt-2">
+            <div className="md:col-span-3 flex gap-3">
               <button
                 type="submit"
                 disabled={isPending}
@@ -219,51 +298,101 @@ export default function ParentFeedbackClient({ initialHistory }: Props) {
           No feedback records submitted yet. Click + Submit Feedback to share one.
         </div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 animate-in fade-in duration-300">
-          {history.map((item) => (
-            <div
-              key={item.id}
-              className="group relative rounded-2xl border border-theme bg-surface hover:bg-hover p-6 shadow-sm transition duration-150 flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex justify-between items-start gap-4">
-                  <div className="min-w-0">
-                    <span className={`inline-flex items-center rounded border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${getCategoryBadge(item.category)}`}>
-                      {item.category}
+        <div className="grid gap-6 md:grid-cols-2">
+          {history.map((item) => {
+            const repliesList = parseReplies(item.replies);
+
+            return (
+              <div
+                key={item.id}
+                className="group relative rounded-2xl border border-theme bg-surface hover:bg-hover p-6 shadow-sm transition duration-150 flex flex-col justify-between"
+              >
+                <div className="space-y-4">
+                  {/* Category, Priority and Status Headers */}
+                  <div className="flex flex-wrap gap-1.5 items-center justify-between">
+                    <div className="flex gap-1.5">
+                      <span className={`inline-flex items-center rounded border px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider ${getCategoryBadge(item.category)}`}>
+                        {item.category}
+                      </span>
+                      <span className={`inline-flex items-center rounded border px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider ${getPriorityBadge(item.priority)}`}>
+                        {item.priority}
+                      </span>
+                    </div>
+
+                    <span className={`inline-flex items-center rounded border px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider ${getStatusBadge(item.status)}`}>
+                      {item.status}
                     </span>
-                    <h3 className="text-sm font-bold text-primary mt-2 group-hover:text-cyan-400 transition truncate" title={item.title}>
-                      {item.title}
-                    </h3>
                   </div>
 
-                  <button
-                    onClick={() => handleDeleteClick(item)}
-                    title="Delete Feedback"
-                    className="opacity-0 group-hover:opacity-100 flex h-7 w-7 items-center justify-center rounded-lg border border-subtle bg-background text-muted hover:text-rose-500 hover:border-rose-500/30 transition duration-150 shrink-0"
-                  >
-                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6" />
-                    </svg>
-                  </button>
+                  {/* Title */}
+                  <div className="flex justify-between items-start gap-4">
+                    <h3 className="text-sm font-bold text-primary group-hover:text-cyan-400 transition truncate" title={item.title}>
+                      {item.title}
+                    </h3>
+
+                    {item.status.toLowerCase() === "pending" && (
+                      <button
+                        onClick={() => handleDeleteClick(item)}
+                        title="Delete Feedback"
+                        className="opacity-0 group-hover:opacity-100 flex h-7 w-7 items-center justify-center rounded-lg border border-subtle bg-background text-muted hover:text-rose-500 hover:border-rose-500/30 transition duration-150 shrink-0"
+                      >
+                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Message body */}
+                  <p className="text-xs text-secondary leading-relaxed whitespace-pre-wrap">
+                    {item.message}
+                  </p>
+
+                  {/* Attachment url link */}
+                  {item.attachmentUrl && (
+                    <div className="rounded-xl border border-cyan-500/10 bg-cyan-500/5 p-2 flex items-center justify-between text-[10px]">
+                      <span className="truncate max-w-[200px] text-muted">{item.attachmentUrl.split("/").pop()}</span>
+                      <a
+                        href={item.attachmentUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-cyan-400 font-bold hover:underline"
+                      >
+                        Download Attachment 📥
+                      </a>
+                    </div>
+                  )}
+
+                  {/* Admin Replies display */}
+                  {repliesList.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-subtle space-y-3">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-primary">Admin Responses</p>
+                      {repliesList.map((rep, idx) => (
+                        <div key={idx} className="rounded-xl bg-base p-3 border border-theme text-xs space-y-1">
+                          <div className="flex justify-between items-center text-[10px] font-bold">
+                            <span className="text-cyan-400">{rep.sender}</span>
+                            <span className="text-muted font-normal">{rep.date}</span>
+                          </div>
+                          <p className="text-secondary leading-relaxed">{rep.message}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                <p className="mt-4 text-xs text-secondary leading-relaxed whitespace-pre-wrap">
-                  {item.message}
-                </p>
+                <div className="mt-6 border-t border-subtle pt-4 flex items-center justify-between text-[10px] text-muted">
+                  <span>Submitted</span>
+                  <span>
+                    {new Date(item.createdAt).toLocaleDateString([], {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </span>
+                </div>
               </div>
-
-              <div className="mt-6 border-t border-subtle pt-4 flex items-center justify-between text-[11px] text-muted">
-                <span>Submitted</span>
-                <span>
-                  {new Date(item.createdAt).toLocaleDateString([], {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
-                </span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

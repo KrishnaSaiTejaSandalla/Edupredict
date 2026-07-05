@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   markNotificationRead,
@@ -157,6 +158,7 @@ export default function NotificationsClient({
     reports: initialPrefs?.reports ?? true,
   });
   const [, startTransition] = useTransition();
+  const router = useRouter();
 
   const { hydrate, decrement, clearAll } = useNotificationStore();
 
@@ -226,6 +228,7 @@ export default function NotificationsClient({
 
     try {
       await markNotificationRead(id);
+      router.refresh();
     } catch {
       // Rollback — re-add the item
       const item = initialItems.find((i) => i.id === id);
@@ -252,6 +255,7 @@ export default function NotificationsClient({
     try {
       await markAllNotificationsRead(userId);
       toast.success("All notifications marked as read");
+      router.refresh();
     } catch {
       // Rollback
       setItems(snapshot);

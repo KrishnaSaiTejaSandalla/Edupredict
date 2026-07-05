@@ -5,6 +5,7 @@ import { users } from '@/lib/schema';
 import { eq } from 'drizzle-orm';
 import { createSession, deleteSessionByToken } from '@/lib/session';
 import { SESSION_COOKIE_NAME } from '@/lib/env';
+import { verifyPassword } from '@better-auth/utils/password';
 
 export async function POST(req: Request) {
   const { email, password } = await req.json();
@@ -13,7 +14,17 @@ export async function POST(req: Request) {
   const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
   if (!user) return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
 
-  const valid = await bcrypt.compare(password, user.password);
+  let valid = false;
+  if (user.password.startsWith('$2a$') || user.password.startsWith('$2b$') || user.password.startsWith('$2y$')) {
+    valid = await bcrypt.compare(password, user.password);
+  } else {
+    try {
+      valid = await verifyPassword(user.password, password);
+    } catch {
+      valid = false;
+    }
+  }
+
   if (!valid) return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
 
   const { token, expiresAt } = await createSession(user.id);

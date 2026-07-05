@@ -9,6 +9,7 @@
  */
 
 import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   markNotificationRead,
@@ -154,6 +155,7 @@ export default function SharedNotificationsClient({
   const [items, setItems] = useState<NotificationItem[]>(
     initialItems.filter((i) => !i.isRead)
   );
+  const router = useRouter();
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -234,6 +236,8 @@ export default function SharedNotificationsClient({
 
     try {
       await markNotificationRead(id);
+      toast.success("Notification marked as read.");
+      router.refresh();
     } catch {
       // Rollback
       const item = initialItems.find((i) => i.id === id);
@@ -259,6 +263,7 @@ export default function SharedNotificationsClient({
     try {
       await markAllNotificationsRead(userId);
       toast.success("All notifications marked as read");
+      router.refresh();
     } catch {
       setItems(snapshot);
       hydrate(snapshot.length);

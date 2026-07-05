@@ -136,6 +136,71 @@ export async function createAssignment(
     maxMarks: data.maxMarks?.toString() || null,
     updatedAt: new Date(),
   });
+
+  // Generate isolated notifications for students and parents
+  try {
+    const { studentParents, parents, notifications } = await import('./schema');
+    const studentsInClass = await db
+      .select({ id: students.id, userId: students.userId, name: users.name })
+      .from(students)
+      .leftJoin(users, eq(students.userId, users.id))
+      .where(eq(students.classId, data.classId));
+
+    const studentIds = studentsInClass.map(s => s.id);
+    
+    let parentUsers: { studentId: number; parentUserId: number | null }[] = [];
+    if (studentIds.length > 0) {
+      parentUsers = await db
+        .select({ studentId: studentParents.studentId, parentUserId: parents.userId })
+        .from(studentParents)
+        .leftJoin(parents, eq(studentParents.parentId, parents.id))
+        .where(inArray(studentParents.studentId, studentIds));
+    }
+
+    const parentUserMap: Record<number, number[]> = {};
+    parentUsers.forEach((pu) => {
+      if (pu.parentUserId && pu.studentId) {
+        if (!parentUserMap[pu.studentId]) parentUserMap[pu.studentId] = [];
+        parentUserMap[pu.studentId].push(pu.parentUserId);
+      }
+    });
+
+    const notifValues: any[] = [];
+    studentsInClass.forEach((s) => {
+      if (s.userId) {
+        // Student Notification
+        notifValues.push({
+          userId: s.userId,
+          title: "New Assignment",
+          message: `A new assignment has been published: "${data.title}"`,
+          type: "assignment",
+          priority: "medium",
+          isRead: false,
+        });
+      }
+
+      const parentsList = parentUserMap[s.id] || [];
+      parentsList.forEach((parentUserId) => {
+        notifValues.push({
+          userId: parentUserId,
+          title: "New Assignment Published",
+          message: `A new assignment "${data.title}" has been published for ${s.name}.`,
+          type: "assignment",
+          priority: "medium",
+          isRead: false,
+        });
+      });
+    });
+
+    if (notifValues.length > 0) {
+      const chunkSize = 200;
+      for (let i = 0; i < notifValues.length; i += chunkSize) {
+        await db.insert(notifications).values(notifValues.slice(i, i + chunkSize));
+      }
+    }
+  } catch (err) {
+    console.error("Failed to generate assignment notifications:", err);
+  }
 }
 
 export async function deleteAssignment(id: number, teacherId: number) {

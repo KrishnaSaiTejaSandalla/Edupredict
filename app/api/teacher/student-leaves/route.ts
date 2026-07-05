@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { teachers, classTeacherAssignments, leaveRequests, students, classes, parents, studentParents, users } from "@/lib/schema";
-import { eq, and, isNull, inArray } from "drizzle-orm";
+import { eq, and, isNotNull, inArray } from "drizzle-orm";
 import { updateLeaveStatus } from "@/lib/leave-actions";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +47,7 @@ export async function GET(request: Request) {
       .leftJoin(classes, eq(students.classId, classes.id))
       .where(
         and(
-          isNull(leaveRequests.userId),
+          isNotNull(leaveRequests.studentId),
           inArray(students.classId, classIds)
         )
       )
@@ -55,12 +55,12 @@ export async function GET(request: Request) {
 
     const studentIds = studentLeaveRows.map(r => r.studentId).filter(Boolean) as number[];
 
-    // Get student names
+    // Get student names using students.id filter instead of users.id
     const studentNameRows = await db
-      .select({ id: users.id, name: users.name, studentId: students.id })
+      .select({ id: users.id, name: users.name, studentId: students.id, profileImageUrl: users.profileImageUrl })
       .from(users)
       .leftJoin(students, eq(users.id, students.userId))
-      .where(inArray(users.id, studentIds.length > 0 ? studentIds : [-1]));
+      .where(inArray(students.id, studentIds.length > 0 ? studentIds : [-1]));
 
     // Get parent names
     const parentNameRows = await db
@@ -71,10 +71,14 @@ export async function GET(request: Request) {
       .where(inArray(studentParents.studentId, studentIds.length > 0 ? studentIds : [-1]));
 
     const studentNameMap: Record<number, string> = {};
+    const studentPhotoMap: Record<number, string> = {};
     const parentNameMap: Record<number, string> = {};
 
     studentNameRows.forEach(u => {
-      if (u.studentId) studentNameMap[u.studentId] = u.name ?? "Unknown";
+      if (u.studentId) {
+        studentNameMap[u.studentId] = u.name ?? "Unknown";
+        studentPhotoMap[u.studentId] = u.profileImageUrl ?? "";
+      }
     });
 
     parentNameRows.forEach(p => {
@@ -86,6 +90,8 @@ export async function GET(request: Request) {
     const result = studentLeaveRows.map((r) => ({
       id: r.id,
       studentName: r.studentId && studentNameMap[r.studentId] ? studentNameMap[r.studentId] : "Unknown",
+      studentPhoto: r.studentId && studentPhotoMap[r.studentId] ? studentPhotoMap[r.studentId] : null,
+      section: r.classSection || "",
       className: r.className 
         ? `${r.className}${r.classSection ? ` ${r.classSection}` : ""}` 
         : "Unknown",
@@ -140,6 +146,48 @@ export async function POST(request: Request) {
 
     const status = action === "approve" ? "approved" : "rejected";
     await updateLeaveStatus(leaveId, status, remarks);
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const user = await requireRole("teacher");
+    const [teacher] = await db
+      .select({ id: teachers.id })
+      .from(teachers)
+      .where(eq(teachers.userId, user.id))
+      .limit(1);
+
+    if (!teacher) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+
+    const { searchParams } = new URL(request.url);
+    const leaveId = Number(searchParams.get("id"));
+
+    if (!leaveId) {
+      return NextResponse.json({ error: "Missing leave ID" }, { status: 400 });
+    }
+
+    // Verify this leave belongs to one of teacher's classes
+    const [leave] = await db
+      .select({ id: leaveRequests.id })
+      .from(leaveRequests)
+      .leftJoin(students, eq(leaveRequests.studentId, students.id))
+      .leftJoin(classTeacherAssignments, eq(students.classId, classTeacherAssignments.classId))
+      .where(
+        and(
+          eq(leaveRequests.id, leaveId),
+          eq(classTeacherAssignments.teacherId, teacher.id)
+        )
+      )
+      .limit(1);
+
+    if (!leave) return NextResponse.json({ error: "Leave request not found or not authorized" }, { status: 404 });
+
+    await db.delete(leaveRequests).where(eq(leaveRequests.id, leaveId));
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

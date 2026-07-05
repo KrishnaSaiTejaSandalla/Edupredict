@@ -4,7 +4,7 @@ import { db } from './db';
 import { notifications, users } from './schema';
 import { eq, and, like, desc } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
-import { requireRole } from './auth';
+import { requireRole, getCurrentUser } from './auth';
 
 export async function createAnnouncement(data: {
   title: string;
@@ -53,10 +53,18 @@ export async function createAnnouncement(data: {
 }
 
 export async function getAnnouncements() {
+  const user = await getCurrentUser();
+  const userId = user?.id ?? 0;
+
   const rows = await db
     .select()
     .from(notifications)
-    .where(eq(notifications.type, 'announcement'))
+    .where(
+      and(
+        eq(notifications.type, 'announcement'),
+        eq(notifications.userId, userId)
+      )
+    )
     .orderBy(desc(notifications.createdAt));
 
   const seen = new Set<string>();

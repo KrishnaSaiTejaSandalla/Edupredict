@@ -17,6 +17,8 @@ export async function submitFeedback(data: {
   title: string;
   message: string;
   category: string;
+  priority?: string;
+  attachmentUrl?: string;
 }) {
   if (!data.title || data.title.trim().length < 3) throw new Error('Title must be at least 3 characters.');
   if (!data.message || data.message.trim().length < 10) throw new Error('Message must be at least 10 characters.');
@@ -36,6 +38,10 @@ export async function submitFeedback(data: {
       title: data.title.trim(),
       message: data.message.trim(),
       category: data.category,
+      priority: data.priority || 'medium',
+      attachmentUrl: data.attachmentUrl || null,
+      status: 'pending',
+      replies: JSON.stringify([]),
     });
     insertedId = Number(result[0].insertId);
   } catch (err) {

@@ -397,7 +397,7 @@ export default function TeacherDiaryClient({ teacherId, mappings }: Props) {
 
       {showAIModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowAIModal(false)} />
+          <div className="absolute inset-0 bg-background/90 backdrop-blur-sm" onClick={() => setShowAIModal(false)} />
           <div className="relative w-full max-w-md rounded-3xl border border-theme bg-surface p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
             <h3 className="text-xs font-extrabold uppercase tracking-widest text-violet-400 mb-4 flex items-center gap-1.5">
               🪄 AI Homework Assistant

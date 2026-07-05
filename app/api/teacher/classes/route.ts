@@ -79,9 +79,13 @@ export async function GET(request: Request) {
           );
 
         const presentCount = attendanceRows.filter((a) => a.status === "present").length;
+        const leaveCount = attendanceRows.filter((a) => a.status === "leave").length;
+        const halfDayCount = attendanceRows.filter((a) => a.status === "half_day").length;
         const totalCount = attendanceRows.length;
-        const attendancePct = totalCount > 0 
-          ? Math.round((presentCount / totalCount) * 100) 
+        const workingDays = totalCount - leaveCount;
+        const presentWeight = presentCount + halfDayCount * 0.5;
+        const attendancePct = workingDays > 0 
+          ? Math.round((presentWeight / workingDays) * 100) 
           : 100;
 
         const resultRows = await db

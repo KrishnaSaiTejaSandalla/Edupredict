@@ -96,7 +96,7 @@ export default function TeacherTimetableClient({ entries }: Props) {
     const now = new Date();
     const currentHour = now.getHours();
     const currentTime = `${currentHour.toString().padStart(2, "0")}:00`;
-    
+
     return entries
       .filter((e) => {
         if (e.startTime >= currentTime && days.includes(e.dayOfWeek)) return true;
@@ -258,12 +258,12 @@ export default function TeacherTimetableClient({ entries }: Props) {
 
       {/* Modal */}
       {selectedEntry && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" onClick={() => setSelectedEntry(null)}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-sm p-4" onClick={() => setSelectedEntry(null)}>
           <div className="w-full max-w-md rounded-2xl border border-border bg-card p-5" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-start mb-4">
               <h3 className="text-xl font-bold text-foreground">{selectedEntry.subjectName}</h3>
               <button onClick={() => setSelectedEntry(null)} className="text-muted-foreground hover:text-foreground">
-                <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" /></svg>
               </button>
             </div>
             <div className="space-y-2 text-sm">

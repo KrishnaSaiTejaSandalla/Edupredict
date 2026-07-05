@@ -376,3 +376,24 @@ export async function updateUserAppearancePreferences(
   revalidatePath('/admin/settings');
   return { success: true };
 }
+
+export async function deleteUserProfileImage(userId: number) {
+  try {
+    await db
+      .update(users)
+      .set({ profileImageUrl: null, updatedAt: new Date() })
+      .where(eq(users.id, userId));
+  } catch (err) {
+    throw new Error(parseDbError(err));
+  }
+
+  revalidatePath('/admin/settings');
+  revalidatePath('/admin');
+  revalidatePath('/teacher/settings');
+  revalidatePath('/teacher');
+  revalidatePath('/student/settings');
+  revalidatePath('/student');
+  revalidatePath('/parent/settings');
+  revalidatePath('/parent');
+  return { success: true };
+}

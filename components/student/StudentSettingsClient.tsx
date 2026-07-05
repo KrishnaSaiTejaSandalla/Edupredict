@@ -13,7 +13,8 @@ import {
   generateStudentAIAvatars,
   selectStudentAIWebAvatar
 } from "@/lib/student-actions";
-import { uploadUserProfileImage } from "@/lib/settings-actions";
+import { uploadUserProfileImage, deleteUserProfileImage } from "@/lib/settings-actions";
+import ImageCropperModal from "@/components/shared/ImageCropperModal";
 
 interface UserProps {
   id: number;
@@ -113,6 +114,10 @@ export default function StudentSettingsClient({
   const [avatars, setAvatars] = useState(initialAvatars);
   const [isGeneratingAvatars, setIsGeneratingAvatars] = useState(false);
   const [isUploadingProfile, setIsUploadingProfile] = useState(false);
+  const [isDeletingProfile, setIsDeletingProfile] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [showUploadMenu, setShowUploadMenu] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentPresetRef = useRef(currentPreset);
 
@@ -186,7 +191,7 @@ export default function StudentSettingsClient({
           density: newDensity || currentDensity,
           colorPreset: selectedPreset,
         });
-        toast.success("Appearance saved! 👁️");
+        toast.success("Appearance updated.");
       } else if (activeTab === "security") {
         const currentPassword = formData.get("currentPassword") as string;
         const newPassword = formData.get("newPassword") as string;
@@ -204,20 +209,53 @@ export default function StudentSettingsClient({
     }
   };
 
-  const handleProfileImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChangeAndOpenCropper = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (file.size > 3 * 1024 * 1024) {
+      toast.error("File size must be under 3MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setCropImageSrc(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+    setShowUploadMenu(false);
+  };
+
+  const handleCropSave = async (blob: Blob) => {
     setIsUploadingProfile(true);
+    setCropImageSrc(null);
     const data = new FormData();
-    data.append("image", file);
+    data.append("image", blob, "profile.jpg");
+
     try {
       await uploadUserProfileImage(user.id, data);
-      toast.success("Profile photo updated! 📸");
+      toast.success("Profile photo updated successfully.");
       router.refresh();
     } catch (err: any) {
-      toast.error(err.message || "Failed to upload");
+      toast.error(err.message || "Failed to upload photo");
     } finally {
       setIsUploadingProfile(false);
+    }
+  };
+
+  const handleProfileImageDelete = async () => {
+    setIsDeletingProfile(true);
+    try {
+      await deleteUserProfileImage(user.id);
+      toast.success("Profile photo removed.");
+      router.refresh();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete photo");
+    } finally {
+      setIsDeletingProfile(false);
+      setShowUploadMenu(false);
     }
   };
 
@@ -342,24 +380,85 @@ export default function StudentSettingsClient({
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="relative h-14 w-14 rounded-2xl overflow-hidden border border-theme bg-hover flex items-center justify-center shrink-0">
-                        {isUploadingProfile && (
+                        {isUploadingProfile || isDeletingProfile ? (
                           <div className="absolute inset-0 bg-surface/80 flex items-center justify-center">
                             <span className="h-4 w-4 animate-spin border-2 border-accent border-t-transparent rounded-full" />
                           </div>
-                        )}
+                        ) : null}
                         {user.profileImageUrl ? (
                           <img src={user.profileImageUrl} alt="Profile" className="h-full w-full object-cover" />
                         ) : (
                           <span className="text-sm font-bold text-secondary">{initials}</span>
                         )}
                       </div>
-                      <div>
-                        <label className="inline-block rounded-xl border border-theme bg-hover hover:bg-surface px-3 py-1.5 text-xs font-semibold text-primary cursor-pointer transition">
-                          Upload Photo
-                          <input type="file" accept="image/png, image/jpeg, image/webp" className="hidden" onChange={handleProfileImageUpload} />
-                        </label>
-                        <p className="text-[10px] text-muted mt-1">PNG, JPG, WEBP. Under 3MB.</p>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 relative">
+                          {user.profileImageUrl ? (
+                            <button
+                              type="button"
+                              onClick={() => setCropImageSrc(user.profileImageUrl || null)}
+                              className="rounded-xl border border-theme bg-hover hover:bg-surface px-3 py-1.5 text-xs font-semibold text-primary transition"
+                            >
+                              Edit
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled
+                              className="rounded-xl border border-theme bg-hover/40 px-3 py-1.5 text-xs font-semibold text-secondary/40 cursor-not-allowed"
+                            >
+                              Edit
+                            </button>
+                          )}
+
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => setShowUploadMenu(!showUploadMenu)}
+                              className="rounded-xl border border-theme bg-hover hover:bg-surface px-3 py-1.5 text-xs font-semibold text-primary transition"
+                            >
+                              Upload
+                            </button>
+                            {showUploadMenu && (
+                              <div className="absolute left-0 mt-1.5 w-36 rounded-xl border border-theme bg-surface p-1 shadow-xl z-30">
+                                <button
+                                  type="button"
+                                  onClick={() => fileInputRef.current?.click()}
+                                  className="w-full block rounded-lg px-3 py-2 text-xs font-medium text-primary hover:bg-hover text-left"
+                                >
+                                  Replace Photo
+                                </button>
+                                {user.profileImageUrl && (
+                                  <button
+                                    type="button"
+                                    onClick={handleProfileImageDelete}
+                                    className="w-full block rounded-lg px-3 py-2 text-xs font-medium text-rose-400 hover:bg-rose-500/10 text-left"
+                                  >
+                                    Delete Photo
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/png, image/jpeg, image/webp"
+                            className="hidden"
+                            onChange={handleFileChangeAndOpenCropper}
+                          />
+                        </div>
+                        <p className="text-[10px] text-muted">PNG, JPG, WEBP. Under 3MB.</p>
                       </div>
+
+                      {cropImageSrc && (
+                        <ImageCropperModal
+                          imageSrc={cropImageSrc}
+                          onClose={() => setCropImageSrc(null)}
+                          onSave={handleCropSave}
+                        />
+                      )}
                     </div>
                   </div>
                   <div className="grid gap-5 md:grid-cols-2">

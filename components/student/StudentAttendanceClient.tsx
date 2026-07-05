@@ -68,10 +68,14 @@ export default function StudentAttendanceClient({ initialRecords }: Props) {
       if (!monthlyStats[yearMonth]) {
         monthlyStats[yearMonth] = { present: 0, total: 0 };
       }
-      monthlyStats[yearMonth].total += 1;
       const s = r.status.toLowerCase();
-      if (s === "present" || s === "late" || s === "leave" || s === "excused" || s === "sick") {
-        monthlyStats[yearMonth].present += 1;
+      if (s !== "leave") {
+        monthlyStats[yearMonth].total += 1;
+        if (s === "present" || s === "late" || s === "excused" || s === "sick") {
+          monthlyStats[yearMonth].present += 1;
+        } else if (s === "half_day") {
+          monthlyStats[yearMonth].present += 0.5;
+        }
       }
     });
 
@@ -95,17 +99,20 @@ export default function StudentAttendanceClient({ initialRecords }: Props) {
   const presentFiltered = filtered.filter((r) => r.status.toLowerCase() === "present").length;
   const absentFiltered = filtered.filter((r) => r.status.toLowerCase() === "absent").length;
   const lateFiltered = filtered.filter((r) => r.status.toLowerCase() === "late").length;
+  const halfDayFiltered = filtered.filter((r) => r.status.toLowerCase() === "half_day").length;
   // Support excused / leave statuses
   const leaveFiltered = filtered.filter((r) => {
     const s = r.status.toLowerCase();
     return s === "leave" || s === "excused" || s === "sick";
   }).length;
 
-  const attendanceRate = totalFiltered > 0 ? Math.round(((presentFiltered + lateFiltered + leaveFiltered) / totalFiltered) * 100) : 0;
+  const workingDays = totalFiltered - leaveFiltered;
+  const presentWeight = presentFiltered + lateFiltered + halfDayFiltered * 0.5;
+  const attendanceRate = workingDays > 0 ? Math.round((presentWeight / workingDays) * 100) : 0;
 
   // Pie chart data
   const chartData = [
-    { name: "Present", value: presentFiltered + lateFiltered, color: "#34d399" },
+    { name: "Present", value: presentFiltered + lateFiltered + halfDayFiltered * 0.5, color: "#34d399" },
     { name: "Absent", value: absentFiltered, color: "#f87171" },
     { name: "Leave", value: leaveFiltered, color: "#fb923c" },
   ].filter(d => d.value > 0);
@@ -148,10 +155,10 @@ export default function StudentAttendanceClient({ initialRecords }: Props) {
           </div>
           <div className="rounded-2xl p-5 border border-theme bg-surface relative overflow-hidden flex flex-col justify-between">
             <div>
-              <p className="text-xs font-semibold text-muted uppercase tracking-wider">Approved Leave</p>
+              <p className="text-xs font-semibold text-muted uppercase tracking-wider">On Leave</p>
               <p className="mt-2 text-3xl font-black text-amber-400">{leaveFiltered}</p>
             </div>
-            <p className="mt-1 text-xs text-secondary">Formal leave submissions</p>
+            <p className="mt-1 text-xs text-secondary">Leave Days</p>
             <div className="absolute top-2 right-2 text-4xl opacity-10">⏰</div>
           </div>
         </div>
@@ -196,8 +203,8 @@ export default function StudentAttendanceClient({ initialRecords }: Props) {
               <AreaChart data={monthlyTrends}>
                 <defs>
                   <linearGradient id="colorRate" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4}/>
-                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2d2d30" />
@@ -263,11 +270,10 @@ export default function StudentAttendanceClient({ initialRecords }: Props) {
                 <button
                   key={opt}
                   onClick={() => setFilter(opt)}
-                  className={`rounded-lg px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${
-                    filter === opt
-                      ? "bg-violet-500/20 text-violet-400 border border-violet-500/30"
-                      : "text-secondary border border-transparent hover:text-primary"
-                  }`}
+                  className={`rounded-lg px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${filter === opt
+                    ? "bg-violet-500/20 text-violet-400 border border-violet-500/30"
+                    : "text-secondary border border-transparent hover:text-primary"
+                    }`}
                 >
                   {opt}
                 </button>
@@ -292,7 +298,8 @@ export default function StudentAttendanceClient({ initialRecords }: Props) {
                     present: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
                     absent: "bg-rose-500/10 text-rose-400 border border-rose-500/20",
                     late: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
-                    leave: "bg-orange-500/10 text-orange-400 border border-orange-500/20",
+                    half_day: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
+                    leave: "bg-blue-500/10 text-blue-400 border border-blue-500/20",
                   };
                   return (
                     <tr key={r.id} className="hover:bg-hover/30 transition-colors">

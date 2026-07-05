@@ -54,6 +54,8 @@ export default async function AttendanceReportsPage({
     number,
     {
       present: number;
+      halfDay: number;
+      leave: number;
       total: number;
     }
   >();
@@ -61,11 +63,17 @@ export default async function AttendanceReportsPage({
   for (const row of attendanceRows) {
     const current = summaryMap.get(row.studentId) ?? {
       present: 0,
+      halfDay: 0,
+      leave: 0,
       total: 0,
     };
 
     if (row.status === 'present') {
       current.present++;
+    } else if (row.status === 'half_day') {
+      current.halfDay++;
+    } else if (row.status === 'leave') {
+      current.leave++;
     }
 
     current.total++;
@@ -76,8 +84,13 @@ export default async function AttendanceReportsPage({
   const report = studentsList.map((row) => {
     const stats = summaryMap.get(row.student.id) ?? {
       present: 0,
+      halfDay: 0,
+      leave: 0,
       total: 0,
     };
+
+    const workingDays = stats.total - stats.leave;
+    const presentWeight = stats.present + stats.halfDay * 0.5;
 
     return {
       id: row.student.id,
@@ -85,8 +98,8 @@ export default async function AttendanceReportsPage({
       present: stats.present,
       total: stats.total,
       percentage:
-        stats.total > 0
-          ? Math.round((stats.present / stats.total) * 100)
+        workingDays > 0
+          ? Math.round((presentWeight / workingDays) * 100)
           : 0,
     };
   });

@@ -64,7 +64,7 @@ export default function StudentShell({ children, user, alerts = [], phrases }: S
 
   useEffect(() => {
     const poll = async () => {
-      try { const r = await fetch('/api/notifications/unread-count'); if (r.ok) hydrate((await r.json()).count); } catch {}
+      try { const r = await fetch('/api/notifications/unread-count'); if (r.ok) hydrate((await r.json()).count); } catch { }
     };
     poll();
     const i = setInterval(poll, 30000);
@@ -73,7 +73,7 @@ export default function StudentShell({ children, user, alerts = [], phrases }: S
 
   useEffect(() => {
     hydrate(alerts.filter(a => a.id !== 'empty').length);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -156,7 +156,7 @@ export default function StudentShell({ children, user, alerts = [], phrases }: S
       {/* Mobile Overlay */}
       {mobileOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
           <aside className="absolute inset-y-0 left-0 w-[260px] bg-surface border-r border-theme shadow-2xl flex flex-col">
             <SidebarContent />
           </aside>

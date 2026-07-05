@@ -1,20 +1,55 @@
 import { requireRole } from "@/lib/auth";
-import PageHeader from "@/components/shared/PageHeader";
-import EmptyState from "@/components/shared/EmptyState";
+import { getParentChildren } from "@/lib/parent-actions";
+import { db } from "@/lib/db";
+import { students, buses } from "@/lib/schema";
+import { eq } from "drizzle-orm";
+import ParentBusTrackingClient from "@/components/parent/ParentBusTrackingClient";
 
 export const dynamic = "force-dynamic";
 
-export default async function ParentBusTrackingPage() {
-  await requireRole("parent");
+export default async function ParentBusTrackingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ studentId?: string }>;
+}) {
+  const user = await requireRole("parent");
+  const childrenList = await getParentChildren(user.id);
+
+  if (childrenList.length === 0) {
+    return (
+      <div className="p-4 sm:p-6 lg:p-8 text-center text-muted">
+        <div className="max-w-md mx-auto rounded-2xl border border-theme bg-surface p-8 space-y-4">
+          <h2 className="text-lg font-bold text-primary">No Linked Profiles</h2>
+          <p className="text-xs text-secondary leading-relaxed">
+            No student profiles are currently linked to your parent account. Please contact the school administration to map your children.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const params = await searchParams;
+  const studentIdParam = params?.studentId;
+  const selectedStudent = studentIdParam
+    ? childrenList.find((c) => c.studentId === Number(studentIdParam)) || childrenList[0]
+    : childrenList[0];
+
+  const studentId = selectedStudent.studentId;
+
+  // 1. Fetch active bus details
+  const [busRecord] = await db
+    .select({
+      registrationNumber: buses.registrationNumber,
+      routeName: buses.routeName,
+      driverName: buses.driverName,
+      driverPhone: buses.driverPhone,
+      capacity: buses.capacity,
+    })
+    .from(buses)
+    .where(eq(buses.isActive, true))
+    .limit(1);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-8">
-      <PageHeader tag="Parent Portal" title="Bus Tracking" description="Track your child's school bus in real-time during active trips." />
-      <EmptyState
-        icon={<svg viewBox="0 0 24 24" className="h-6 w-6 fill-current"><path d="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10Zm3.5 1c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17Zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5Zm1.5-6H6V6h12v5Z" /></svg>}
-        title="Bus Tracking"
-        message="Live bus location tracking is available only during active trip hours. Your child's assigned bus route and real-time position will appear here."
-      />
-    </div>
+    <ParentBusTrackingClient bus={busRecord || null} />
   );
 }

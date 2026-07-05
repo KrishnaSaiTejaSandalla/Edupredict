@@ -153,6 +153,36 @@ export async function submitLeaveRequest(
     }
   }
 
+  // If parent submits leave request for student, notify class teachers
+  if (data.studentId) {
+    const { classTeacherAssignments, teachers } = await import('./schema');
+    const [student] = await db
+      .select({ classId: students.classId })
+      .from(students)
+      .where(eq(students.id, data.studentId))
+      .limit(1);
+
+    if (student?.classId) {
+      const assignedTeachers = await db
+        .select({ userId: teachers.userId })
+        .from(classTeacherAssignments)
+        .leftJoin(teachers, eq(classTeacherAssignments.teacherId, teachers.id))
+        .where(eq(classTeacherAssignments.classId, student.classId));
+
+      for (const t of assignedTeachers) {
+        if (t.userId) {
+          await createNotificationForUser(
+            t.userId,
+            'Parent Leave Request',
+            `A parent has submitted a leave request for student in class.`,
+            'info',
+            'medium'
+          );
+        }
+      }
+    }
+  }
+
   await logAudit('CREATE_LEAVE', 'leave_request', insertedId, `Submitted ${data.leaveType} leave: ${data.startDate} to ${data.endDate}`, schoolId);
 
   revalidatePath('/admin/leaves');

@@ -147,3 +147,21 @@ export async function saveNotificationPreferences(
     throw new Error('Failed to save preferences');
   }
 }
+
+export async function deleteNotification(id: number) {
+  try {
+    await db.delete(notifications).where(eq(notifications.id, id));
+    revalidatePath('/parent/notifications');
+    revalidatePath('/parent');
+    revalidatePath('/student/notifications');
+    revalidatePath('/student');
+    revalidatePath('/teacher/notifications');
+    revalidatePath('/teacher');
+    revalidatePath('/admin/notifications');
+    revalidatePath('/admin');
+  } catch (err) {
+    console.error('Failed to delete notification:', err);
+    throw new Error('Failed to delete notification');
+  }
+}
+

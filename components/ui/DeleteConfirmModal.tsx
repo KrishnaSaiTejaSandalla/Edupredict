@@ -26,7 +26,7 @@ export default function DeleteConfirmModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60"
+      className="fixed inset-0 z-[99999] flex items-center justify-center bg-background/80 backdrop-blur-sm"
       onClick={onCancel}
     >
       <div

@@ -650,6 +650,10 @@ export const feedback = mysqlTable(
     title: varchar('title', { length: 256 }).notNull(),
     message: text('message').notNull(),
     category: varchar('category', { length: 64 }).notNull(), // 'Academic', 'Facilities', 'Transport', etc.
+    priority: varchar('priority', { length: 32 }).default('medium').notNull(),
+    attachmentUrl: text('attachment_url'),
+    status: varchar('status', { length: 32 }).default('pending').notNull(),
+    replies: text('replies'), // stores JSON array of replies: { sender: string; message: string; date: string }
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => ({

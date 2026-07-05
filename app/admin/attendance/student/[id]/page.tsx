@@ -48,9 +48,13 @@ export default async function StudentAttendanceReport({
   const present = rows.filter((r) => r.status === 'present').length;
   const absent = rows.filter((r) => r.status === 'absent').length;
   const late = rows.filter((r) => r.status === 'late').length;
+  const leave = rows.filter((r) => r.status === 'leave').length;
+  const halfDay = rows.filter((r) => r.status === 'half_day').length;
   
-  const percentage = total
-    ? Math.round((present / total) * 100)
+  const workingDays = total - leave;
+  const presentWeight = present + halfDay * 0.5;
+  const percentage = workingDays > 0
+    ? Math.round((presentWeight / workingDays) * 100)
     : 0;
 
   let statusLabel = 'Needs Attention';
@@ -74,6 +78,10 @@ export default async function StudentAttendanceReport({
         return "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20";
       case 'late':
         return "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20";
+      case 'half_day':
+        return "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20";
+      case 'leave':
+        return "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20";
       case 'excused':
         return "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20";
       default:
@@ -133,10 +141,10 @@ export default async function StudentAttendanceReport({
           </div>
         </div>
         <div className="rounded-2xl border border-subtle bg-card p-5 shadow-md">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Days Late</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Leave Days</p>
           <div className="flex items-baseline justify-between mt-3">
-            <p className="text-3xl font-bold text-amber-500">{late}</p>
-            <span className="text-xs font-medium text-amber-500/80">Late logs</span>
+            <p className="text-3xl font-bold text-blue-500">{leave}</p>
+            <span className="text-xs font-medium text-blue-500/80">Approved leaves</span>
           </div>
         </div>
         <div className="rounded-2xl border border-subtle bg-card p-5 shadow-md">

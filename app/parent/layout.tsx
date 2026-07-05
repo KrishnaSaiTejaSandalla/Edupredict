@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { notifications } from "@/lib/schema";
 import { eq, desc, and } from "drizzle-orm";
+import { getParentChildren } from "@/lib/parent-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,8 @@ export default async function ParentLayout({
   children: React.ReactNode;
 }) {
   const user = await requireRole("parent");
+  const myChildren = await getParentChildren(user.id);
+  const childName = myChildren[0]?.name || "Student";
 
   const unreadNotifs = await db
     .select({
@@ -61,6 +64,7 @@ export default async function ParentLayout({
         profileImageUrl: user.profileImageUrl ?? null,
         school: user.school ?? null,
       }}
+      childName={childName}
       alerts={finalAlerts}
     >
       {children}

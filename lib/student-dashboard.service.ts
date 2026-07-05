@@ -47,10 +47,15 @@ export async function getStudentDashboardData(userId: number): Promise<StudentDa
   const displayClass = (studentRow.className || '') + (studentRow.classSection ? ` ${studentRow.classSection}` : '');
 
   // --- KPI 1: Attendance % ---
-  const [totalAttRows] = await db.select({ count: sql<number>`count(*)` }).from(attendance).where(eq(attendance.studentId, studentId));
-  const [presentRows] = await db.select({ count: sql<number>`count(*)` }).from(attendance).where(and(eq(attendance.studentId, studentId), eq(attendance.status, 'present')));
-  const totalDays = Number(totalAttRows?.count || 0);
-  const presentDays = Number(presentRows?.count || 0);
+  const [attRows] = await db
+    .select({
+      total: sql<number>`sum(case when ${attendance.status} != 'leave' then 1 else 0 end)`,
+      present: sql<number>`sum(case when ${attendance.status} = 'present' then 1 when ${attendance.status} = 'half_day' then 0.5 else 0 end)`,
+    })
+    .from(attendance)
+    .where(eq(attendance.studentId, studentId));
+  const totalDays = Number(attRows?.total || 0);
+  const presentDays = Number(attRows?.present || 0);
   const attendancePercent = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
 
   // --- KPI 2: Average Score ---
@@ -138,8 +143,8 @@ export async function getStudentDashboardData(userId: number): Promise<StudentDa
   // --- Attendance Trend (last 6 months) ---
   const attTrendRows = await db.select({
     month: sql<string>`DATE_FORMAT(${attendance.attendanceDate}, '%Y-%m')`,
-    present: sql<number>`SUM(CASE WHEN ${attendance.status} = 'present' THEN 1 ELSE 0 END)`,
-    total: sql<number>`count(*)`,
+    present: sql<number>`SUM(CASE WHEN ${attendance.status} = 'present' THEN 1 WHEN ${attendance.status} = 'half_day' THEN 0.5 ELSE 0 END)`,
+    total: sql<number>`SUM(CASE WHEN ${attendance.status} != 'leave' THEN 1 ELSE 0 END)`,
   }).from(attendance).where(and(eq(attendance.studentId, studentId), gte(attendance.attendanceDate, sixMonthsAgo)))
     .groupBy(sql`DATE_FORMAT(${attendance.attendanceDate}, '%Y-%m')`).orderBy(sql`DATE_FORMAT(${attendance.attendanceDate}, '%Y-%m')`);
   const attendanceTrend = attTrendRows.map(r => {

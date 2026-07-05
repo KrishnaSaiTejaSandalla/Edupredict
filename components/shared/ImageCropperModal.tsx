@@ -82,7 +82,7 @@ export default function ImageCropperModal({ imageSrc, onClose, onSave }: ImageCr
       const drawWidth = img.naturalWidth;
       const drawHeight = img.naturalHeight;
       const baseScale = Math.min(300 / drawWidth, 300 / drawHeight);
-      
+
       const width = drawWidth * baseScale;
       const height = drawHeight * baseScale;
 
@@ -105,7 +105,7 @@ export default function ImageCropperModal({ imageSrc, onClose, onSave }: ImageCr
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background/90  p-4 animate-in fade-in duration-200">
       <div className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-950 p-6 shadow-2xl space-y-6 text-zinc-100">
         <div className="text-center space-y-1">
           <h3 className="text-lg font-bold tracking-tight text-white">Edit Photo</h3>
@@ -113,7 +113,7 @@ export default function ImageCropperModal({ imageSrc, onClose, onSave }: ImageCr
         </div>
 
         {/* Crop Window */}
-        <div 
+        <div
           ref={containerRef}
           className="relative h-64 w-full rounded-2xl overflow-hidden bg-zinc-900 border border-white/5 cursor-move flex items-center justify-center select-none"
           onMouseDown={handleMouseDown}

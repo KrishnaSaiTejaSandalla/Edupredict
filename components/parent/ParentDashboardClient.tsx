@@ -287,16 +287,7 @@ export default function ParentDashboardClient({ childrenList, selectedStudent, d
               className="hidden"
               onChange={handleStudentImageChange}
             />
-
-            {cropImageSrc && (
-              <ImageCropperModal
-                imageSrc={cropImageSrc}
-                onClose={() => setCropImageSrc(null)}
-                onSave={handleStudentCropSave}
-              />
-            )}
           </div>
-
           <div className="space-y-2">
             <h2 className="text-2xl font-bold tracking-tight text-white">{selectedStudent.name}</h2>
             <p className="text-xs font-semibold text-cyan-300">
@@ -360,6 +351,15 @@ export default function ParentDashboardClient({ childrenList, selectedStudent, d
         </div>
       </div>
 
+      {/* Image Cropper */}
+      {cropImageSrc && (
+        <ImageCropperModal
+          imageSrc={cropImageSrc}
+          onClose={() => setCropImageSrc(null)}
+          onSave={handleStudentCropSave}
+        />
+      )}
+
       {/* 2. KPI CARDS */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
         {[
@@ -413,7 +413,7 @@ export default function ParentDashboardClient({ childrenList, selectedStudent, d
             <div className="absolute -top-2 -right-2 opacity-10 text-[80px] leading-none select-none group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 pointer-events-none">
               {card.icon}
             </div>
-            
+
             <div className="relative z-10">
               <span className="text-[10px] font-bold uppercase tracking-wider text-white/70 block">
                 {card.title}
@@ -422,7 +422,7 @@ export default function ParentDashboardClient({ childrenList, selectedStudent, d
                 {card.value}
               </p>
             </div>
-            
+
             <div className="relative z-10 flex justify-between items-center mt-4 pt-3 border-t border-white/15">
               <span className="text-[10px] text-white/60 font-medium">{card.sub}</span>
               <span className="text-[10px] font-bold text-white group-hover:translate-x-1 transition-transform">

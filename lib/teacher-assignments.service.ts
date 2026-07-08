@@ -1,4 +1,5 @@
 import { db } from './db';
+import { broadcastNotification } from './realtime';
 import {
   teachers,
   assignments,
@@ -165,30 +166,60 @@ export async function createAssignment(
       }
     });
 
+    // Query user notification preferences to respect preference configurations
+    const allUserIds = [
+      ...studentsInClass.map((s) => s.userId).filter((id): id is number => id !== null),
+      ...Object.values(parentUserMap).flat(),
+    ];
+
+    const userPrefsMap: Record<number, any> = {};
+    if (allUserIds.length > 0) {
+      const userPrefsRows = await db
+        .select({ id: users.id, notificationPreferences: users.notificationPreferences })
+        .from(users)
+        .where(inArray(users.id, allUserIds));
+
+      userPrefsRows.forEach((row) => {
+        try {
+          userPrefsMap[row.id] = row.notificationPreferences ? JSON.parse(row.notificationPreferences) : {};
+        } catch {
+          userPrefsMap[row.id] = {};
+        }
+      });
+    }
+
     const notifValues: any[] = [];
     studentsInClass.forEach((s) => {
       if (s.userId) {
-        // Student Notification
-        notifValues.push({
-          userId: s.userId,
-          title: "New Assignment",
-          message: `A new assignment has been published: "${data.title}"`,
-          type: "assignment",
-          priority: "medium",
-          isRead: false,
-        });
+        // Check student preference
+        const studentPrefs = userPrefsMap[s.userId] ?? {};
+        if (studentPrefs.assignments !== false) {
+          // Student Notification
+          notifValues.push({
+            userId: s.userId,
+            title: "New Assignment",
+            message: `A new assignment has been published: "${data.title}"`,
+            type: "assignment",
+            priority: "medium",
+            isRead: false,
+          });
+        }
       }
 
       const parentsList = parentUserMap[s.id] || [];
       parentsList.forEach((parentUserId) => {
-        notifValues.push({
-          userId: parentUserId,
-          title: "New Assignment Published",
-          message: `A new assignment "${data.title}" has been published for ${s.name}.`,
-          type: "assignment",
-          priority: "medium",
-          isRead: false,
-        });
+        // Check parent preference
+        const parentPrefs = userPrefsMap[parentUserId] ?? {};
+        if (parentPrefs.assignments !== false) {
+          notifValues.push({
+            userId: parentUserId,
+            title: "New Assignment Published",
+            message: `A new assignment "${data.title}" has been published for ${s.name}.`,
+            type: "assignment",
+            priority: "medium",
+            isRead: false,
+          });
+        }
       });
     });
 
@@ -196,6 +227,15 @@ export async function createAssignment(
       const chunkSize = 200;
       for (let i = 0; i < notifValues.length; i += chunkSize) {
         await db.insert(notifications).values(notifValues.slice(i, i + chunkSize));
+      }
+      // Broadcast alerts in real-time
+      for (const val of notifValues) {
+        broadcastNotification(val.userId, {
+          title: val.title,
+          message: val.message,
+          type: val.type,
+          priority: val.priority,
+        });
       }
     }
   } catch (err) {

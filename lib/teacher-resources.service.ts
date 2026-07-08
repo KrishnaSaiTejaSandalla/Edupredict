@@ -3,8 +3,15 @@ import {
   teachers,
   teacherResources,
   schools,
+  resourceBookmarks,
+  resourceViews,
+  resourceDownloads,
+  studentLearningProgress,
+  aiRecommendations,
 } from './schema';
 import { eq, and, desc, sql, like, or } from 'drizzle-orm';
+import { join } from 'path';
+import { unlink } from 'fs/promises';
 
 // ==================== TEACHER RESOURCES SERVICE ====================
 
@@ -53,6 +60,7 @@ export async function getTeacherResources(teacherId: number, filter: ResourceFil
     isAIGenerated: r.isAIGenerated,
     aiContent: r.aiContent ?? null,
     downloadCount: r.downloadCount,
+    viewCount: r.viewCount ?? 0,
     createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : '',
   }));
 
@@ -87,6 +95,7 @@ export async function createResource(
     aiPrompt: data.aiPrompt || null,
     aiContent: data.aiContent || null,
     downloadCount: 0,
+    viewCount: 0,
     updatedAt: new Date(),
   });
   return result;
@@ -99,13 +108,40 @@ export async function deleteResource(id: number, teacherId: number) {
     .where(and(eq(teacherResources.id, id), eq(teacherResources.teacherId, teacherId)))
     .limit(1);
   if (!existing) throw new Error('Resource not found');
-  await db.delete(teacherResources).where(eq(teacherResources.id, id));
+
+  // Cascade delete inside a transaction
+  await db.transaction(async (tx) => {
+    await tx.delete(resourceBookmarks).where(eq(resourceBookmarks.resourceId, id));
+    await tx.delete(resourceViews).where(eq(resourceViews.resourceId, id));
+    await tx.delete(resourceDownloads).where(eq(resourceDownloads.resourceId, id));
+    await tx.delete(studentLearningProgress).where(eq(studentLearningProgress.resourceId, id));
+    await tx.delete(aiRecommendations).where(eq(aiRecommendations.resourceId, id));
+    await tx.delete(teacherResources).where(eq(teacherResources.id, id));
+  });
+
+  // Physical file cleanup if uploaded locally
+  const fileUrl = existing.fileUrl;
+  if (fileUrl && fileUrl.startsWith('/uploads/resources/')) {
+    const filePath = join(process.cwd(), 'public', fileUrl);
+    try {
+      await unlink(filePath);
+    } catch (err) {
+      console.warn('Could not delete physical file:', (err as Error).message);
+    }
+  }
 }
 
 export async function incrementDownload(id: number) {
   await db
     .update(teacherResources)
     .set({ downloadCount: sql`${teacherResources.downloadCount} + 1` })
+    .where(eq(teacherResources.id, id));
+}
+
+export async function incrementView(id: number) {
+  await db
+    .update(teacherResources)
+    .set({ viewCount: sql`${teacherResources.viewCount} + 1` })
     .where(eq(teacherResources.id, id));
 }
 

@@ -166,91 +166,111 @@ export async function getTeacherDashboardData(userId: number): Promise<TeacherDa
   // 6. Pending attendance — classes where teacher hasn't marked attendance today
   let pendingAttendance = 0;
   if (classIds.length > 0 && todayEntries.length > 0) {
-    const todayClassIds = [...new Set(todayEntries.map((e) => e.classId).filter(Boolean))];
+    const todayClassIds = [...new Set(todayEntries.map((e) => e.classId).filter(Boolean))] as number[];
     let markedToday = 0;
-    for (const classId of todayClassIds) {
-      if (!classId) continue;
+    if (todayClassIds.length > 0) {
       const todayDateObj = new Date(today.toISOString().split('T')[0] + 'T00:00:00');
-      const [row] = await db
-        .select({ count: sql<number>`count(*)` })
+      const markedRows = await db
+        .select({ classId: attendance.classId })
         .from(attendance)
         .where(
           and(
-            eq(attendance.classId, classId),
+            inArray(attendance.classId, todayClassIds),
             eq(attendance.attendanceDate, todayDateObj)
           )
-        );
-      if (Number(row?.count || 0) > 0) markedToday++;
+        )
+        .groupBy(attendance.classId);
+      markedToday = markedRows.length;
     }
     pendingAttendance = todayClassIds.length - markedToday;
   }
 
-// 7. Pending grading — submissions without a grade for this teacher's assignments
-    let pendingGrading = 0;
-    if (teacher && assignedClassIds.length > 0 && assignedSubjectIds.length > 0) {
-      const rows = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(assignmentSubmissions)
-        .innerJoin(assignments, eq(assignmentSubmissions.assignmentId, assignments.id))
-        .where(
-          and(
-            eq(assignments.teacherId, teacher.id),
-            isNull(assignmentSubmissions.grade)
-          )
-        );
-      pendingGrading = Number(rows[0]?.count || 0);
-    }
+  // 7. Pending grading — submissions without a grade for this teacher's assignments
+  let pendingGrading = 0;
+  if (teacher && assignedClassIds.length > 0 && assignedSubjectIds.length > 0) {
+    const rows = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(assignmentSubmissions)
+      .innerJoin(assignments, eq(assignmentSubmissions.assignmentId, assignments.id))
+      .where(
+        and(
+          eq(assignments.teacherId, teacher.id),
+          isNull(assignmentSubmissions.grade)
+        )
+      );
+    pendingGrading = Number(rows[0]?.count || 0);
+  }
 
   // 8. Class performance
   const classPerformance: TeacherDashboardData['classPerformance'] = [];
-  for (const classId of classIds.slice(0, 6)) {
-    const [classRow] = await db
-      .select({ name: classes.name, section: classes.section })
+  const activeClassIds = classIds.slice(0, 6);
+
+  if (activeClassIds.length > 0) {
+    const classRows = await db
+      .select({ id: classes.id, name: classes.name, section: classes.section })
       .from(classes)
-      .where(eq(classes.id, classId))
-      .limit(1);
+      .where(inArray(classes.id, activeClassIds));
 
-    if (!classRow) continue;
-
-    // Average marks for this class
-    const [avgMarksRow] = await db
-      .select({ avg: sql<number>`AVG(CAST(${results.marks} AS DECIMAL(5,2)))` })
+    const avgMarksRows = await db
+      .select({ classId: students.classId, avg: sql<number>`AVG(CAST(${results.marks} AS DECIMAL(5,2)))` })
       .from(results)
       .leftJoin(students, eq(results.studentId, students.id))
-      .where(eq(students.classId, classId));
+      .where(inArray(students.classId, activeClassIds))
+      .groupBy(students.classId);
 
-    // Average attendance for this class (last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const [totalAttRow] = await db
-      .select({ count: sql<number>`count(*)` })
+    const attCounts = await db
+      .select({
+        classId: attendance.classId,
+        status: attendance.status,
+        count: sql<number>`count(*)`
+      })
       .from(attendance)
       .where(
         and(
-          eq(attendance.classId, classId),
+          inArray(attendance.classId, activeClassIds),
           gte(attendance.attendanceDate, thirtyDaysAgo)
         )
-      );
-    const [presentAttRow] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(attendance)
-      .where(
-        and(
-          eq(attendance.classId, classId),
-          gte(attendance.attendanceDate, thirtyDaysAgo),
-          eq(attendance.status, 'present')
-        )
-      );
+      )
+      .groupBy(attendance.classId, attendance.status);
 
-    const totalAtt = Number(totalAttRow?.count || 0);
-    const presentAtt = Number(presentAttRow?.count || 0);
-    const avgAttendance = totalAtt > 0 ? Math.round((presentAtt / totalAtt) * 100) : 0;
+    const avgMarksMap = new Map(avgMarksRows.map(r => [r.classId, r.avg]));
+    const attTotalMap = new Map<number, number>();
+    const attPresentMap = new Map<number, number>();
 
-    classPerformance.push({
-      className: `${classRow.name}${classRow.section ? ` ${classRow.section}` : ''}`,
-      avgMarks: Math.round(Number(avgMarksRow?.avg || 0)),
-      avgAttendance,
+    attCounts.forEach(c => {
+      if (c.classId) {
+        const total = attTotalMap.get(c.classId) || 0;
+        attTotalMap.set(c.classId, total + c.count);
+
+        if (c.status === 'present') {
+          const present = attPresentMap.get(c.classId) || 0;
+          attPresentMap.set(c.classId, present + c.count);
+        } else if (c.status === 'half_day') {
+          const present = attPresentMap.get(c.classId) || 0;
+          attPresentMap.set(c.classId, present + c.count * 0.5);
+        }
+      }
+    });
+
+    const classesMap = new Map(classRows.map(c => [c.id, c]));
+
+    activeClassIds.forEach(classId => {
+      const classRow = classesMap.get(classId);
+      if (!classRow) return;
+
+      const totalAtt = attTotalMap.get(classId) || 0;
+      const presentAtt = attPresentMap.get(classId) || 0;
+      const avgAttendance = totalAtt > 0 ? Math.round((presentAtt / totalAtt) * 100) : 0;
+      const avgMarks = avgMarksMap.get(classId) || 0;
+
+      classPerformance.push({
+        className: `${classRow.name}${classRow.section ? ` ${classRow.section}` : ''}`,
+        avgMarks: Math.round(Number(avgMarks)),
+        avgAttendance,
+      });
     });
   }
 

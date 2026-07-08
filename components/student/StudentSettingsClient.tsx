@@ -148,7 +148,7 @@ export default function StudentSettingsClient({
 
   const parsedNotifs = user.notificationPreferences
     ? JSON.parse(user.notificationPreferences)
-    : { email: true, inApp: true, attendance: true, assignments: true, exams: true };
+    : { attendance: true, assignments: true, messages: true, diary: true, feedback: true, leaves: true, announcements: true, transport: true, general: true };
 
   const TABS = [
     { id: "profile", label: "Profile", icon: "👤" },
@@ -175,11 +175,15 @@ export default function StudentSettingsClient({
         toast.success("Profile saved successfully! ✨");
       } else if (activeTab === "notifications") {
         await updateStudentNotificationPrefs(user.id, {
-          email: formData.get("email") === "on",
-          inApp: formData.get("inApp") === "on",
           attendance: formData.get("attendance") === "on",
           assignments: formData.get("assignments") === "on",
-          exams: formData.get("exams") === "on",
+          messages: formData.get("messages") === "on",
+          diary: formData.get("diary") === "on",
+          feedback: formData.get("feedback") === "on",
+          leaves: formData.get("leaves") === "on",
+          announcements: formData.get("announcements") === "on",
+          transport: formData.get("transport") === "on",
+          general: formData.get("general") === "on",
         });
         toast.success("Notification preferences saved! 🔔");
       } else if (activeTab === "appearance") {
@@ -500,14 +504,18 @@ export default function StudentSettingsClient({
                   </div>
                   <div className="space-y-4">
                     {[
-                      { name: "email", label: "Email Notifications", desc: "Receive updates via email" },
-                      { name: "inApp", label: "In-App Notifications", desc: "Show alert bell indicators on portal" },
-                      { name: "attendance", label: "Attendance Alerts", desc: "Get notified when attendance is logged" },
-                      { name: "assignments", label: "Assignment Updates", desc: "Alerts for new homework tasks and reviews" },
-                      { name: "exams", label: "Exam Updates", desc: "Alerts for upcoming test releases and marksheets" },
+                      { name: "attendance", label: "Attendance Alerts", desc: "Get notified when student attendance updates" },
+                      { name: "assignments", label: "Assignments", desc: "Get notified about new assignments and submissions" },
+                      { name: "messages", label: "Messages", desc: "Get notified about new chat messages" },
+                      { name: "diary", label: "Diary", desc: "Get notified about classroom diary updates" },
+                      { name: "feedback", label: "Feedback", desc: "Get notified about observations and surveys feedback" },
+                      { name: "leaves", label: "Leaves", desc: "Get notified about student leave requests or status changes" },
+                      { name: "announcements", label: "Announcements", desc: "Get notified about school-wide announcements" },
+                      { name: "transport", label: "Transport Alerts", desc: "Get notified about bus and location updates" },
+                      { name: "general", label: "General Alerts", desc: "Get notified about other updates and system info" },
                     ].map((item) => (
                       <label key={item.name} className="flex items-start gap-4 rounded-xl border border-theme bg-hover/30 p-4 cursor-pointer hover:bg-hover transition">
-                        <input type="checkbox" name={item.name} defaultChecked={parsedNotifs[item.name] !== false} className="mt-0.5 h-4 w-4 rounded border-theme accent-cyan-500" />
+                        <input type="checkbox" name={item.name} defaultChecked={parsedNotifs[item.name as keyof typeof parsedNotifs] !== false} className="mt-0.5 h-4 w-4 rounded border-theme accent-cyan-500" />
                         <div>
                           <p className="text-xs font-semibold text-primary">{item.label}</p>
                           <p className="text-[10px] text-secondary mt-0.5">{item.desc}</p>

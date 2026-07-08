@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 type Props = {
-  classList: { id: number; name: string }[];
+  classList: { id: number; name: string; section?: string | null }[];
   subjectList: { id: number; name: string }[];
   examTypeList: string[];
   examMonthList: string[];
@@ -75,7 +75,7 @@ export default function ResultsClient({ classList, subjectList, examTypeList, ex
           <option value="">Select Class</option>
           {classList.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.name}
+              {c.name}{c.section ? `-${c.section}` : ""}
             </option>
           ))}
         </select>

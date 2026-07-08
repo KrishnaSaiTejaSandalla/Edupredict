@@ -10,6 +10,7 @@ import { useNotificationStore } from "@/store/useNotificationStore";
 import { toast } from "sonner";
 import { markNotificationRead } from "@/lib/notification-actions";
 import LogoutButton from "@/components/auth/LogoutButton";
+import RealtimeListener from "@/components/shared/RealtimeListener";
 
 type ParentShellProps = {
   children: React.ReactNode;
@@ -147,7 +148,7 @@ function ParentWelcomeAnimation({ name }: { name: string }) {
   );
 }
 
-export default function ParentShell({ children, user, childName, alerts = [] }: ParentShellProps) {
+export default function ParentShell({ children, user, childName, alerts: initialAlerts = [] }: ParentShellProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -156,46 +157,7 @@ export default function ParentShell({ children, user, childName, alerts = [] }: 
   const router = useRouter();
 
   const storeUnread = useNotificationStore((s) => s.unreadCount);
-  const hydrate = useNotificationStore((s) => s.hydrate);
-  const decrement = useNotificationStore((s) => s.decrement);
-
-  const [localAlerts, setLocalAlerts] = useState(alerts);
-  useEffect(() => {
-    setLocalAlerts(alerts);
-  }, [alerts]);
-
-  const handleDropdownAlertClick = async (alertId: string) => {
-    if (alertId === "empty") return;
-
-    setLocalAlerts((prev) => prev.filter((a) => a.id !== alertId));
-    decrement(1);
-
-    try {
-      await markNotificationRead(Number(alertId));
-      toast.success("Notification marked as read");
-      router.refresh();
-    } catch (err) {
-      console.error(err);
-      router.refresh();
-    }
-  };
-
-  useEffect(() => {
-    const pollNotifications = async () => {
-      try {
-        const res = await fetch("/api/notifications/unread-count");
-        if (!res.ok) return;
-        const data = await res.json();
-        hydrate(data.count);
-      } catch (error) {
-        console.error("Notification polling failed", error);
-      }
-    };
-
-    pollNotifications();
-    const interval = setInterval(pollNotifications, 30000);
-    return () => clearInterval(interval);
-  }, [hydrate]);
+  const notifications = useNotificationStore((s) => s.notifications);
 
   const initials = user.name
     .split(" ")
@@ -366,6 +328,7 @@ export default function ParentShell({ children, user, childName, alerts = [] }: 
 
   return (
     <div className="min-h-screen bg-base text-primary antialiased selection:bg-cyan-500/30 transition-colors duration-200">
+      <RealtimeListener role="parent" />
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[280px] border-r border-theme bg-surface/95 shadow-2xl shadow-black/20 backdrop-blur-xl lg:flex flex-col transition-colors duration-200">
         <SidebarContent />
       </aside>
@@ -427,38 +390,44 @@ export default function ParentShell({ children, user, childName, alerts = [] }: 
                       </Link>
                     </div>
                     <div className="mt-1 max-h-72 overflow-y-auto space-y-0.5 scrollbar-hide">
-                      {localAlerts.length === 0 || localAlerts[0]?.id === "empty" ? (
-                        <div className="p-4 text-center text-xs text-muted">No unread alerts</div>
-                      ) : (
-                        localAlerts.map((alert) => {
+                      {(() => {
+                        const unreadNotifications = notifications.filter((n) => !n.isRead).slice(0, 5);
+                        if (unreadNotifications.length === 0) {
+                          return (
+                            <div className="p-4 text-center text-xs text-muted">No unread alerts</div>
+                          );
+                        }
+                        return unreadNotifications.map((notif) => {
                           const toneBg =
-                            alert.tone === "danger"
+                            notif.priority === "high"
                               ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
-                              : alert.tone === "warning"
+                              : notif.priority === "medium"
                                 ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
                                 : "bg-cyan-500/10 text-cyan-400 border-cyan-500/20";
-                          const badgeText = alert.tone === "danger" ? "High" : alert.tone === "warning" ? "Medium" : "Info";
+                          const badgeText = notif.priority === "high" ? "High" : notif.priority === "medium" ? "Medium" : "Info";
                           return (
                             <div
-                              key={alert.id}
-                              onClick={() => handleDropdownAlertClick(alert.id)}
+                              key={notif.id}
+                              onClick={() => {
+                                useNotificationStore.getState().markRead(notif.id);
+                                markNotificationRead(notif.id).catch(console.error);
+                              }}
                               className="group rounded-xl p-3 hover:bg-hover transition duration-200 border border-transparent cursor-pointer"
                             >
                               <div className="flex gap-2.5">
-                                <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${alert.tone === "danger" ? "bg-rose-500" : alert.tone === "warning" ? "bg-amber-500" : "bg-cyan-500"}`} />
+                                <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${notif.priority === "high" ? "bg-rose-500" : notif.priority === "medium" ? "bg-amber-500" : "bg-cyan-500"}`} />
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center justify-between gap-1.5">
-                                    <p className="text-xs font-semibold text-primary group-hover:text-cyan-300 transition duration-150 truncate">{alert.title}</p>
+                                    <p className="text-xs font-semibold text-primary group-hover:text-cyan-300 transition duration-150 truncate">{notif.title}</p>
                                     <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-medium ${toneBg}`}>{badgeText}</span>
                                   </div>
-                                  <p className="mt-1 text-[11px] leading-relaxed text-secondary">{alert.message}</p>
-                                  {alert.time && <p className="mt-1 text-[9px] text-muted">{alert.time}</p>}
+                                  <p className="mt-1 text-[11px] leading-relaxed text-secondary">{notif.message}</p>
                                 </div>
                               </div>
                             </div>
                           );
-                        })
-                      )}
+                        });
+                      })()}
                     </div>
                   </div>
                 )}

@@ -1,10 +1,9 @@
 import { requireRole } from "@/lib/auth";
 import { getStudentResources } from "@/lib/student-resources.service";
 import { db } from "@/lib/db";
-import { classSubjects, subjects } from "@/lib/schema";
-import { eq, and } from "drizzle-orm";
+import { classSubjects, subjects, students } from "@/lib/schema";
+import { eq } from "drizzle-orm";
 import StudentResourcesClient from "@/components/student/StudentResourcesClient";
-import { students } from "@/lib/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +24,7 @@ export default async function StudentResourcesPage() {
     );
   }
 
-  // Fetch student's class subjects to provide options for AI generation
+  // Fetch student's class subjects
   const subjectRows = await db
     .select({
       id: subjects.id,
@@ -44,12 +43,13 @@ export default async function StudentResourcesPage() {
   return (
     <StudentResourcesClient
       subjects={subjectsList}
-      initialRecent={resourcesData.recentResources}
-      initialPopular={resourcesData.popularResources}
-      initialRecommended={resourcesData.recommendedResources}
-      initialNotes={resourcesData.myNotes}
+      initialResources={resourcesData.availableResources.map(r => ({
+        ...r,
+        createdAt: r.createdAt ? r.createdAt.toISOString() : new Date().toISOString()
+      }))}
+      initialBookmarkedIds={resourcesData.bookmarkedIds}
+      initialProgressList={resourcesData.progressList}
       weakSubjects={resourcesData.weakSubjects}
-      recentTopics={resourcesData.recentTopics}
     />
   );
 }

@@ -2,9 +2,9 @@
 
 import { db } from './db';
 import { feedback, users } from './schema';
-import { eq, sql, desc } from 'drizzle-orm';
+import { eq, sql, desc, and } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
-import { createNotification } from './notification-actions';
+import { createNotification, createNotificationForUser } from './notification-actions';
 import { parseDbError } from './db-errors';
 import { logAudit } from './audit-utils';
 import { getCurrentUser } from './auth';
@@ -55,12 +55,46 @@ export async function submitFeedback(data: {
     'medium'
   );
 
+  // Notify Admin users in database + real-time SSE
+  try {
+    const admins = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.role, 'admin'));
+
+    for (const admin of admins) {
+      await createNotificationForUser(
+        admin.id,
+        'New Feedback Submitted',
+        `A user submitted new ${data.category} feedback: "${data.title}".`,
+        'info',
+        'medium'
+      );
+    }
+  } catch (notifErr) {
+    console.error("Failed to notify admins of feedback:", notifErr);
+  }
+
   await logAudit('CREATE_FEEDBACK', 'feedback', insertedId, `Feedback submitted: "${data.title}" (${data.category})`, schoolId);
 
   revalidatePath('/admin/feedback');
   revalidatePath('/parent/feedback');
   revalidatePath('/student/feedback');
   revalidatePath('/admin');
+
+  return {
+    id: insertedId,
+    userId: user.id,
+    schoolId,
+    title: data.title.trim(),
+    message: data.message.trim(),
+    category: data.category,
+    priority: data.priority || 'medium',
+    attachmentUrl: data.attachmentUrl || null,
+    status: 'pending',
+    replies: JSON.stringify([]),
+    createdAt: new Date(),
+  };
 }
 
 export async function getAllFeedback() {

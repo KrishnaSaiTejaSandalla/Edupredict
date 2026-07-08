@@ -35,21 +35,31 @@ export async function getCurrentUser(req?: Request, expectedRole?: Role | string
   let role: string | null = expectedRole || null;
 
   if (req) {
-    const url = new URL(req.url);
-    const pathname = url.pathname;
-    if (pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) role = 'admin';
-    else if (pathname.startsWith('/teacher') || pathname.startsWith('/api/teacher')) role = 'teacher';
-    else if (pathname.startsWith('/parent') || pathname.startsWith('/api/parent')) role = 'parent';
-    else if (pathname.startsWith('/student') || pathname.startsWith('/api/student')) role = 'student';
-  } else if (!role) {
-    try {
-      const { headers } = await import('next/headers');
-      const reqHeaders = await headers();
-      const pathname = reqHeaders.get('x-pathname') || '';
+    const roleHeader = req.headers.get('x-role');
+    if (roleHeader) {
+      role = roleHeader;
+    } else {
+      const url = new URL(req.url);
+      const pathname = url.pathname;
       if (pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) role = 'admin';
       else if (pathname.startsWith('/teacher') || pathname.startsWith('/api/teacher')) role = 'teacher';
       else if (pathname.startsWith('/parent') || pathname.startsWith('/api/parent')) role = 'parent';
       else if (pathname.startsWith('/student') || pathname.startsWith('/api/student')) role = 'student';
+    }
+  } else if (!role) {
+    try {
+      const { headers } = await import('next/headers');
+      const reqHeaders = await headers();
+      const roleHeader = reqHeaders.get('x-role');
+      if (roleHeader) {
+        role = roleHeader;
+      } else {
+        const pathname = reqHeaders.get('x-pathname') || '';
+        if (pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) role = 'admin';
+        else if (pathname.startsWith('/teacher') || pathname.startsWith('/api/teacher')) role = 'teacher';
+        else if (pathname.startsWith('/parent') || pathname.startsWith('/api/parent')) role = 'parent';
+        else if (pathname.startsWith('/student') || pathname.startsWith('/api/student')) role = 'student';
+      }
     } catch {
       // ignore headers retrieval error outside request contexts
     }

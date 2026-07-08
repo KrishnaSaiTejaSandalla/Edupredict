@@ -56,7 +56,68 @@ export async function POST(request: Request) {
         schoolId: teacher.schoolId, classId, subjectId, teacherId: teacher.id,
         topicTaught, homework: homework || null, date, createdAt: new Date(), updatedAt: new Date(),
       });
-      return NextResponse.json({ id: (result as any).insertId, created: true });
+      const insertedId = (result as any).insertId;
+
+      // Generate isolated notifications for students and parents
+      try {
+        const { students, studentParents, parents } = await import('@/lib/schema');
+        const { createNotificationForUser } = await import('@/lib/notification-actions');
+        const { inArray } = await import('drizzle-orm');
+
+        const studentsInClass = await db
+          .select({ id: students.id, userId: students.userId })
+          .from(students)
+          .where(eq(students.classId, classId));
+
+        const studentIds = studentsInClass.map(s => s.id);
+        
+        let parentUsers: { studentId: number; parentUserId: number | null }[] = [];
+        if (studentIds.length > 0) {
+          parentUsers = await db
+            .select({ studentId: studentParents.studentId, parentUserId: parents.userId })
+            .from(studentParents)
+            .leftJoin(parents, eq(studentParents.parentId, parents.id))
+            .where(inArray(studentParents.studentId, studentIds));
+        }
+
+        const parentUserMap: Record<number, number[]> = {};
+        parentUsers.forEach((pu) => {
+          if (pu.parentUserId && pu.studentId) {
+            if (!parentUserMap[pu.studentId]) parentUserMap[pu.studentId] = [];
+            parentUserMap[pu.studentId].push(pu.parentUserId);
+          }
+        });
+
+        const [subj] = await db.select({ name: subjects.name }).from(subjects).where(eq(subjects.id, subjectId)).limit(1);
+        const subjectName = subj?.name || "Subject";
+
+        for (const s of studentsInClass) {
+          if (s.userId) {
+            await createNotificationForUser(
+              s.userId,
+              "New Diary Entry",
+              `A new diary entry has been posted for ${subjectName}: "${topicTaught}"`,
+              "diary",
+              "low"
+            );
+          }
+
+          const parentsList = parentUserMap[s.id] || [];
+          for (const parentUserId of parentsList) {
+            await createNotificationForUser(
+              parentUserId,
+              "New Diary Entry Published",
+              `A new diary entry for ${subjectName} has been published for your child.`,
+              "diary",
+              "low"
+            );
+          }
+        }
+      } catch (notifErr) {
+        console.error("Failed to generate diary notifications:", notifErr);
+      }
+
+      return NextResponse.json({ id: insertedId, created: true });
     }
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

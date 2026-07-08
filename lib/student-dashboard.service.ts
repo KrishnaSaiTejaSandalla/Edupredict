@@ -87,45 +87,110 @@ export async function getStudentDashboardData(userId: number): Promise<StudentDa
   const upcomingExams = Number(upcomingRow?.count || 0);
 
   // --- Recent Results ---
-  const recentResultRows = await db
-    .select({ marks: results.marks, recordedDate: results.recordedDate, subjectId: results.subjectId, examId: results.examId })
-    .from(results).where(eq(results.studentId, studentId)).orderBy(desc(results.recordedDate)).limit(5);
+  const recentResultsRows = await db
+    .select({
+      marks: results.marks,
+      recordedDate: results.recordedDate,
+      subjectName: subjects.name,
+      examName: exams.name,
+      maxMarks: exams.maxMarks,
+    })
+    .from(results)
+    .leftJoin(subjects, eq(subjects.id, results.subjectId))
+    .leftJoin(exams, eq(exams.id, results.examId))
+    .where(eq(results.studentId, studentId))
+    .orderBy(desc(results.recordedDate))
+    .limit(5);
 
-  const recentResults = await Promise.all(recentResultRows.map(async r => {
-    const [subj] = await db.select({ name: subjects.name }).from(subjects).where(eq(subjects.id, r.subjectId)).limit(1);
-    let examName = 'Assessment'; let maxMarks = 100;
-    if (r.examId) {
-      const [ex] = await db.select({ name: exams.name, maxMarks: exams.maxMarks }).from(exams).where(eq(exams.id, r.examId)).limit(1);
-      if (ex) { examName = ex.name; maxMarks = Number(ex.maxMarks) || 100; }
-    }
-    return { subjectName: subj?.name || 'Unknown', examName, marks: Number(r.marks), maxMarks, date: String(r.recordedDate) };
+  const recentResults = recentResultsRows.map(r => ({
+    subjectName: r.subjectName || 'Unknown',
+    examName: r.examName || 'Assessment',
+    marks: Number(r.marks),
+    maxMarks: Number(r.maxMarks) || 100,
+    date: r.recordedDate instanceof Date ? r.recordedDate.toISOString().split('T')[0] : String(r.recordedDate),
   }));
 
   // --- Today's Classes ---
   const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long' });
 
   const ttRows = await db
-    .select({ subjectId: timetables.subjectId, teacherId: timetables.teacherId, startTime: timetables.startTime, endTime: timetables.endTime })
-    .from(timetables).where(and(eq(timetables.classId, classId), eq(timetables.dayOfWeek, dayOfWeek)));
+    .select({
+      subjectId: timetables.subjectId,
+      teacherId: timetables.teacherId,
+      startTime: timetables.startTime,
+      endTime: timetables.endTime,
+      subjectName: subjects.name,
+      teacherName: users.name,
+    })
+    .from(timetables)
+    .leftJoin(subjects, eq(subjects.id, timetables.subjectId))
+    .leftJoin(teachers, eq(teachers.id, timetables.teacherId))
+    .leftJoin(users, eq(users.id, teachers.userId))
+    .where(and(eq(timetables.classId, classId), eq(timetables.dayOfWeek, dayOfWeek)));
 
-  const todaysClasses = await Promise.all(ttRows.map(async row => {
-    const [subj] = await db.select({ name: subjects.name }).from(subjects).where(eq(subjects.id, row.subjectId)).limit(1);
-    const [teacher] = await db.select({ name: users.name }).from(users).leftJoin(teachers, eq(teachers.userId, users.id)).where(eq(teachers.id, row.teacherId)).limit(1);
-    const [diary] = await db.select({ id: studentDiaries.id, topicTaught: studentDiaries.topicTaught, homework: studentDiaries.homework })
-      .from(studentDiaries).where(and(eq(studentDiaries.classId, classId), eq(studentDiaries.subjectId, row.subjectId), eq(studentDiaries.date, todayDate))).limit(1);
-    let isHomeworkCompleted = false;
-    if (diary) {
-      const [prog] = await db.select({ isCompleted: studentDiaryProgress.isCompleted }).from(studentDiaryProgress)
-        .where(and(eq(studentDiaryProgress.studentId, studentId), eq(studentDiaryProgress.diaryId, diary.id))).limit(1);
-      isHomeworkCompleted = prog?.isCompleted ?? false;
+  const subjectIds = Array.from(new Set(ttRows.map(r => r.subjectId).filter(Boolean))) as number[];
+  const diaries = (subjectIds.length > 0)
+    ? await db
+        .select({
+          id: studentDiaries.id,
+          topicTaught: studentDiaries.topicTaught,
+          homework: studentDiaries.homework,
+          subjectId: studentDiaries.subjectId,
+        })
+        .from(studentDiaries)
+        .where(
+          and(
+            eq(studentDiaries.classId, classId),
+            inArray(studentDiaries.subjectId, subjectIds),
+            eq(studentDiaries.date, todayDate)
+          )
+        )
+    : [];
+
+  const diaryIds = diaries.map(d => d.id);
+  const progresses = (diaryIds.length > 0 && studentId)
+    ? await db
+        .select({
+          diaryId: studentDiaryProgress.diaryId,
+          isCompleted: studentDiaryProgress.isCompleted,
+        })
+        .from(studentDiaryProgress)
+        .where(
+          and(
+            eq(studentDiaryProgress.studentId, studentId),
+            inArray(studentDiaryProgress.diaryId, diaryIds)
+          )
+        )
+    : [];
+
+  const progressesMap = new Map(progresses.map(p => [p.diaryId, p.isCompleted]));
+  const diariesMap = new Map(diaries.map(d => [d.subjectId, d]));
+
+  const seenSubjects = new Set<number>();
+  const todaysClasses: any[] = [];
+
+  for (const row of ttRows) {
+    if (row.subjectId) {
+      if (seenSubjects.has(row.subjectId)) {
+        continue;
+      }
+      seenSubjects.add(row.subjectId);
     }
-    return {
-      subjectName: subj?.name || 'Unknown', topicTaught: diary?.topicTaught || null,
-      homework: diary?.homework || null, teacherName: teacher?.name || 'Teacher',
-      startTime: row.startTime, endTime: row.endTime,
-      diaryId: diary?.id || null, isHomeworkCompleted,
-    };
-  }));
+
+    const diary = row.subjectId ? diariesMap.get(row.subjectId) : null;
+    const isHomeworkCompleted = diary ? progressesMap.get(diary.id) ?? false : false;
+
+    todaysClasses.push({
+      subjectName: row.subjectName || 'Unknown',
+      topicTaught: diary?.topicTaught || null,
+      homework: diary?.homework || null,
+      teacherName: row.teacherName || 'Teacher',
+      startTime: row.startTime || '',
+      endTime: row.endTime || '',
+      diaryId: diary?.id || null,
+      isHomeworkCompleted,
+    });
+  }
 
   // --- Performance Trend (last 6 months) ---
   const sixMonthsAgo = new Date(); sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);

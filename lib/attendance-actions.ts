@@ -10,6 +10,7 @@ import {
   getMonthRange,
   normalizeAttendanceStatus,
 } from "@/lib/attendance-utils";
+import { broadcastEntityChange } from "@/lib/realtime";
 
 export async function upsertDailyAttendance(data: {
   studentId: number;
@@ -52,6 +53,8 @@ export async function upsertDailyAttendance(data: {
       markedBy: data.markedBy ?? null,
     });
   }
+
+  broadcastEntityChange("attendance", "update", { studentId: data.studentId, classId: data.classId });
 
   revalidatePath("/admin");
   revalidatePath("/admin/attendance");

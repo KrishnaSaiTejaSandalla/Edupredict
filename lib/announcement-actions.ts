@@ -6,6 +6,8 @@ import { eq, and, like, desc } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { requireRole, getCurrentUser } from './auth';
 
+import { broadcastNotification } from './realtime';
+
 export async function createAnnouncement(data: {
   title: string;
   message: string;
@@ -42,7 +44,18 @@ export async function createAnnouncement(data: {
     for (let i = 0; i < values.length; i += chunkSize) {
       await db.insert(notifications).values(values.slice(i, i + chunkSize));
     }
+
+    // Broadcast notifications in real-time
+    for (const val of values) {
+      broadcastNotification(val.userId, {
+        title: val.title,
+        message: val.message,
+        type: val.type,
+        priority: val.priority,
+      });
+    }
   }
+
 
   revalidatePath('/admin/announcements');
   revalidatePath('/teacher/dashboard');

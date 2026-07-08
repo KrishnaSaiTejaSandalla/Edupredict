@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from './db';
-import { buses } from './schema';
+import { buses, busStops } from './schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { createNotification } from './notification-actions';
@@ -230,6 +230,50 @@ export async function deleteBus(id: number) {
   await createNotification('Bus Removed', `Bus "${regNum}" has been removed from the system.`, 'info', 'medium');
   await logAudit('DELETE_BUS', 'bus', id, `Deleted bus: ${regNum}`);
 
+  revalidatePath('/admin/transport');
+  revalidatePath('/admin');
+}
+
+export async function getBusStops(busId: number) {
+  const rows = await db
+    .select()
+    .from(busStops)
+    .where(eq(busStops.busId, busId))
+    .orderBy(busStops.sequenceNumber);
+  return rows;
+}
+
+export async function saveBusStops(
+  busId: number,
+  stops: { stopName: string; pickupTime: string; dropTime: string; sequenceNumber: number; studentCount?: number }[]
+) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== 'admin') throw new Error('Unauthorized');
+
+  try {
+    await db.transaction(async (tx) => {
+      // Delete all current stops for this bus
+      await tx.delete(busStops).where(eq(busStops.busId, busId));
+
+      // Insert new stops if any
+      if (stops.length > 0) {
+        await tx.insert(busStops).values(
+          stops.map((stop) => ({
+            busId,
+            stopName: stop.stopName,
+            pickupTime: stop.pickupTime,
+            dropTime: stop.dropTime,
+            sequenceNumber: stop.sequenceNumber,
+            studentCount: stop.studentCount ?? 0,
+          }))
+        );
+      }
+    });
+  } catch (err) {
+    throw new Error(parseDbError(err));
+  }
+
+  await logAudit('UPDATE_BUS_STOPS', 'bus', busId, `Updated ${stops.length} stops for bus ID ${busId}`);
   revalidatePath('/admin/transport');
   revalidatePath('/admin');
 }

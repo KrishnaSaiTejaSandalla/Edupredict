@@ -1,11 +1,12 @@
 'use server';
 
 import { db } from './db';
-import { exams, results, students, subjects, classes, users, teachers } from './schema';
-import { eq, and, or, sql } from 'drizzle-orm';
+import { exams, results, students, subjects, classes, users, teachers, studentParents, parents } from './schema';
+import { eq, and, or, sql, inArray } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
-import { createNotification } from './notification-actions';
+import { createNotification, createNotificationForUser } from './notification-actions';
 import { parseDbError } from './db-errors';
+import { broadcastEntityChange } from './realtime';
 
 // ==================== EXAMS ====================
 export async function createExam(data: {
@@ -35,6 +36,7 @@ export async function createExam(data: {
     }
 
     await createNotification('Exam Created', `Exam "${data.name}" has been scheduled.`, 'info', 'medium');
+    broadcastEntityChange("exam", "create", data);
 
     revalidatePath('/admin/exams');
     revalidatePath('/admin');
@@ -74,6 +76,7 @@ export async function updateExam(
     }
 
     await createNotification('Exam Updated', `Exam "${data.name}" details have been updated.`, 'info', 'medium');
+    broadcastEntityChange("exam", "update", { id, ...data });
 
     revalidatePath('/admin/exams');
     revalidatePath('/admin');
@@ -98,6 +101,7 @@ export async function deleteExam(id: number) {
     await db.delete(exams).where(eq(exams.id, id));
 
     await createNotification('Exam Deleted', `Exam "${examName}" has been deleted.`, 'info', 'medium');
+    broadcastEntityChange("exam", "delete", { id });
 
     revalidatePath("/admin/exams");
     revalidatePath('/admin');
@@ -203,6 +207,58 @@ export async function saveMarks(data: {
     }
 
     await createNotification('Marks Saved', `Marks for exam "${e.name}" have been successfully recorded.`, 'info', 'medium');
+
+    // Notify students and parents of marks entry
+    try {
+        const studentsInClass = await db
+            .select({ id: students.id, userId: students.userId, name: users.name })
+            .from(students)
+            .leftJoin(users, eq(students.userId, users.id))
+            .where(eq(students.classId, e.classId));
+
+        const studentIds = studentsInClass.map(s => s.id);
+        
+        let parentUsers: { studentId: number; parentUserId: number | null }[] = [];
+        if (studentIds.length > 0) {
+            parentUsers = await db
+                .select({ studentId: studentParents.studentId, parentUserId: parents.userId })
+                .from(studentParents)
+                .leftJoin(parents, eq(studentParents.parentId, parents.id))
+                .where(inArray(studentParents.studentId, studentIds));
+        }
+
+        const parentUserMap: Record<number, number[]> = {};
+        parentUsers.forEach((pu) => {
+            if (pu.parentUserId && pu.studentId) {
+                if (!parentUserMap[pu.studentId]) parentUserMap[pu.studentId] = [];
+                parentUserMap[pu.studentId].push(pu.parentUserId);
+            }
+        });
+
+        for (const s of studentsInClass) {
+            if (s.userId) {
+                await createNotificationForUser(
+                    s.userId,
+                    'Marks Entered',
+                    `Your marks for exam "${e.name}" have been published.`,
+                    'academic',
+                    'medium'
+                );
+            }
+            const parentsList = parentUserMap[s.id] || [];
+            for (const parentUserId of parentsList) {
+                await createNotificationForUser(
+                    parentUserId,
+                    'Marks Entered',
+                    `Marks for exam "${e.name}" have been recorded for ${s.name}.`,
+                    'academic',
+                    'medium'
+                );
+            }
+        }
+    } catch (notifErr) {
+        console.error("Failed to generate marks notifications:", notifErr);
+    }
 
     revalidatePath('/admin/marks');
     revalidatePath('/admin');

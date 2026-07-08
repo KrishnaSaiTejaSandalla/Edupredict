@@ -146,10 +146,9 @@ export default function ParentSettingsClient({
   const [isDirty, setIsDirty] = useState<boolean>(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
 
-  // Parse notifications
   const parsedNotifs = user.notificationPreferences
     ? JSON.parse(user.notificationPreferences)
-    : { attendance: true, marks: true, assignments: true, diary: true, transport: true, announcements: true, feedback: true };
+    : { attendance: true, assignments: true, messages: true, diary: true, feedback: true, leaves: true, announcements: true, transport: true, general: true };
 
   // Calculate Profile Completion Meter (5 fields)
   const profileFields = [
@@ -219,21 +218,25 @@ export default function ParentSettingsClient({
         (e.target as HTMLFormElement).reset();
       } else if (activeTab === "notifications") {
         const attendance = formData.get("attendance") === "on";
-        const marks = formData.get("marks") === "on";
         const assignments = formData.get("assignments") === "on";
+        const messages = formData.get("messages") === "on";
         const diary = formData.get("diary") === "on";
-        const transport = formData.get("transport") === "on";
-        const announcements = formData.get("announcements") === "on";
         const feedback = formData.get("feedback") === "on";
+        const leaves = formData.get("leaves") === "on";
+        const announcements = formData.get("announcements") === "on";
+        const transport = formData.get("transport") === "on";
+        const general = formData.get("general") === "on";
 
         await updateParentNotificationPreferences(user.id, {
           attendance,
-          marks,
           assignments,
+          messages,
           diary,
-          transport,
-          announcements,
           feedback,
+          leaves,
+          announcements,
+          transport,
+          general,
         });
         toast.success("Notification preferences saved successfully!");
       } else if (activeTab === "appearance") {
@@ -980,19 +983,21 @@ export default function ParentSettingsClient({
 
               <div className="space-y-4">
                 {[
-                  { name: "attendance", label: "Attendance Logs Alerts", desc: "Instantly notifies you when child is marked absent or late." },
-                  { name: "marks", label: "Report Card Updates", desc: "Alerts when term exams results or teacher grading are posted." },
-                  { name: "assignments", label: "Assignments & Submissions", desc: "Notifies on newly created assignments and due dates." },
-                  { name: "diary", label: "Daily Diary Updates", desc: "Toggles updates for classroom teacher posts and diaries." },
-                  { name: "transport", label: "Transport ETA Routes", desc: "ETA notifications for boarding status and school bus tracking." },
-                  { name: "announcements", label: "Announcements & Bulletins", desc: "School principal broadcasts and school closure bulletins." },
-                  { name: "feedback", label: "Teacher Observations Feedback", desc: "Structured monthly feedback observation reports." },
+                  { name: "attendance", label: "Attendance Alerts", desc: "Get notified when child attendance updates are recorded." },
+                  { name: "assignments", label: "Assignments & Submissions", desc: "Get notified on child newly created assignments and due dates." },
+                  { name: "messages", label: "Messages", desc: "Get notified about new chat messages." },
+                  { name: "diary", label: "Diary Updates", desc: "Get notified about classroom teacher posts and diaries." },
+                  { name: "feedback", label: "Observations & Surveys", desc: "Get notified about observations and surveys feedback reports." },
+                  { name: "leaves", label: "Leaves Alerts", desc: "Get notified about child leaves requests or status changes." },
+                  { name: "announcements", label: "School Announcements", desc: "Get notified about school-wide announcements." },
+                  { name: "transport", label: "Transport Alerts", desc: "Get notified about bus and location updates." },
+                  { name: "general", label: "General Alerts", desc: "Get notified about other updates and system info." },
                 ].map((item) => (
                   <label key={item.name} className="flex items-start gap-3.5 rounded-xl border border-theme bg-hover/10 p-4 cursor-pointer hover:bg-hover/20 transition-colors">
                     <input
                       type="checkbox"
                       name={item.name}
-                      defaultChecked={parsedNotifs[item.name] ?? true}
+                      defaultChecked={parsedNotifs[item.name as keyof typeof parsedNotifs] !== false}
                       className="mt-1 h-4.5 w-4.5 rounded border-theme bg-surface text-cyan-400 focus:ring-cyan-500/20"
                     />
                     <div className="min-w-0">

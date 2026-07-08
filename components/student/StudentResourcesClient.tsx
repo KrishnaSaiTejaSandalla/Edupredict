@@ -1,10 +1,8 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
-import PageHeader from "@/components/shared/PageHeader";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { toast } from "sonner";
-import { deleteAIGeneratedNote } from "@/lib/student-actions";
-import { createPortal } from "react-dom";
+import { useNotificationStore } from "@/store/useNotificationStore";
 
 type ResourceType = {
   id: number;
@@ -14,486 +12,848 @@ type ResourceType = {
   resourceType: string;
   subject: string | null;
   classLevel: string | null;
-  createdAt: Date;
+  teacherName: string | null;
   downloadCount: number;
+  viewCount: number;
+  createdAt: string;
 };
 
-type NoteType = {
-  id: number;
-  subjectName: string | null;
-  topic: string;
-  noteType: string;
-  title: string;
-  content: string;
-  createdAt: Date;
+type ProgressType = {
+  resourceId: number;
+  progress: number;
+  isCompleted: boolean;
+  lastAccessedAt?: string;
 };
 
 type Props = {
   subjects: string[];
-  initialRecent: ResourceType[];
-  initialPopular: ResourceType[];
-  initialRecommended: ResourceType[];
-  initialNotes: NoteType[];
+  initialResources: ResourceType[];
+  initialBookmarkedIds: number[];
+  initialProgressList: ProgressType[];
   weakSubjects: string[];
-  recentTopics: { topic: string; subject: string }[];
 };
 
-export default function StudentResourcesClient({
-  subjects,
-  initialRecent,
-  initialPopular,
-  initialRecommended,
-  initialNotes,
-  weakSubjects,
-  recentTopics,
-}: Props) {
-  const [activeTab, setActiveTab] = useState<"library" | "ai">("library");
-  const [notes, setNotes] = useState<NoteType[]>(initialNotes);
-  const [selectedNote, setSelectedNote] = useState<NoteType | null>(initialNotes[0] || null);
+const RESOURCE_ICONS: Record<string, string> = {
+  pdf: "📕",
+  document: "📘",
+  presentation: "📙",
+  image: "🖼️",
+  video: "🎥",
+  link: "🔗",
+  notes: "📝",
+  quiz: "❓",
+  worksheet: "📄",
+  lesson_plan: "📋",
+};
 
-  // Classroom Files Filters
-  const [libSearchQuery, setLibSearchQuery] = useState("");
-  const [libSelectedSubject, setLibSelectedSubject] = useState("all");
+const RESOURCE_COLORS: Record<string, { bg: string; text: string; ring: string }> = {
+  pdf:          { bg: "bg-rose-500/15",    text: "text-rose-400",    ring: "ring-rose-500/20" },
+  document:     { bg: "bg-blue-500/15",    text: "text-blue-400",    ring: "ring-blue-500/20" },
+  presentation: { bg: "bg-amber-500/15",   text: "text-amber-400",   ring: "ring-amber-500/20" },
+  image:        { bg: "bg-emerald-500/15", text: "text-emerald-400", ring: "ring-emerald-500/20" },
+  video:        { bg: "bg-cyan-500/15",    text: "text-cyan-400",    ring: "ring-cyan-500/20" },
+  link:         { bg: "bg-violet-500/15",  text: "text-violet-400",  ring: "ring-violet-500/20" },
+  notes:        { bg: "bg-cyan-500/15",    text: "text-cyan-400",    ring: "ring-cyan-500/20" },
+  quiz:         { bg: "bg-violet-500/15",  text: "text-violet-400",  ring: "ring-violet-500/20" },
+  worksheet:    { bg: "bg-emerald-500/15", text: "text-emerald-400", ring: "ring-emerald-500/20" },
+  lesson_plan:  { bg: "bg-amber-500/15",   text: "text-amber-400",   ring: "ring-amber-500/20" },
+};
 
-  // Form states
-  const [subject, setSubject] = useState(subjects[0] || "");
-  const [topic, setTopic] = useState("");
-  const [style, setStyle] = useState("cheatsheet");
-  const [isPending, startTransition] = useTransition();
-  const [deleteTarget, setDeleteTarget] = useState<NoteType | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+const DEFAULT_COLOR = { bg: "bg-slate-500/15", text: "text-slate-400", ring: "ring-slate-500/20" };
 
-  const handleGenerate = () => {
-    if (!subject) {
-      toast.error("Please select a subject first.");
-      return;
-    }
-    if (!topic.trim()) {
-      toast.error("Please enter a topic.");
-      return;
-    }
+const formatDate = (dateStr: string) =>
+  new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
-    startTransition(async () => {
-      try {
-        const response = await fetch("/api/student/ai-resources", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ subject, topic, noteType: style }),
-        });
-
-        if (!response.ok) {
-          const errData = await response.json();
-          throw new Error(errData.error || "Failed to generate notes");
-        }
-
-        const data = await response.json();
-        toast.success("AI generated study notes successfully! 🚀");
-        setTopic("");
-
-        const newNote: NoteType = {
-          id: Date.now(),
-          subjectName: subject,
-          topic,
-          noteType: style,
-          title: data.title,
-          content: data.content,
-          createdAt: new Date(),
-        };
-
-        setNotes((prev) => [newNote, ...prev]);
-        setSelectedNote(newNote);
-      } catch (e: any) {
-        toast.error(e.message || "Something went wrong.");
-      }
-    });
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success("Copied to clipboard! 📋");
-  };
-
-  const handleDeleteNote = async () => {
-    if (!deleteTarget) return;
-    setIsDeleting(true);
-    try {
-      await deleteAIGeneratedNote(deleteTarget.id);
-      setNotes((prev) => prev.filter((n) => n.id !== deleteTarget.id));
-      if (selectedNote?.id === deleteTarget.id) {
-        setSelectedNote(notes.find((n) => n.id !== deleteTarget.id) || null);
-      }
-      toast.success("Note deleted successfully.");
-    } catch (e: any) {
-      toast.error(e.message || "Failed to delete note.");
-    } finally {
-      setIsDeleting(false);
-      setDeleteTarget(null);
-    }
-  };
-
-  // Helper to filter classroom files
-  const filterLib = (list: ResourceType[]) => {
-    return list.filter((res) => {
-      const matchesSearch =
-        res.title.toLowerCase().includes(libSearchQuery.toLowerCase()) ||
-        (res.description || "").toLowerCase().includes(libSearchQuery.toLowerCase());
-      const matchesSubject =
-        libSelectedSubject === "all" ||
-        (res.subject || "").toLowerCase() === libSelectedSubject.toLowerCase();
-      return matchesSearch && matchesSubject;
-    });
-  };
+// Premium Resource Card
+const ResourceCard = React.memo(({
+  resource,
+  progress,
+  isCompleted,
+  isBookmarked,
+  lastAccessed,
+  onOpen,
+  onDownload,
+  onBookmark,
+  onDoubt,
+}: {
+  resource: ResourceType;
+  progress: number;
+  isCompleted: boolean;
+  isBookmarked: boolean;
+  lastAccessed: string | null;
+  onOpen: (r: ResourceType) => void;
+  onDownload: (r: ResourceType) => void;
+  onBookmark: (id: number) => void;
+  onDoubt: (title: string) => void;
+}) => {
+  const icon = RESOURCE_ICONS[resource.resourceType] || "📁";
+  const colors = RESOURCE_COLORS[resource.resourceType] || DEFAULT_COLOR;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-7xl mx-auto">
-      <PageHeader tag="Student Portal" title="Study Resources" description="Access teacher files or generate personalized AI notes." />
+    <div className="group relative rounded-2xl border border-theme bg-surface hover:border-cyan-500/40 hover:shadow-[0_4px_32px_rgba(6,182,212,0.12)] hover:-translate-y-1 transition-all duration-300 p-5 flex flex-col gap-4">
 
-      {/* Tabs */}
-      <div className="flex border-b border-theme">
+      {/* Top: icon + type/subject + bookmark */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className={`text-2xl p-3 rounded-xl ring-1 ring-white/5 ${colors.bg} ${colors.text} ${colors.ring} shrink-0`}>
+            {icon}
+          </span>
+          <div className="min-w-0">
+            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ring-1 ${colors.bg} ${colors.text} ${colors.ring}`}>
+              {resource.resourceType.replace("_", " ")}
+            </span>
+            <p className="text-[10px] font-semibold text-secondary uppercase tracking-wider mt-0.5 truncate max-w-[130px]">
+              {resource.subject}
+            </p>
+          </div>
+        </div>
+        {/* Bookmark toggle */}
         <button
-          onClick={() => setActiveTab("library")}
-          className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all duration-200 ${
-            activeTab === "library"
-              ? "border-violet-500 text-violet-400"
-              : "border-transparent text-secondary hover:text-primary"
+          onClick={() => onBookmark(resource.id)}
+          type="button"
+          title={isBookmarked ? "Remove Bookmark" : "Bookmark"}
+          className={`h-8 w-8 rounded-xl border flex items-center justify-center text-sm transition-all duration-200 hover:scale-110 active:scale-95 shrink-0 ${
+            isBookmarked
+              ? "bg-amber-500/15 border-amber-500/25 text-amber-400"
+              : "bg-hover border-theme text-muted hover:text-amber-400 hover:border-amber-500/25 hover:bg-amber-500/10"
           }`}
         >
-          📂 Classroom Files
-        </button>
-        <button
-          onClick={() => setActiveTab("ai")}
-          className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all duration-200 ${
-            activeTab === "ai"
-              ? "border-violet-500 text-violet-400"
-              : "border-transparent text-secondary hover:text-primary"
-          }`}
-        >
-          🤖 AI Notes & Cheatsheets
+          {isBookmarked ? "★" : "☆"}
         </button>
       </div>
 
-      {activeTab === "library" ? (
-        <div className="space-y-6">
-          {/* Library Search & Subject Filters */}
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-surface border border-theme p-4 rounded-2xl shadow-sm">
-            <input
-              type="text"
-              placeholder="Search classroom files..."
-              value={libSearchQuery}
-              onChange={(e) => setLibSearchQuery(e.target.value)}
-              className="w-full md:w-80 rounded-xl border border-theme bg-hover p-2.5 text-xs text-primary focus:outline-none focus:ring-1 focus:ring-violet-500"
-            />
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] uppercase font-bold text-secondary">Subject:</span>
-              <select
-                value={libSelectedSubject}
-                onChange={(e) => setLibSelectedSubject(e.target.value)}
-                className="rounded-xl border border-theme bg-hover px-3 py-1.5 text-xs text-primary focus:outline-none focus:ring-1 focus:ring-violet-500"
-              >
-                <option value="all" className="bg-surface text-primary">All Subjects</option>
-                {subjects.map((sub) => (
-                  <option key={sub} value={sub} className="bg-surface text-primary">{sub}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-2">
-            {/* Recommended for You */}
-            <div className="rounded-2xl border border-theme bg-surface p-6 space-y-4 md:col-span-2 shadow-md">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <h3 className="text-sm font-bold text-violet-400 flex items-center gap-2">
-                  <span>🤖</span> Recommended for You
-                </h3>
-                <span className="text-[10px] text-muted">Personalized to match your diary logs & weaker subjects</span>
-              </div>
-              
-              <div className="flex flex-wrap gap-2">
-                {weakSubjects.length > 0 && (
-                  <div className="rounded-xl bg-rose-500/5 border border-rose-500/20 px-3 py-1.5 text-[10px] text-rose-400 font-semibold flex items-center gap-1.5">
-                    <span>💡 Focus areas:</span>
-                    <span>{weakSubjects.join(", ")}</span>
-                  </div>
-                )}
-                {recentTopics.length > 0 && (
-                  <div className="rounded-xl bg-amber-500/5 border border-amber-500/20 px-3 py-1.5 text-[10px] text-amber-400 font-semibold flex items-center gap-1.5">
-                    <span>📅 Recent Lessons:</span>
-                    <span>{recentTopics.map((t) => t.topic).slice(0, 2).join(", ")}</span>
-                  </div>
-                )}
-                {weakSubjects.length === 0 && recentTopics.length === 0 && (
-                  <span className="text-xs text-muted">Complete exams or check diary updates for personalized recommendations.</span>
-                )}
-              </div>
-
-              {filterLib(initialRecommended).length > 0 ? (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {filterLib(initialRecommended).map((res) => (
-                    <div key={res.id} className="flex items-center justify-between rounded-xl border border-theme bg-hover/40 p-4 hover:bg-hover transition">
-                      <div className="min-w-0 pr-2">
-                        <p className="text-xs font-bold text-primary truncate">{res.title}</p>
-                        <p className="text-[10px] text-muted truncate mt-0.5">{res.description || "Study guide"}</p>
-                        <span className="inline-block mt-2 text-[9px] font-bold text-violet-400 uppercase tracking-wider">{res.subject}</span>
-                      </div>
-                      <a
-                        href={res.fileUrl || "#"}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="shrink-0 rounded-xl bg-violet-500/10 text-violet-400 border border-violet-500/20 px-3 py-1.5 text-[10px] font-bold uppercase hover:bg-violet-500/20 transition"
-                      >
-                        Open
-                      </a>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-muted text-center py-6">No matching recommendations found.</p>
-              )}
-            </div>
-
-            {/* Recently Uploaded */}
-            <div className="rounded-2xl border border-theme bg-surface p-6 space-y-4 shadow-sm">
-              <h3 className="text-sm font-bold text-primary flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-violet-400" />
-                Recently Uploaded
-              </h3>
-              {filterLib(initialRecent).length > 0 ? (
-                <div className="space-y-3">
-                  {filterLib(initialRecent).map((res) => (
-                    <div key={res.id} className="flex items-center justify-between rounded-xl border border-theme bg-hover/50 p-4 hover:bg-hover transition">
-                      <div className="min-w-0 pr-2">
-                        <p className="text-xs font-bold text-primary truncate">{res.title}</p>
-                        <p className="text-[9px] text-muted truncate mt-0.5">{res.subject || "General"}</p>
-                      </div>
-                      <a
-                        href={res.fileUrl || "#"}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="shrink-0 rounded-xl bg-violet-500/10 text-violet-400 border border-violet-500/20 px-3 py-1.5 text-[10px] font-bold uppercase hover:bg-violet-500/20 transition"
-                      >
-                        Open
-                      </a>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-muted text-center py-6">No recently uploaded files found.</p>
-              )}
-            </div>
-
-            {/* Popular */}
-            <div className="rounded-2xl border border-theme bg-surface p-6 space-y-4 shadow-sm">
-              <h3 className="text-sm font-bold text-primary flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-                Popular Resources
-              </h3>
-              {filterLib(initialPopular).length > 0 ? (
-                <div className="space-y-3">
-                  {filterLib(initialPopular).map((res) => (
-                    <div key={res.id} className="flex items-center justify-between rounded-xl border border-theme bg-hover/50 p-4 hover:bg-hover transition">
-                      <div className="min-w-0 pr-2">
-                        <p className="text-xs font-bold text-primary truncate">{res.title}</p>
-                        <p className="text-[9px] text-emerald-400 font-semibold uppercase mt-0.5">🔥 {res.downloadCount} views</p>
-                      </div>
-                      <a
-                        href={res.fileUrl || "#"}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="shrink-0 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 text-[10px] font-bold uppercase hover:bg-emerald-500/20 transition"
-                      >
-                        Open
-                      </a>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-muted text-center py-6">No popular resources found.</p>
-              )}
-            </div>
-          </div>
+      {/* Body: title, class, teacher, date */}
+      <div className="flex-1 space-y-1">
+        <h3 className="text-sm font-bold text-primary group-hover:text-cyan-400 transition-colors duration-200 leading-snug line-clamp-2">
+          {resource.title}
+        </h3>
+        <div className="flex items-center gap-2 flex-wrap">
+          {resource.classLevel && (
+            <span className="rounded-full border border-theme bg-hover px-2 py-0.5 text-[9px] font-bold text-secondary">
+              {resource.classLevel}
+            </span>
+          )}
+          {resource.teacherName && (
+            <span className="text-[10px] text-secondary truncate max-w-[150px]">
+              By {resource.teacherName}
+            </span>
+          )}
         </div>
-      ) : (
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* Sidebar Generator Form & History */}
-          <div className="lg:col-span-1 space-y-6">
-            <div className="rounded-2xl border border-theme bg-surface p-5 space-y-4">
-              <h3 className="text-xs font-extrabold text-violet-400 uppercase tracking-widest">Generate Study Notes</h3>
-              <div className="space-y-3">
-                {/* Subject Selector */}
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-secondary mb-1.5">Subject</label>
-                  <select
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                    className="w-full rounded-xl border border-theme bg-hover p-2.5 text-xs text-primary focus:outline-none focus:ring-1 focus:ring-violet-500"
-                  >
-                    {subjects.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                </div>
+        {resource.description && (
+          <p className="text-[11px] text-secondary leading-relaxed line-clamp-2 pt-0.5">
+            {resource.description}
+          </p>
+        )}
+        <p className="text-[10px] text-muted pt-0.5">
+          Uploaded {formatDate(resource.createdAt)}
+        </p>
+      </div>
 
-                {/* Topic Input */}
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-secondary mb-1.5">Topic Name</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Photosynthesis, Trigonometry"
-                    value={topic}
-                    onChange={(e) => setTopic(e.target.value)}
-                    className="w-full rounded-xl border border-theme bg-hover p-2.5 text-xs text-primary focus:outline-none focus:ring-1 focus:ring-violet-500"
-                  />
-                </div>
+      {/* Stats */}
+      <div className="flex items-center gap-4 text-[10px] font-semibold text-secondary border-t border-theme/50 pt-3">
+        <span className="flex items-center gap-1" title="Views">
+          <span className="text-sm">👁</span>
+          <span>{resource.viewCount}</span>
+        </span>
+        <span className="flex items-center gap-1" title="Downloads">
+          <span className="text-sm">⬇</span>
+          <span>{resource.downloadCount}</span>
+        </span>
+        {lastAccessed && (
+          <span className="ml-auto text-[9px] text-muted">
+            {new Date(lastAccessed).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+          </span>
+        )}
+      </div>
 
-                {/* Note Style */}
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-secondary mb-1.5">Study Style</label>
-                  <select
-                    value={style}
-                    onChange={(e) => setStyle(e.target.value)}
-                    className="w-full rounded-xl border border-theme bg-hover p-2.5 text-xs text-primary focus:outline-none focus:ring-1 focus:ring-violet-500"
-                  >
-                    <option value="cheatsheet" className="bg-surface text-primary">🎯 Cheat Sheet</option>
-                    <option value="revision" className="bg-surface text-primary">📝 Revision Notes</option>
-                    <option value="mnemonic" className="bg-surface text-primary">🧠 Memory Mnemonics</option>
-                    <option value="practice" className="bg-surface text-primary">💪 Practice Problems</option>
-                  </select>
-                </div>
-
-                <button
-                  onClick={handleGenerate}
-                  disabled={isPending}
-                  className="w-full rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white p-2.5 text-xs font-bold shadow-lg shadow-violet-500/25 transition disabled:opacity-50"
-                >
-                  {isPending ? "Generating notes..." : "Generate AI Study Note"}
-                </button>
-              </div>
-            </div>
-
-            {/* Quick Presets from weak subjects */}
-            {weakSubjects.length > 0 && (
-              <div className="rounded-2xl border border-theme bg-surface p-5 space-y-3">
-                <p className="text-xs font-extrabold text-rose-400 uppercase tracking-widest flex items-center gap-1.5">
-                  <span>💡</span> Weak Areas Presets
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {weakSubjects.map((sub) => (
-                    <button
-                      key={sub}
-                      onClick={() => {
-                        setSubject(sub);
-                        setTopic("Weak Subject Revision");
-                      }}
-                      className="rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 px-2 py-1 text-[10px] font-bold transition"
-                    >
-                      Quick Prep: {sub}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Notes history list */}
-            <div className="rounded-2xl border border-theme bg-surface p-5 space-y-3">
-              <p className="text-xs font-extrabold text-secondary uppercase tracking-widest">My Saved Notes</p>
-              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                {notes.map((note) => (
-                  <button
-                    key={note.id}
-                    onClick={() => setSelectedNote(note)}
-                    className={`w-full text-left rounded-xl p-3 border transition-colors ${
-                      selectedNote?.id === note.id
-                        ? "border-violet-500 bg-violet-500/10 text-violet-400"
-                        : "border-theme bg-hover/30 text-secondary hover:bg-hover hover:text-primary"
-                    }`}
-                  >
-                    <p className="text-xs font-bold truncate">{note.title}</p>
-                    <div className="flex items-center justify-between text-[9px] text-muted mt-1.5">
-                      <span className="font-semibold uppercase">{note.subjectName}</span>
-                      <span>{new Date(note.createdAt).toLocaleDateString()}</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
+      {/* Progress bar */}
+      {progress > 0 && (
+        <div className="space-y-1 -mt-1">
+          <div className="flex items-center justify-between text-[9px] text-secondary font-bold">
+            <span>{isCompleted ? "✓ Completed" : "In Progress"}</span>
+            <span>{progress}%</span>
           </div>
-
-          {/* Details Pane */}
-          <div className="lg:col-span-2">
-            {selectedNote ? (
-              <div className="rounded-3xl border border-theme bg-surface p-6 space-y-6">
-                <div className="flex items-center justify-between border-b border-theme pb-4">
-                  <div>
-                    <span className="rounded-xl bg-violet-500/15 text-violet-400 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider">{selectedNote.subjectName}</span>
-                    <h2 className="text-base font-black text-primary mt-2">{selectedNote.title}</h2>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => copyToClipboard(selectedNote.content)}
-                      className="rounded-xl border border-theme bg-hover hover:bg-surface px-3.5 py-2 text-xs font-bold text-primary transition flex items-center gap-1.5"
-                    >
-                      📋 Copy Note
-                    </button>
-                    <button
-                      onClick={() => setDeleteTarget(selectedNote)}
-                      className="rounded-xl border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 px-3.5 py-2 text-xs font-bold text-rose-400 transition flex items-center gap-1.5"
-                    >
-                      🗑️ Delete
-                    </button>
-                  </div>
-                </div>
-                <div className="prose prose-sm prose-invert max-w-none text-xs text-primary leading-relaxed whitespace-pre-wrap font-sans">
-                  {selectedNote.content}
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-3xl border border-dashed border-theme p-12 text-center text-muted">
-                <p className="text-3xl mb-2">🤖</p>
-                <p className="text-xs">No AI generated notes yet. Use the tool on the left to start learning!</p>
-              </div>
-            )}
+          <div className="h-1 w-full bg-hover rounded-full overflow-hidden">
+            <div
+              className={`h-full transition-all duration-500 ${isCompleted ? "bg-emerald-400" : "bg-cyan-400"}`}
+              style={{ width: `${progress}%` }}
+            />
           </div>
         </div>
       )}
 
-      {/* Personalized Delete Confirmation Modal */}
-      {deleteTarget && typeof window !== "undefined" && createPortal(
-        <div
-          className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm"
-          onClick={() => setDeleteTarget(null)}
+      {/* Action Buttons */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => onOpen(resource)}
+          type="button"
+          className="flex-1 h-9 text-[11px] font-bold text-cyan-400 border border-cyan-500/25 bg-cyan-500/10 hover:bg-cyan-500/20 rounded-xl flex items-center justify-center gap-1.5 transition active:scale-95"
         >
-          <div
-            className="w-full max-w-sm rounded-2xl border border-theme bg-surface p-6 shadow-2xl space-y-4 mx-4"
-            onClick={(e) => e.stopPropagation()}
+          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" /></svg>
+          View
+        </button>
+        {resource.fileUrl && (
+          <button
+            onClick={() => onDownload(resource)}
+            type="button"
+            title="Download"
+            className="h-9 w-9 rounded-xl border border-emerald-500/25 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 flex items-center justify-center transition active:scale-95"
           >
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-rose-500/10">
-              <span className="text-2xl">🗑️</span>
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-primary">Delete This Note?</h3>
-              <p className="mt-1.5 text-xs text-secondary leading-relaxed">
-                You're about to delete <span className="text-primary font-semibold">"{deleteTarget.title}"</span> for{" "}
-                <span className="text-violet-400 font-semibold">{deleteTarget.subjectName}</span>. This can't be undone.
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteTarget(null)}
-                className="flex-1 rounded-xl border border-theme bg-hover px-4 py-2.5 text-xs font-semibold text-secondary hover:text-primary transition"
-              >
-                Keep Note
-              </button>
-              <button
-                onClick={handleDeleteNote}
-                disabled={isDeleting}
-                className="flex-1 rounded-xl bg-rose-500 hover:bg-rose-600 disabled:opacity-60 px-4 py-2.5 text-xs font-semibold text-white transition"
-              >
-                {isDeleting ? "Deleting..." : "Yes, Delete"}
-              </button>
+            <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" /></svg>
+          </button>
+        )}
+        <button
+          onClick={() => onDoubt(resource.title)}
+          type="button"
+          title="Ask AI"
+          className="h-9 w-9 rounded-xl border border-violet-500/25 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 flex items-center justify-center text-sm transition active:scale-95"
+        >
+          🤖
+        </button>
+      </div>
+    </div>
+  );
+});
+ResourceCard.displayName = "ResourceCard";
+
+// Skeleton card
+const SkeletonCard = () => (
+  <div className="rounded-2xl border border-theme bg-surface p-5 space-y-4 animate-pulse flex flex-col gap-3">
+    <div className="flex items-center gap-3">
+      <div className="h-12 w-12 rounded-xl bg-hover" />
+      <div className="space-y-2 flex-1">
+        <div className="h-3 w-20 bg-hover rounded-full" />
+        <div className="h-2.5 w-14 bg-hover rounded-full" />
+      </div>
+      <div className="h-8 w-8 rounded-xl bg-hover" />
+    </div>
+    <div className="h-4 w-4/5 bg-hover rounded-full" />
+    <div className="h-3 w-3/5 bg-hover rounded-full" />
+    <div className="h-3 w-full bg-hover rounded-full" />
+    <div className="flex gap-2 pt-2 border-t border-theme/50">
+      <div className="h-9 flex-1 bg-hover rounded-xl" />
+      <div className="h-9 w-9 bg-hover rounded-xl" />
+      <div className="h-9 w-9 bg-hover rounded-xl" />
+    </div>
+  </div>
+);
+
+export default function StudentResourcesClient({
+  subjects,
+  initialResources,
+  initialBookmarkedIds,
+  initialProgressList,
+  weakSubjects,
+}: Props) {
+  const [resources, setResources] = useState<ResourceType[]>(initialResources);
+  const [bookmarks, setBookmarks] = useState<number[]>(initialBookmarkedIds);
+  const [progressList, setProgressList] = useState<ProgressType[]>(initialProgressList);
+  const [stats, setStats] = useState({ available: 0, completed: 0, recent: 0 });
+  const [loading, setLoading] = useState(false);
+
+  // Filter states – Teacher & Section removed
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedSubject, setSelectedSubject] = useState("all");
+  const [selectedType, setSelectedType] = useState("all");
+  const [sortBy, setSortBy] = useState("newest");
+  const [showOnlyBookmarks, setShowOnlyBookmarks] = useState(false);
+
+  // Modals
+  const [previewResource, setPreviewResource] = useState<ResourceType | null>(null);
+  const [viewingProgress, setViewingProgress] = useState(0);
+  const [doubtTopic, setDoubtTopic] = useState("");
+  const [doubtResponse, setDoubtResponse] = useState("");
+  const [solvingDoubt, setSolvingDoubt] = useState(false);
+  const [showDoubtDrawer, setShowDoubtDrawer] = useState(false);
+
+  const processedNotificationsRef = useRef<Set<number>>(new Set());
+
+  // Derived bookmark count
+  const bookmarkCount = bookmarks.length;
+
+  // Downloaded count = items with progress >= 50
+  const downloadedCount = useMemo(() =>
+    progressList.filter(p => p.progress >= 50).length,
+    [progressList]
+  );
+
+  // Stats API
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await fetch("/api/student/resources/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "stats" }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (!data.error) setStats(data);
+      }
+    } catch (err) {
+      console.error("Error fetching statistics", err);
+    }
+  }, []);
+
+  // Resources refresh
+  const fetchResources = useCallback(async () => {
+    try {
+      const res = await fetch("/api/student/resources");
+      if (res.ok) {
+        const data = await res.json();
+        setResources(data.availableResources || []);
+        setBookmarks(data.bookmarkedIds || []);
+        setProgressList(data.progressList || []);
+      }
+    } catch (err) {
+      console.error("Error updating resource lists", err);
+    }
+  }, []);
+
+  useEffect(() => { fetchStats(); }, [fetchStats]);
+
+  // Notifications listener
+  const notifications = useNotificationStore((s) => s.notifications);
+  useEffect(() => {
+    if (notifications.length > 0) {
+      const latest = notifications[0];
+      if (latest.title === "New Resource Added" && !latest.isRead) {
+        if (!processedNotificationsRef.current.has(latest.id)) {
+          processedNotificationsRef.current.add(latest.id);
+          toast.info(latest.message, { duration: 6000 });
+          fetchResources();
+          fetchStats();
+        }
+      }
+    }
+  }, [notifications, fetchResources, fetchStats]);
+
+  // View logging
+  const handleTrackView = useCallback(async (res: ResourceType) => {
+    setPreviewResource(res);
+    const existing = progressList.find((p) => p.resourceId === res.id);
+    setViewingProgress(existing ? existing.progress : 10);
+    setResources((prev) =>
+      prev.map((r) => (r.id === res.id ? { ...r, viewCount: r.viewCount + 1 } : r))
+    );
+    try {
+      await fetch("/api/student/resources/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "view", resourceId: res.id }),
+      });
+      if (!existing) {
+        setProgressList((prev) => [
+          ...prev,
+          { resourceId: res.id, progress: 10, isCompleted: false, lastAccessedAt: new Date().toISOString() },
+        ]);
+        fetchStats();
+      }
+    } catch (e) { console.error(e); }
+  }, [progressList, fetchStats]);
+
+  // Download logging
+  const handleTrackDownload = useCallback(async (res: ResourceType) => {
+    setResources((prev) =>
+      prev.map((r) => (r.id === res.id ? { ...r, downloadCount: r.downloadCount + 1 } : r))
+    );
+    try {
+      await fetch("/api/student/resources/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "download", resourceId: res.id }),
+      });
+      toast.success("Download started!");
+      setProgressList((prev) =>
+        prev.map((p) =>
+          p.resourceId === res.id ? { ...p, progress: Math.max(p.progress, 50) } : p
+        )
+      );
+      fetchStats();
+      if (res.fileUrl) window.open(res.fileUrl, "_blank");
+    } catch (e) { console.error(e); }
+  }, [fetchStats]);
+
+  // Bookmark toggle
+  const handleToggleBookmark = useCallback(async (id: number) => {
+    const wasBookmarked = bookmarks.includes(id);
+    if (wasBookmarked) {
+      setBookmarks((prev) => prev.filter((b) => b !== id));
+      toast.success("Removed from bookmarks");
+    } else {
+      setBookmarks((prev) => [...prev, id]);
+      toast.success("Bookmarked!");
+    }
+    try {
+      const response = await fetch("/api/student/resources/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "bookmark", resourceId: id }),
+      });
+      const data = await response.json();
+      if (data.bookmarked !== !wasBookmarked) {
+        if (data.bookmarked) setBookmarks((prev) => [...prev, id]);
+        else setBookmarks((prev) => prev.filter((b) => b !== id));
+      }
+    } catch (e) { toast.error("Failed to bookmark."); }
+  }, [bookmarks]);
+
+  // Progress update
+  const handleUpdateProgress = useCallback(async (resourceId: number, progressVal: number) => {
+    try {
+      await fetch("/api/student/resources/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "progress", resourceId, progress: progressVal }),
+      });
+      setProgressList((prev) => {
+        const idx = prev.findIndex((p) => p.resourceId === resourceId);
+        const nextState = { resourceId, progress: progressVal, isCompleted: progressVal >= 100, lastAccessedAt: new Date().toISOString() };
+        if (idx >= 0) { const updated = [...prev]; updated[idx] = nextState; return updated; }
+        return [...prev, nextState];
+      });
+      toast.success(progressVal >= 100 ? "Completed! 🎉" : "Progress saved.");
+      setPreviewResource(null);
+      fetchStats();
+    } catch (e) { toast.error("Failed to save progress."); }
+  }, [fetchStats]);
+
+  // AI Doubt Solver
+  const handleAskDoubt = useCallback(async () => {
+    if (!doubtTopic.trim()) return;
+    setSolvingDoubt(true);
+    setDoubtResponse("");
+    try {
+      const res = await fetch("/api/student/resources/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "ask_doubt", topic: doubtTopic }),
+      });
+      const data = await res.json();
+      setDoubtResponse(data.answer);
+    } catch (e) {
+      toast.error("AI Assistant offline.");
+    } finally {
+      setSolvingDoubt(false);
+    }
+  }, [doubtTopic]);
+
+  // Filtering & sorting (no teacher/section)
+  const filteredAndSortedResources = useMemo(() => {
+    let result = resources.filter((res) => {
+      const q = searchQuery.toLowerCase();
+      const matchesSearch =
+        res.title.toLowerCase().includes(q) ||
+        (res.description || "").toLowerCase().includes(q) ||
+        (res.subject || "").toLowerCase().includes(q);
+
+      if (!matchesSearch) return false;
+      if (selectedSubject !== "all" && res.subject !== selectedSubject) return false;
+      if (selectedType !== "all" && res.resourceType !== selectedType) return false;
+      if (showOnlyBookmarks && !bookmarks.includes(res.id)) return false;
+      return true;
+    });
+
+    return [...result].sort((a, b) => {
+      if (sortBy === "newest") return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      if (sortBy === "oldest") return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      if (sortBy === "views") return b.viewCount - a.viewCount;
+      if (sortBy === "downloads") return b.downloadCount - a.downloadCount;
+      if (sortBy === "recent") {
+        const pA = progressList.find((p) => p.resourceId === a.id)?.lastAccessedAt || "";
+        const pB = progressList.find((p) => p.resourceId === b.id)?.lastAccessedAt || "";
+        return new Date(pB).getTime() - new Date(pA).getTime();
+      }
+      return 0;
+    });
+  }, [resources, searchQuery, selectedSubject, selectedType, showOnlyBookmarks, bookmarks, sortBy, progressList]);
+
+  // Continue learning section
+  const continueLearningItems = useMemo(() => {
+    return resources
+      .map((res) => {
+        const progressItem = progressList.find((p) => p.resourceId === res.id);
+        return {
+          resource: res,
+          progress: progressItem ? progressItem.progress : 0,
+          isCompleted: progressItem ? progressItem.isCompleted : false,
+        };
+      })
+      .filter((item) => item.progress > 0 && !item.isCompleted)
+      .slice(0, 3);
+  }, [resources, progressList]);
+
+  const triggerAskDoubt = useCallback((title: string) => {
+    setDoubtTopic(`Summarize and explain key concepts in "${title}"`);
+    setShowDoubtDrawer(true);
+    setDoubtResponse("");
+  }, []);
+
+  return (
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
+
+      {/* ── Hero Banner ── */}
+      <div className="rounded-2xl border border-cyan-500/15 bg-gradient-to-r from-surface via-surface/60 to-surface px-8 py-6 relative overflow-hidden shadow-lg backdrop-blur-md">
+        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_right,rgba(6,182,212,0.08),transparent_60%)]" />
+        <div className="relative z-10">
+          <span className="inline-flex items-center rounded-full bg-cyan-500/10 border border-cyan-500/20 px-3 py-1 text-[10px] font-bold text-cyan-400 uppercase tracking-widest mb-3">
+            Learning Library
+          </span>
+          <h1 className="text-2xl font-black tracking-tight text-primary">Student Resource Hub</h1>
+          <p className="mt-1 text-xs text-secondary max-w-xl">
+            Access study sheets, slides, quizzes, and consult the AI doubt solver to boost your proficiency.
+          </p>
+        </div>
+      </div>
+
+      {/* ── KPI Cards ── */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        {[
+          {
+            label: "Resources Available",
+            val: stats.available || resources.length,
+            icon: "📚",
+            accent: "text-cyan-400",
+            glow: "from-cyan-500/5",
+          },
+          {
+            label: "Downloaded",
+            val: downloadedCount,
+            icon: "📥",
+            accent: "text-emerald-400",
+            glow: "from-emerald-500/5",
+          },
+          {
+            label: "Bookmarked",
+            val: bookmarkCount,
+            icon: "⭐",
+            accent: "text-amber-400",
+            glow: "from-amber-500/5",
+          },
+          {
+            label: "New Uploads",
+            val: stats.recent,
+            icon: "🆕",
+            accent: "text-violet-400",
+            glow: "from-violet-500/5",
+          },
+        ].map((c, i) => (
+          <div
+            key={i}
+            className={`rounded-2xl border border-theme bg-gradient-to-br ${c.glow} to-transparent p-5 flex items-center gap-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300`}
+          >
+            <span className="text-2xl shrink-0">{c.icon}</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[9px] uppercase font-bold text-secondary tracking-widest">{c.label}</p>
+              <p className={`text-lg font-black mt-0.5 ${c.accent}`}>{c.val}</p>
             </div>
           </div>
-        </div>,
-        document.body
+        ))}
+      </div>
+
+      {/* ── Continue Learning ── */}
+      {continueLearningItems.length > 0 && (
+        <div className="space-y-3 animate-in fade-in duration-300">
+          <h2 className="text-xs font-black uppercase tracking-wider text-cyan-400 flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
+            Continue Learning
+          </h2>
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+            {continueLearningItems.map((item) => (
+              <div key={item.resource.id} className="rounded-2xl border border-theme bg-surface p-4 space-y-3 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300">
+                <div className="flex justify-between items-start gap-2">
+                  <span className="text-xl">{RESOURCE_ICONS[item.resource.resourceType] || "📁"}</span>
+                  <span className="text-[9px] font-bold text-cyan-400 border border-cyan-500/20 bg-cyan-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    {item.resource.subject}
+                  </span>
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold text-primary truncate">{item.resource.title}</h3>
+                  <p className="text-[9px] text-secondary mt-0.5">By {item.resource.teacherName || "Faculty"}</p>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[9px] text-secondary font-bold">
+                    <span>Progress</span>
+                    <span>{item.progress}%</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-hover rounded-full overflow-hidden">
+                    <div className="h-full bg-cyan-400 transition-all duration-300" style={{ width: `${item.progress}%` }} />
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={() => handleTrackView(item.resource)}
+                    type="button"
+                    className="flex-1 text-[10px] font-bold bg-cyan-400 hover:bg-cyan-300 text-slate-950 rounded-xl py-2 transition active:scale-95"
+                  >
+                    Resume
+                  </button>
+                  <button
+                    onClick={() => handleTrackDownload(item.resource)}
+                    type="button"
+                    className="rounded-xl border border-theme bg-hover hover:bg-surface p-2 text-xs transition active:scale-95"
+                    title="Download"
+                  >
+                    📥
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Single-Row Filter Toolbar ── */}
+      <div className="rounded-2xl border border-theme bg-surface px-4 py-3 shadow-sm">
+        <div className="flex flex-wrap gap-2.5 items-center">
+          {/* Search */}
+          <div className="relative" style={{ width: "300px", maxWidth: "100%" }}>
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-secondary/50 pointer-events-none">
+              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-none stroke-current" strokeWidth="2.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.602 10.602Z" />
+              </svg>
+            </span>
+            <input
+              type="text"
+              placeholder="Search resources..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-10 w-full rounded-xl border border-theme bg-hover pl-9 pr-4 text-xs focus-visible:outline-none focus:ring-1 focus:ring-cyan-500 text-primary placeholder:text-secondary/40"
+            />
+          </div>
+
+          {/* Subject */}
+          <select
+            value={selectedSubject}
+            onChange={(e) => setSelectedSubject(e.target.value)}
+            className="select-theme h-10 text-xs"
+            style={{ width: "170px" }}
+          >
+            <option value="all">All Subjects</option>
+            {subjects.map((sub) => <option key={sub} value={sub}>{sub}</option>)}
+          </select>
+
+          {/* Format */}
+          <select
+            value={selectedType}
+            onChange={(e) => setSelectedType(e.target.value)}
+            className="select-theme h-10 text-xs"
+            style={{ width: "170px" }}
+          >
+            <option value="all">All Formats</option>
+            <option value="pdf">PDF Document</option>
+            <option value="document">DOCX Word</option>
+            <option value="presentation">Presentation</option>
+            <option value="image">Image Asset</option>
+            <option value="video">Video Material</option>
+            <option value="link">Reference Links</option>
+            <option value="notes">AI Notes</option>
+            <option value="quiz">Quizzes</option>
+            <option value="worksheet">Worksheets</option>
+          </select>
+
+          {/* Bookmarks toggle */}
+          <button
+            onClick={() => setShowOnlyBookmarks(v => !v)}
+            type="button"
+            className={`h-10 inline-flex items-center gap-2 px-4 rounded-xl border text-xs font-bold transition-all duration-200 active:scale-95 ${
+              showOnlyBookmarks
+                ? "bg-amber-500/15 border-amber-500/25 text-amber-400"
+                : "border-theme bg-hover text-secondary hover:text-primary hover:border-amber-500/25 hover:bg-amber-500/10"
+            }`}
+          >
+            <span>⭐</span>
+            Bookmarked
+          </button>
+
+          {/* Sort */}
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="select-theme h-10 text-xs"
+            style={{ width: "170px" }}
+          >
+            <option value="newest">Sort: Newest</option>
+            <option value="oldest">Sort: Oldest</option>
+            <option value="views">Sort: Most Viewed</option>
+            <option value="downloads">Sort: Most Downloaded</option>
+            <option value="recent">Sort: Recently Accessed</option>
+          </select>
+
+          {/* Result count */}
+          <span className="ml-auto text-[10px] text-secondary font-semibold whitespace-nowrap">
+            {filteredAndSortedResources.length} resource{filteredAndSortedResources.length !== 1 ? "s" : ""}
+          </span>
+        </div>
+      </div>
+
+      {/* ── Resource Grid ── */}
+      {filteredAndSortedResources.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-theme bg-surface/30 p-10 text-center max-w-md mx-auto">
+          <span className="text-6xl block mb-4 filter drop-shadow-md">📖</span>
+          <h3 className="text-sm font-bold text-primary">No resources found</h3>
+          <p className="mt-1.5 text-xs text-secondary max-w-sm mx-auto leading-relaxed">
+            No learning materials match your filters. Try adjusting or clearing them.
+          </p>
+          <button
+            onClick={() => {
+              setSearchQuery("");
+              setSelectedSubject("all");
+              setSelectedType("all");
+              setShowOnlyBookmarks(false);
+              setSortBy("newest");
+            }}
+            type="button"
+            className="mt-5 rounded-xl border border-theme bg-hover hover:bg-surface px-5 py-2.5 text-xs font-bold text-primary transition active:scale-95"
+          >
+            Clear Filters
+          </button>
+        </div>
+      ) : (
+        <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          {filteredAndSortedResources.map((res) => {
+            const progressItem = progressList.find((p) => p.resourceId === res.id);
+            return (
+              <ResourceCard
+                key={res.id}
+                resource={res}
+                progress={progressItem ? progressItem.progress : 0}
+                isCompleted={progressItem ? progressItem.isCompleted : false}
+                isBookmarked={bookmarks.includes(res.id)}
+                lastAccessed={progressItem ? progressItem.lastAccessedAt || null : null}
+                onOpen={handleTrackView}
+                onDownload={handleTrackDownload}
+                onBookmark={handleToggleBookmark}
+                onDoubt={triggerAskDoubt}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Preview Modal ── */}
+      {previewResource && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/85 backdrop-blur-sm">
+          <div className="relative w-full max-w-2xl overflow-hidden rounded-3xl border border-theme bg-surface shadow-2xl animate-in zoom-in-95 duration-200 max-h-[85vh] flex flex-col">
+            <button
+              onClick={() => setPreviewResource(null)}
+              type="button"
+              className="absolute right-5 top-5 z-10 flex h-8 w-8 items-center justify-center rounded-lg border border-theme bg-hover text-secondary hover:text-primary transition"
+            >
+              ✕
+            </button>
+            <div className="border-b border-theme px-6 py-5 shrink-0">
+              <span className="text-[8px] font-bold text-cyan-400 border border-cyan-500/20 bg-cyan-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                {previewResource.subject}
+              </span>
+              <h3 className="text-sm font-bold text-primary mt-2">{previewResource.title}</h3>
+              <p className="text-[10px] text-secondary mt-0.5">By {previewResource.teacherName || "Faculty"}</p>
+            </div>
+            <div className="flex-1 overflow-y-auto rounded-2xl border border-theme bg-hover/10 p-6 m-6">
+              {previewResource.fileUrl ? (
+                <div className="space-y-4">
+                  <p className="text-xs text-primary leading-relaxed">
+                    This file is ready for your review. Click the link below to open it.
+                  </p>
+                  <a
+                    href={previewResource.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-cyan-400 hover:text-cyan-300 border border-cyan-500/15 bg-cyan-500/5 px-4 py-2.5 rounded-xl hover:bg-cyan-500/10 transition"
+                  >
+                    🔗 Open: {previewResource.title}
+                  </a>
+                </div>
+              ) : (
+                <p className="text-xs text-muted italic text-center py-8">No content path available.</p>
+              )}
+            </div>
+            <div className="border-t border-theme px-6 py-5 space-y-4 bg-hover/10 shrink-0">
+              <div className="flex justify-between items-center text-xs font-bold text-primary">
+                <span>Update Study Progress:</span>
+                <span className="text-cyan-400">{viewingProgress}%</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="10"
+                value={viewingProgress}
+                onChange={(e) => setViewingProgress(Number(e.target.value))}
+                className="w-full h-1 bg-hover rounded-lg appearance-none cursor-pointer accent-cyan-400"
+              />
+              <div className="flex justify-end gap-3 pt-1">
+                <button
+                  onClick={() => setPreviewResource(null)}
+                  type="button"
+                  className="rounded-xl border border-theme bg-surface px-5 py-2.5 text-xs font-bold hover:bg-hover transition"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => handleUpdateProgress(previewResource.id, viewingProgress)}
+                  type="button"
+                  className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 rounded-xl px-5 py-2.5 text-xs font-bold shadow-md shadow-cyan-400/10 transition active:scale-95"
+                >
+                  Save Progress
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Doubt Solver Drawer ── */}
+      {showDoubtDrawer && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-end bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-md h-full bg-surface border-l border-theme p-6 flex flex-col justify-between shadow-2xl animate-in slide-in-from-right duration-300">
+            <div>
+              <div className="flex justify-between items-center border-b border-theme pb-4">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-primary">🤖 AI Doubt Solver</h3>
+                <button
+                  onClick={() => setShowDoubtDrawer(false)}
+                  type="button"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-theme bg-hover text-secondary hover:text-primary transition text-xs"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="mt-6 space-y-4">
+                <label className="block space-y-1">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-secondary">Your Query</span>
+                  <input
+                    type="text"
+                    className="input-theme"
+                    value={doubtTopic}
+                    onChange={(e) => setDoubtTopic(e.target.value)}
+                    placeholder="Ask any question..."
+                  />
+                </label>
+                <button
+                  onClick={handleAskDoubt}
+                  disabled={solvingDoubt || !doubtTopic.trim()}
+                  type="button"
+                  className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 w-full rounded-xl py-3 text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm transition active:scale-95"
+                >
+                  {solvingDoubt ? (
+                    <><span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />Resolving...</>
+                  ) : "Resolve Doubt"}
+                </button>
+                {doubtResponse && (
+                  <div className="rounded-xl border border-theme bg-hover/20 p-4 max-h-[450px] overflow-y-auto animate-in fade-in duration-200">
+                    <pre className="text-xs text-primary whitespace-pre-wrap font-mono leading-relaxed">{doubtResponse}</pre>
+                  </div>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={() => setShowDoubtDrawer(false)}
+              type="button"
+              className="w-full rounded-xl border border-theme bg-hover py-3 text-xs font-bold text-primary transition hover:bg-hover/80 active:scale-95"
+            >
+              Close Drawer
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

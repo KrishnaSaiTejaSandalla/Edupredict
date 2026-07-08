@@ -220,12 +220,14 @@ export async function updateParentNotificationPreferences(
   userId: number,
   preferences: {
     attendance: boolean;
-    marks: boolean;
     assignments: boolean;
+    messages: boolean;
     diary: boolean;
-    transport: boolean;
-    announcements: boolean;
     feedback: boolean;
+    leaves: boolean;
+    announcements: boolean;
+    transport: boolean;
+    general: boolean;
   }
 ) {
   try {

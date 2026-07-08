@@ -9,6 +9,8 @@ import logo from "@/branding/logo.png";
 import LogoutButton from "@/components/auth/LogoutButton";
 import WelcomeAnimation from "./WelcomeAnimation";
 import { useNotificationStore } from "@/store/useNotificationStore";
+import RealtimeListener from "@/components/shared/RealtimeListener";
+import { markNotificationRead } from "@/lib/notification-actions";
 
 type AdminShellProps = {
   children: React.ReactNode;
@@ -43,6 +45,16 @@ const simpleNavItems = [
     icon: "M7 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm10-1a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM1 20a6 6 0 0 1 12 0H1Zm12.6 0a7.5 7.5 0 0 0-2.1-4.9A5 5 0 0 1 22 20h-8.4Z",
   },
   {
+    href: "/admin/messages",
+    label: "Messages",
+    icon: "M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2Zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z",
+  },
+  {
+    href: "/admin/notifications",
+    label: "Notifications",
+    icon: "M12 22a2.8 2.8 0 0 0 2.7-2h-5.4A2.8 2.8 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5-6.7V3a2 2 0 0 0-4 0v1.3A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z",
+  },
+  {
     href: "/admin/analytics",
     label: "Analytics",
     icon: "M4 19h16v2H4v-2Zm2-2h3V9H6v8Zm5 0h3V4h-3v13Zm5 0h3v-6h-3v6Z",
@@ -59,46 +71,14 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export default function AdminShell({ children, user, alerts = [] }: AdminShellProps) {
+export default function AdminShell({ children, user, alerts: initialAlerts = [] }: AdminShellProps) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const pathname = usePathname();
 
-  // Real-time badge from Zustand — hydrated by NotificationsClient.
-  // Falls back to the server-provided alerts length until client hydration.
   const storeUnread = useNotificationStore((s) => s.unreadCount);
-  const hydrate = useNotificationStore((s) => s.hydrate);
-
-  // {Added for preference filter}
-  useEffect(() => {
-    const pollNotifications = async () => {
-      try {
-        const res = await fetch("/api/notifications/unread-count");
-
-        if (!res.ok) return;
-
-        const data = await res.json();
-
-        hydrate(data.count);
-      } catch (error) {
-        console.error("Notification polling failed", error);
-      }
-    };
-
-    pollNotifications();
-
-    const interval = setInterval(pollNotifications, 30000); // poll every 30 seconds
-
-    return () => clearInterval(interval);
-  }, [hydrate]);
-
-  // Seed the store with the count the server already knows about
-  // (alerts are unread notifs fetched in layout). This runs once.
-  useEffect(() => {
-    const serverCount = alerts.filter((a) => a.id !== "empty").length;
-    hydrate(serverCount);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const notifications = useNotificationStore((s) => s.notifications);
 
   const isItemActive = (href: string) => {
     if (href === "/admin/marks") {
@@ -112,7 +92,6 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
     return pathname === href || pathname.startsWith(`${href}/`);
   };
 
-  const pathname = usePathname();
   const isTeacherRoute = pathname.startsWith("/admin/teachers");
 
   const isAcademicRoute =
@@ -156,6 +135,7 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
 
   return (
     <div className="min-h-screen bg-base text-primary antialiased selection:bg-cyan-500/30 transition-colors duration-200">
+      <RealtimeListener role="admin" />
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[280px] border-r border-theme bg-surface/95 shadow-2xl shadow-black/30 backdrop-blur-xl lg:flex flex-col transition-colors duration-200">
         {/* Fixed Top: Logo + Divider */}
         <div className="shrink-0 px-4 pt-5">
@@ -216,7 +196,12 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
                   </svg>
                 </span>
 
-                {item.label}
+                <span className="flex-1 truncate">{item.label}</span>
+                {item.href === "/admin/notifications" && storeUnread > 0 && (
+                  <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white shrink-0">
+                    {storeUnread}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -399,57 +384,64 @@ export default function AdminShell({ children, user, alerts = [] }: AdminShellPr
                     </Link>
                   </div>
                   <div className="mt-1 max-h-72 overflow-y-auto space-y-0.5 scrollbar-hide">
-                    {alerts.map((alert) => {
-                      const toneBg =
-                        alert.tone === "danger"
-                          ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
-                          : alert.tone === "warning"
-                            ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                            : "bg-cyan-500/10 text-cyan-400 border-cyan-500/20";
+                    {(() => {
+                      const unreadNotifications = notifications.filter((n) => !n.isRead).slice(0, 5);
+                      if (unreadNotifications.length === 0) {
+                        return (
+                          <div className="text-center py-6 text-xs text-muted">
+                            No unread notifications
+                          </div>
+                        );
+                      }
+                      return unreadNotifications.map((notif) => {
+                        const toneBg =
+                          notif.priority === "high"
+                            ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                            : notif.priority === "medium"
+                              ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                              : "bg-cyan-500/10 text-cyan-400 border-cyan-500/20";
 
-                      const badgeText =
-                        alert.tone === "danger"
-                          ? "High"
-                          : alert.tone === "warning"
-                            ? "Medium"
-                            : "Info";
+                        const badgeText =
+                          notif.priority === "high"
+                            ? "High"
+                            : notif.priority === "medium"
+                              ? "Medium"
+                              : "Info";
 
-                      return (
-                        <div
-                          key={alert.id}
-                          className="group rounded-xl p-3 hover:bg-hover transition duration-200 border border-transparent"
-                        >
-                          <div className="flex gap-2.5">
-                            <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${alert.tone === "danger"
-                              ? "bg-rose-500"
-                              : alert.tone === "warning"
-                                ? "bg-amber-500"
-                                : "bg-cyan-500"
-                              }`} />
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center justify-between gap-1.5">
-                                <p className="text-xs font-semibold text-primary group-hover:text-cyan-300 transition duration-150 truncate">
-                                  {alert.title}
-                                </p>
-                                {alert.id !== "empty" && (
+                        return (
+                          <div
+                            key={notif.id}
+                            className="group rounded-xl p-3 hover:bg-hover transition duration-200 border border-transparent cursor-pointer"
+                            onClick={() => {
+                              useNotificationStore.getState().markRead(notif.id);
+                              markNotificationRead(notif.id).catch(console.error);
+                            }}
+                          >
+                            <div className="flex gap-2.5">
+                              <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${notif.priority === "high"
+                                ? "bg-rose-500"
+                                : notif.priority === "medium"
+                                  ? "bg-amber-500"
+                                  : "bg-cyan-500"
+                                }`} />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-1.5">
+                                  <p className="text-xs font-semibold text-primary group-hover:text-cyan-300 transition duration-150 truncate">
+                                    {notif.title}
+                                  </p>
                                   <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-medium ${toneBg}`}>
                                     {badgeText}
                                   </span>
-                                )}
-                              </div>
-                              <p className="mt-1 text-[11px] leading-relaxed text-secondary">
-                                {alert.message}
-                              </p>
-                              {alert.time && (
-                                <p className="mt-1 text-[9px] text-muted">
-                                  {alert.time}
+                                </div>
+                                <p className="mt-1 text-[11px] leading-relaxed text-secondary">
+                                  {notif.message}
                                 </p>
-                              )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      });
+                    })()}
                   </div>
                 </div>
               )}

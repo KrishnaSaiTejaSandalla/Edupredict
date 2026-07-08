@@ -1,31 +1,115 @@
 import { db } from './db';
-import { teacherResources, studentDiaries, aiGeneratedNotes, students, subjects, results, exams } from './schema';
-import { eq, desc, sql } from 'drizzle-orm';
+import {
+  teacherResources,
+  students,
+  subjects,
+  results,
+  exams,
+  classes,
+  teachers,
+  users,
+  resourceBookmarks,
+  studentLearningProgress,
+  classSubjects,
+  teacherClassAssignments,
+} from './schema';
+import { eq, desc, sql, and, inArray } from 'drizzle-orm';
 
 export async function getStudentResources(userId: number) {
-  const [studentRow] = await db.select({ id: students.id, classId: students.classId }).from(students).where(eq(students.userId, userId)).limit(1);
+  const [studentRow] = await db
+    .select({ id: students.id, classId: students.classId })
+    .from(students)
+    .where(eq(students.userId, userId))
+    .limit(1);
 
   if (!studentRow) {
-    return { recentResources: [], popularResources: [], recommendedResources: [], myNotes: [], weakSubjects: [], recentTopics: [] };
+    return {
+      availableResources: [],
+      bookmarkedIds: [],
+      progressList: [],
+      weakSubjects: [],
+      recentTopics: [],
+    };
   }
 
-  // Recently added teacher resources
-  const recentResources = await db.select().from(teacherResources).orderBy(desc(teacherResources.createdAt)).limit(10);
-  
-  // Popular resources
-  const popularResources = await db.select().from(teacherResources).orderBy(desc(teacherResources.downloadCount)).limit(10);
-  
-  // Student's own AI-generated notes
-  const myNotes = await db.select().from(aiGeneratedNotes).where(eq(aiGeneratedNotes.studentId, studentRow.id)).orderBy(desc(aiGeneratedNotes.createdAt)).limit(20);
+  // 1. Get class name
+  const [classRow] = await db
+    .select({ name: classes.name })
+    .from(classes)
+    .where(eq(classes.id, studentRow.classId))
+    .limit(1);
 
-  // AI RECOMMENDATION LOGIC:
-  // 1. Weak Subjects: subjects with average score < 75%
+  const className = classRow?.name || "";
+
+  // Fetch subject names assigned to this student's class
+  const classSubjectRows = await db
+    .select({ name: subjects.name })
+    .from(classSubjects)
+    .leftJoin(subjects, eq(subjects.id, classSubjects.subjectId))
+    .where(eq(classSubjects.classId, studentRow.classId));
+  const classSubjectNames = classSubjectRows.map(r => r.name).filter(Boolean) as string[];
+
+  // Fetch teacher IDs assigned to this student's class
+  const classTeacherRows = await db
+    .select({ teacherId: teacherClassAssignments.teacherId })
+    .from(teacherClassAssignments)
+    .where(eq(teacherClassAssignments.classId, studentRow.classId));
+  const classTeacherIds = classTeacherRows.map(r => r.teacherId).filter(Boolean) as number[];
+
+  // 2. Fetch resources matching class name, subjects, and assigned teachers
+  let availableResources: any[] = [];
+  if (className && classSubjectNames.length > 0 && classTeacherIds.length > 0) {
+    availableResources = await db
+      .select({
+        id: teacherResources.id,
+        title: teacherResources.title,
+        description: teacherResources.description,
+        subject: teacherResources.subject,
+        classLevel: teacherResources.classLevel,
+        resourceType: teacherResources.resourceType,
+        fileUrl: teacherResources.fileUrl,
+        downloadCount: teacherResources.downloadCount,
+        viewCount: teacherResources.viewCount,
+        createdAt: teacherResources.createdAt,
+        teacherName: users.name,
+      })
+      .from(teacherResources)
+      .leftJoin(teachers, eq(teachers.id, teacherResources.teacherId))
+      .leftJoin(users, eq(users.id, teachers.userId))
+      .where(
+        and(
+          eq(teacherResources.classLevel, className),
+          inArray(teacherResources.subject, classSubjectNames),
+          inArray(teacherResources.teacherId, classTeacherIds)
+        )
+      )
+      .orderBy(desc(teacherResources.createdAt));
+  }
+
+  // 3. Fetch bookmarked resource IDs
+  const bookmarkRows = await db
+    .select({ resourceId: resourceBookmarks.resourceId })
+    .from(resourceBookmarks)
+    .where(eq(resourceBookmarks.studentId, studentRow.id));
+
+  const bookmarkedIds = bookmarkRows.map((r) => r.resourceId);
+
+  // 4. Fetch learning progress
+  const progressList = await db
+    .select({
+      resourceId: studentLearningProgress.resourceId,
+      progress: studentLearningProgress.progress,
+      isCompleted: studentLearningProgress.isCompleted,
+    })
+    .from(studentLearningProgress)
+    .where(eq(studentLearningProgress.studentId, studentRow.id));
+
+  // 5. Compute weak subjects
   const studentResults = await db
     .select({
       subjectId: results.subjectId,
       subjectName: subjects.name,
       marks: results.marks,
-      examId: results.examId,
       maxMarks: exams.maxMarks,
     })
     .from(results)
@@ -33,68 +117,29 @@ export async function getStudentResources(userId: number) {
     .leftJoin(exams, eq(exams.id, results.examId))
     .where(eq(results.studentId, studentRow.id));
 
-  // Compute subject-wise average
-  const subjectSums: Record<string, { obtained: number; max: number; count: number }> = {};
+  const subjectSums: Record<string, { obtained: number; max: number }> = {};
   for (const r of studentResults) {
     const sName = r.subjectName || 'Unknown';
     const obtained = Number(r.marks || 0);
     const max = Number(r.maxMarks || 100);
     if (!subjectSums[sName]) {
-      subjectSums[sName] = { obtained: 0, max: 0, count: 0 };
+      subjectSums[sName] = { obtained: 0, max: 0 };
     }
     subjectSums[sName].obtained += obtained;
     subjectSums[sName].max += max;
-    subjectSums[sName].count++;
   }
 
   const weakSubjects = Object.entries(subjectSums)
     .map(([name, val]) => ({ name, percentage: Math.round((val.obtained / val.max) * 100) }))
-    .filter(s => s.percentage < 75);
-
-  // 2. Recent Diary Topics
-  const recentDiaries = await db
-    .select({
-      topicTaught: studentDiaries.topicTaught,
-      subjectName: subjects.name,
-    })
-    .from(studentDiaries)
-    .leftJoin(subjects, eq(subjects.id, studentDiaries.subjectId))
-    .where(eq(studentDiaries.classId, studentRow.classId))
-    .orderBy(desc(studentDiaries.date))
-    .limit(5);
-
-  const recentTopics = recentDiaries.map(d => ({
-    topic: d.topicTaught,
-    subject: d.subjectName || 'General',
-  }));
-
-  // 3. Match teacher resources with weak subjects or recent topics
-  const weakNames = weakSubjects.map(s => s.name);
-  const topicNames = recentTopics.map(t => t.subject);
-
-  // Filter classroom resources matching weak subjects or recent topics
-  const matchedResources = await db
-    .select()
-    .from(teacherResources)
-    .orderBy(desc(teacherResources.createdAt));
-
-  const recommendedResources = matchedResources.filter(res => {
-    const sName = res.subject || '';
-    return weakNames.includes(sName) || topicNames.includes(sName);
-  }).slice(0, 5);
-
-  // If no recommended resources found, default to popular resources
-  const finalRecommended = recommendedResources.length > 0 
-    ? recommendedResources 
-    : popularResources.slice(0, 5);
+    .filter(s => s.percentage < 75)
+    .map(s => s.name);
 
   return {
-    recentResources,
-    popularResources,
-    recommendedResources: finalRecommended,
-    myNotes,
-    weakSubjects: weakSubjects.map(s => s.name),
-    recentTopics,
+    availableResources,
+    bookmarkedIds,
+    progressList,
+    weakSubjects,
+    recentTopics: [],
   };
 }
 

@@ -8,12 +8,15 @@ import { getUserNotificationPreferences } from "@/lib/notification-actions";
 export default async function NotificationsPage() {
   const user = await requireRole("admin");
 
-  const rows = await db
-    .select()
-    .from(notifications)
-    .where(eq(notifications.userId, user.id))
-    .orderBy(desc(notifications.createdAt))
-    .limit(50);
+  const [rows, prefs] = await Promise.all([
+    db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.userId, user.id))
+      .orderBy(desc(notifications.createdAt))
+      .limit(50),
+    getUserNotificationPreferences(user.id)
+  ]);
 
   const items = rows.map((r) => ({
     ...r,
@@ -21,7 +24,6 @@ export default async function NotificationsPage() {
   }));
 
   const unreadCount = rows.filter((r) => !r.isRead).length;
-  const prefs = await getUserNotificationPreferences(user.id);
 
   return (
     <main className="min-h-screen bg-background p-4 sm:p-6 lg:p-8">

@@ -40,6 +40,10 @@ export default function ParentFeedbackClient({ initialHistory }: Props) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 6;
+
   // Form State
   const [formData, setFormData] = useState({
     title: "",
@@ -85,17 +89,19 @@ export default function ParentFeedbackClient({ initialHistory }: Props) {
 
     startTransition(async () => {
       try {
-        await submitFeedback({
+        const result = await submitFeedback({
           title: formData.title,
           category: formData.category,
           message: formData.message,
           priority: formData.priority,
           attachmentUrl: formData.attachmentUrl || undefined,
         });
+        if (result) {
+          setHistory((prev) => [result as any, ...prev]);
+        }
         toast.success("Feedback submitted successfully.");
         closeForm();
         router.refresh();
-        await reloadData();
       } catch (err: any) {
         toast.error(err.message || "Failed to submit feedback.");
       }
@@ -292,15 +298,15 @@ export default function ParentFeedbackClient({ initialHistory }: Props) {
         </div>
       )}
 
-      {/* History Feed */}
       {history.length === 0 ? (
         <div className="rounded-2xl border border-theme bg-surface p-12 text-center text-sm font-medium text-muted">
           No feedback records submitted yet. Click + Submit Feedback to share one.
         </div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2">
-          {history.map((item) => {
-            const repliesList = parseReplies(item.replies);
+        <>
+          <div className="grid gap-6 md:grid-cols-2">
+            {history.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((item) => {
+              const repliesList = parseReplies(item.replies);
 
             return (
               <div
@@ -394,6 +400,34 @@ export default function ParentFeedbackClient({ initialHistory }: Props) {
             );
           })}
         </div>
+
+          {/* Pagination Controls */}
+          {history.length > itemsPerPage && (
+            <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground pt-4 border-t border-theme mt-4 w-full">
+              <div>
+                {currentPage > 1 && (
+                  <button
+                    onClick={() => setCurrentPage((p) => p - 1)}
+                    className="rounded-xl border border-theme bg-surface px-4 py-2.5 hover:bg-hover transition duration-150 text-foreground font-bold"
+                  >
+                    ← Previous
+                  </button>
+                )}
+              </div>
+              <span className="tabular-nums">Page {currentPage} of {Math.ceil(history.length / itemsPerPage)}</span>
+              <div>
+                {currentPage < Math.ceil(history.length / itemsPerPage) && (
+                  <button
+                    onClick={() => setCurrentPage((p) => p + 1)}
+                    className="rounded-xl border border-theme bg-surface px-4 py-2.5 hover:bg-hover transition duration-150 text-foreground font-bold"
+                  >
+                    Next →
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Delete Confirmation Modal */}

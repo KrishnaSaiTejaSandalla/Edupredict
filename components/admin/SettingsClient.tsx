@@ -179,10 +179,9 @@ export default function SettingsClient({
   // Ref to monitor forms
   const formRef = useRef<HTMLFormElement>(null);
 
-  // Parse notifications
   const parsedNotifs = user.notificationPreferences
     ? JSON.parse(user.notificationPreferences)
-    : { email: true, inApp: true, attendance: true, exams: true };
+    : { attendance: true, assignments: true, messages: true, diary: true, feedback: true, leaves: true, announcements: true, general: true };
 
   // Calculate Profile Completion Meter
   const profileFields = [
@@ -289,12 +288,27 @@ export default function SettingsClient({
         setColorPreset(matchedPreset, true);
         toast.success("School branding saved successfully!");
       } else if (activeTab === "notifications") {
-        const email = formData.get("email") === "on";
-        const inApp = formData.get("inApp") === "on";
         const attendance = formData.get("attendance") === "on";
-        const exams = formData.get("exams") === "on";
+        const assignments = formData.get("assignments") === "on";
+        const messages = formData.get("messages") === "on";
+        const diary = formData.get("diary") === "on";
+        const feedback = formData.get("feedback") === "on";
+        const leaves = formData.get("leaves") === "on";
+        const announcements = formData.get("announcements") === "on";
+        const transport = formData.get("transport") === "on";
+        const general = formData.get("general") === "on";
 
-        await updateUserNotificationPreferences(user.id, { email, inApp, attendance, exams });
+        await updateUserNotificationPreferences(user.id, {
+          attendance,
+          assignments,
+          messages,
+          diary,
+          feedback,
+          leaves,
+          announcements,
+          transport,
+          general,
+        });
         toast.success("Notification preferences saved successfully!");
       } else if (activeTab === "appearance") {
         // Persist the currently selected preset via ThemeProvider cookie
@@ -1230,65 +1244,32 @@ export default function SettingsClient({
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-4 text-xs font-medium text-foreground">
-                  <div className="space-y-0.5">
-                    <span className="block">Email Notifications</span>
-                    <span className="block text-[10px] text-secondary font-medium">
-                      Receive weekly stats summaries via email.
-                    </span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    name="email"
-                    defaultChecked={parsedNotifs.email}
-                    className="h-5 w-5 accent-cyan-400 cursor-pointer rounded border-theme"
-                  />
-                </label>
-
-                <label className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-4 text-xs font-medium text-foreground">
-                  <div className="space-y-0.5">
-                    <span className="block">In-App Alerts</span>
-                    <span className="block text-[10px] text-secondary font-medium">
-                      Show badges and popups inside administrative header.
-                    </span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    name="inApp"
-                    defaultChecked={parsedNotifs.inApp}
-                    className="h-5 w-5 accent-cyan-400 cursor-pointer rounded border-theme"
-                  />
-                </label>
-
-                <label className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-4 text-xs font-medium text-foreground">
-                  <div className="space-y-0.5">
-                    <span className="block">Attendance Broadcasts</span>
-                    <span className="block text-[10px] text-secondary font-medium">
-                      Trigger messages to parents when student records change.
-                    </span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    name="attendance"
-                    defaultChecked={parsedNotifs.attendance}
-                    className="h-5 w-5 accent-cyan-400 cursor-pointer rounded border-theme"
-                  />
-                </label>
-
-                <label className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-4 text-xs font-medium text-foreground">
-                  <div className="space-y-0.5">
-                    <span className="block">Exam reminders</span>
-                    <span className="block text-[10px] text-secondary font-medium">
-                      Notify staff regarding exam sheets deadline.
-                    </span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    name="exams"
-                    defaultChecked={parsedNotifs.exams}
-                    className="h-5 w-5 accent-cyan-400 cursor-pointer rounded border-theme"
-                  />
-                </label>
+                {[
+                  { name: "attendance", label: "Attendance Alerts", desc: "Get notified when student attendance updates" },
+                  { name: "assignments", label: "Assignments", desc: "Get notified about new assignments and submissions" },
+                  { name: "messages", label: "Messages", desc: "Get notified about new chat messages" },
+                  { name: "diary", label: "Diary", desc: "Get notified about classroom diary updates" },
+                  { name: "feedback", label: "Feedback", desc: "Get notified about observations and surveys feedback" },
+                  { name: "leaves", label: "Leaves", desc: "Get notified about student leave requests or status changes" },
+                  { name: "announcements", label: "Announcements", desc: "Get notified about school-wide announcements" },
+                  { name: "transport", label: "Transport Alerts", desc: "Get notified about bus and location updates" },
+                  { name: "general", label: "General Alerts", desc: "Get notified about other updates and system info" },
+                ].map((item) => (
+                  <label key={item.name} className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-4 text-xs font-medium text-foreground">
+                    <div className="space-y-0.5">
+                      <span className="block">{item.label}</span>
+                      <span className="block text-[10px] text-secondary font-medium">
+                        {item.desc}
+                      </span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      name={item.name}
+                      defaultChecked={parsedNotifs[item.name as keyof typeof parsedNotifs]}
+                      className="h-5 w-5 accent-cyan-400 cursor-pointer rounded border-theme"
+                    />
+                  </label>
+                ))}
               </div>
             </form>
           )}

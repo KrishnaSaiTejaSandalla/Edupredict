@@ -3,18 +3,22 @@ import { db } from "@/lib/db";
 import { notifications } from "@/lib/schema";
 import { eq, desc } from "drizzle-orm";
 import SharedNotificationsClient from "@/components/shared/NotificationsClient";
+import { getUserNotificationPreferences } from "@/lib/notification-actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function StudentNotificationsPage() {
   const user = await requireRole("student");
 
-  const allNotifs = await db
-    .select()
-    .from(notifications)
-    .where(eq(notifications.userId, user.id))
-    .orderBy(desc(notifications.createdAt))
-    .limit(100);
+  const [allNotifs, prefs] = await Promise.all([
+    db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.userId, user.id))
+      .orderBy(desc(notifications.createdAt))
+      .limit(100),
+    getUserNotificationPreferences(user.id)
+  ]);
 
   const items = allNotifs.map((n) => ({
     id: n.id,
@@ -31,7 +35,13 @@ export default async function StudentNotificationsPage() {
 
   return (
     <main className="min-h-screen bg-base p-4 sm:p-6 lg:p-8 text-primary transition-colors duration-200">
-      <SharedNotificationsClient initialItems={items} userId={user.id} initialUnreadCount={unreadCount} />
+      <SharedNotificationsClient
+        initialItems={items}
+        userId={user.id}
+        initialUnreadCount={unreadCount}
+        initialPrefs={prefs}
+      />
     </main>
   );
 }
+

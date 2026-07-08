@@ -1,4 +1,5 @@
 import { db } from './db';
+import { broadcastNotification } from './realtime';
 import {
   teachers,
   students,
@@ -151,6 +152,28 @@ export async function markBulkAttendance(
         }
       });
 
+      // Get preferences of all these users to respect user configuration
+      const allUserIds = [
+        ...studentUsers.map((su) => su.userId).filter((id): id is number => id !== null),
+        ...parentUsers.map((pu) => pu.parentUserId).filter((id): id is number => id !== null),
+      ];
+
+      const userPrefsMap: Record<number, any> = {};
+      if (allUserIds.length > 0) {
+        const userPrefsRows = await db
+          .select({ id: users.id, notificationPreferences: users.notificationPreferences })
+          .from(users)
+          .where(inArray(users.id, allUserIds));
+
+        userPrefsRows.forEach((row) => {
+          try {
+            userPrefsMap[row.id] = row.notificationPreferences ? JSON.parse(row.notificationPreferences) : {};
+          } catch {
+            userPrefsMap[row.id] = {};
+          }
+        });
+      }
+
       const notifValues: any[] = [];
       const dateStr = dateObj.toLocaleDateString();
 
@@ -165,27 +188,34 @@ export async function markBulkAttendance(
           : "Absent";
 
         if (studentInfo) {
-          // Student Notification
-          notifValues.push({
-            userId: studentInfo.userId,
-            title: "Attendance Marked",
-            message: `You have been marked ${statusStr} on ${dateStr}.`,
-            type: "attendance",
-            priority: (r.status === "absent" || r.status === "leave") ? "high" : "low",
-            isRead: false,
-          });
+          // Check student preferences
+          const studentPrefs = userPrefsMap[studentInfo.userId] ?? {};
+          if (studentPrefs.attendance !== false) {
+            // Student Notification
+            notifValues.push({
+              userId: studentInfo.userId,
+              title: "Attendance Marked",
+              message: `You have been marked ${statusStr} on ${dateStr}.`,
+              type: "attendance",
+              priority: (r.status === "absent" || r.status === "leave") ? "high" : "low",
+              isRead: false,
+            });
+          }
 
           // Parent Notification
           const parentsList = parentUserMap[r.studentId] || [];
           parentsList.forEach((parentUserId) => {
-            notifValues.push({
-              userId: parentUserId,
-              title: "Attendance Marked",
-              message: `Your child ${studentInfo.name} has been marked ${statusStr} on ${dateStr}.`,
-              type: "attendance",
-              priority: r.status === "absent" ? "high" : "low",
-              isRead: false,
-            });
+            const parentPrefs = userPrefsMap[parentUserId] ?? {};
+            if (parentPrefs.attendance !== false) {
+              notifValues.push({
+                userId: parentUserId,
+                title: "Attendance Marked",
+                message: `Your child ${studentInfo.name} has been marked ${statusStr} on ${dateStr}.`,
+                type: "attendance",
+                priority: r.status === "absent" ? "high" : "low",
+                isRead: false,
+              });
+            }
           });
         }
       });
@@ -194,6 +224,15 @@ export async function markBulkAttendance(
         const chunkSize = 200;
         for (let i = 0; i < notifValues.length; i += chunkSize) {
           await db.insert(notifications).values(notifValues.slice(i, i + chunkSize));
+        }
+        // Broadcast in real-time
+        for (const val of notifValues) {
+          broadcastNotification(val.userId, {
+            title: val.title,
+            message: val.message,
+            type: val.type,
+            priority: val.priority,
+          });
         }
       }
     }

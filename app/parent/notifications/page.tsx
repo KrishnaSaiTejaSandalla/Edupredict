@@ -10,12 +10,15 @@ export const dynamic = "force-dynamic";
 export default async function ParentNotificationsPage() {
   const user = await requireRole("parent");
 
-  const allNotifs = await db
-    .select()
-    .from(notifications)
-    .where(eq(notifications.userId, user.id))
-    .orderBy(desc(notifications.createdAt))
-    .limit(100);
+  const [allNotifs, prefs] = await Promise.all([
+    db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.userId, user.id))
+      .orderBy(desc(notifications.createdAt))
+      .limit(100),
+    getUserNotificationPreferences(user.id)
+  ]);
 
   const items = allNotifs.map((n) => ({
     id: n.id,
@@ -29,7 +32,6 @@ export default async function ParentNotificationsPage() {
   }));
 
   const unreadCount = items.filter((i) => !i.isRead).length;
-  const prefs = await getUserNotificationPreferences(user.id);
 
   return (
     <main className="min-h-screen bg-base p-4 sm:p-6 lg:p-8 text-primary transition-colors duration-200">

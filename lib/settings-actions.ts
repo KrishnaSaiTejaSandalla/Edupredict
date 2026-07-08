@@ -234,10 +234,15 @@ export async function uploadUserProfileImage(userId: number, formData: FormData)
 export async function updateUserNotificationPreferences(
   userId: number,
   preferences: {
-    email: boolean;
-    inApp: boolean;
     attendance: boolean;
-    exams: boolean;
+    assignments: boolean;
+    messages: boolean;
+    diary: boolean;
+    feedback: boolean;
+    leaves: boolean;
+    announcements: boolean;
+    transport: boolean;
+    general: boolean;
   }
 ) {
   try {

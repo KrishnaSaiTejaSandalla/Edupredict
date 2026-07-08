@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect } from "react";
 import { toast } from "sonner";
 import DeleteConfirmModal from "@/components/ui/DeleteConfirmModal";
-import { createBus, updateBus, deleteBus } from "@/lib/transport-actions";
+import { createBus, updateBus, deleteBus, getBusStops, saveBusStops } from "@/lib/transport-actions";
 
 type Bus = {
   id: number;
@@ -50,6 +50,77 @@ export default function TransportClient({ initialBuses }: Props) {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [busToDelete, setBusToDelete] = useState<{ id: number; regNum: string } | null>(null);
 
+  // Stops management state
+  const [stops, setStops] = useState<{
+    id?: number;
+    stopName: string;
+    pickupTime: string;
+    dropTime: string;
+    sequenceNumber: number;
+    studentCount: number;
+  }[]>([]);
+
+  const handleAddStop = () => {
+    const nameEl = document.getElementById("newStopName") as HTMLInputElement;
+    const pickupEl = document.getElementById("newPickupTime") as HTMLInputElement;
+    const dropEl = document.getElementById("newDropTime") as HTMLInputElement;
+
+    if (!nameEl || !pickupEl || !dropEl) return;
+
+    const stopName = nameEl.value.trim();
+    const pickupTime = pickupEl.value;
+    const dropTime = dropEl.value;
+
+    if (!stopName) {
+      toast.error("Stop name is required.");
+      return;
+    }
+    if (!pickupTime || !dropTime) {
+      toast.error("Pickup and Drop times are required.");
+      return;
+    }
+
+    const newStop = {
+      stopName,
+      pickupTime,
+      dropTime,
+      sequenceNumber: stops.length + 1,
+      studentCount: 0,
+    };
+
+    setStops([...stops, newStop]);
+
+    // Clear inputs
+    nameEl.value = "";
+    pickupEl.value = "";
+    dropEl.value = "";
+  };
+
+  const handleRemoveStop = (indexToRemove: number) => {
+    const filtered = stops.filter((_, idx) => idx !== indexToRemove);
+    const reindexed = filtered.map((s, idx) => ({
+      ...s,
+      sequenceNumber: idx + 1,
+    }));
+    setStops(reindexed);
+  };
+
+  const handleMoveStop = (index: number, direction: number) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= stops.length) return;
+
+    const updated = [...stops];
+    const temp = updated[index];
+    updated[index] = updated[targetIndex];
+    updated[targetIndex] = temp;
+
+    const reindexed = updated.map((s, idx) => ({
+      ...s,
+      sequenceNumber: idx + 1,
+    }));
+    setStops(reindexed);
+  };
+
   // Reset page when search query changes
   useEffect(() => {
     setCurrentPage(1);
@@ -78,6 +149,7 @@ export default function TransportClient({ initialBuses }: Props) {
       capacity: "",
       isActive: "true",
     });
+    setStops([]);
   };
 
   const openCreate = () => {
@@ -90,10 +162,11 @@ export default function TransportClient({ initialBuses }: Props) {
       capacity: "",
       isActive: "true",
     });
+    setStops([]);
     setShowForm(true);
   };
 
-  const openEdit = (bus: Bus) => {
+  const openEdit = async (bus: Bus) => {
     setEditingId(bus.id);
     setFormData({
       registrationNumber: bus.registrationNumber,
@@ -103,7 +176,23 @@ export default function TransportClient({ initialBuses }: Props) {
       capacity: bus.capacity ? bus.capacity.toString() : "",
       isActive: bus.isActive.toString(),
     });
+    setStops([]);
     setShowForm(true);
+
+    try {
+      const fetchedStops = await getBusStops(bus.id);
+      setStops(fetchedStops.map(s => ({
+        id: s.id,
+        stopName: s.stopName,
+        pickupTime: s.pickupTime,
+        dropTime: s.dropTime,
+        sequenceNumber: s.sequenceNumber,
+        studentCount: s.studentCount
+      })));
+    } catch (err) {
+      console.error("Failed to load stops:", err);
+      toast.error("Failed to load bus stops.");
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -126,6 +215,7 @@ export default function TransportClient({ initialBuses }: Props) {
 
         if (editingId) {
           await updateBus(editingId, payload);
+          await saveBusStops(editingId, stops);
           toast.success("Bus updated successfully.");
         } else {
           await createBus(payload);
@@ -306,6 +396,122 @@ export default function TransportClient({ initialBuses }: Props) {
                 <option value="false">Inactive</option>
               </select>
             </div>
+
+            {/* Assigned Stops Section — Only in Edit Mode */}
+            {editingId && (
+              <div className="md:col-span-3 border-t border-border pt-6 mt-4 space-y-4">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-primary">
+                  Assigned Stops
+                </h3>
+                
+                {/* Stops List Table */}
+                <div className="overflow-hidden rounded-xl border border-border bg-background shadow-inner">
+                  <table className="w-full text-left text-xs text-foreground">
+                    <thead className="border-b border-border bg-surface text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      <tr>
+                        <th className="p-3 pl-4">Seq</th>
+                        <th className="p-3">Stop Name</th>
+                        <th className="p-3">Pickup</th>
+                        <th className="p-3">Drop</th>
+                        <th className="p-3">Students</th>
+                        <th className="p-3 text-right pr-4">Reorder / Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-subtle">
+                      {stops.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="p-6 text-center text-muted-foreground">
+                            No stops assigned to this bus. Add one below.
+                          </td>
+                        </tr>
+                      ) : (
+                        stops.map((stop, index) => (
+                          <tr key={index} className="hover:bg-hover/30 transition duration-150">
+                            <td className="p-3 pl-4 font-semibold text-cyan-500">{stop.sequenceNumber}</td>
+                            <td className="p-3 font-medium">{stop.stopName}</td>
+                            <td className="p-3 text-secondary">{stop.pickupTime}</td>
+                            <td className="p-3 text-secondary">{stop.dropTime}</td>
+                            <td className="p-3 text-secondary">{stop.studentCount}</td>
+                            <td className="p-3 text-right pr-4">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {/* Move Up */}
+                                <button
+                                  type="button"
+                                  disabled={index === 0}
+                                  onClick={() => handleMoveStop(index, -1)}
+                                  className="p-1.5 rounded-lg hover:bg-hover text-muted hover:text-cyan-400 disabled:opacity-30 disabled:hover:text-muted transition duration-150"
+                                  title="Move Up"
+                                >
+                                  ▲
+                                </button>
+                                {/* Move Down */}
+                                <button
+                                  type="button"
+                                  disabled={index === stops.length - 1}
+                                  onClick={() => handleMoveStop(index, 1)}
+                                  className="p-1.5 rounded-lg hover:bg-hover text-muted hover:text-cyan-400 disabled:opacity-30 disabled:hover:text-muted transition duration-150"
+                                  title="Move Down"
+                                >
+                                  ▼
+                                </button>
+                                {/* Remove */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveStop(index)}
+                                  className="p-1.5 rounded-lg hover:bg-hover text-rose-500/70 hover:text-rose-500 transition duration-150"
+                                  title="Remove Stop"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Inline form to add stop */}
+                <div className="rounded-xl border border-border bg-surface/50 p-4 space-y-3">
+                  <p className="text-xs font-semibold text-secondary uppercase tracking-wider">Add New Stop</p>
+                  <div className="grid gap-3 sm:grid-cols-4 items-end">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Stop Name</label>
+                      <input
+                        type="text"
+                        id="newStopName"
+                        placeholder="e.g. Central Station"
+                        className="input-theme text-xs h-9 py-1 px-2.5"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Pickup Time</label>
+                      <input
+                        type="time"
+                        id="newPickupTime"
+                        className="input-theme text-xs h-9 py-1 px-2.5"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Drop Time</label>
+                      <input
+                        type="time"
+                        id="newDropTime"
+                        className="input-theme text-xs h-9 py-1 px-2.5"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddStop}
+                      className="h-9 rounded-xl btn-blue text-xs font-bold w-full transition duration-150"
+                    >
+                      + Add Stop
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Form actions */}
             <div className="md:col-span-3 flex gap-3 mt-2">

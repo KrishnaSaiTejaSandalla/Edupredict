@@ -114,6 +114,26 @@ function calculateRiskLevel(
 export async function getAdminDashboardData(): Promise<DashboardPayload> {
   const user = await getCurrentUser();
 
+  // Compute date ranges for attendance trend
+  const today = new Date();
+  const currentDay = today.getDay(); // 0 is Sunday, 1 is Monday...
+  const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+
+  const startOfThisWeek = new Date(today);
+  startOfThisWeek.setDate(today.getDate() + distanceToMonday);
+  startOfThisWeek.setHours(0, 0, 0, 0);
+
+  const startOfLastWeek = new Date(startOfThisWeek);
+  startOfLastWeek.setDate(startOfThisWeek.getDate() - 7);
+
+  const endOfThisWeek = new Date(startOfThisWeek);
+  endOfThisWeek.setDate(startOfThisWeek.getDate() + 6);
+  endOfThisWeek.setHours(23, 59, 59, 999);
+
+  const endOfLastWeek = new Date(startOfLastWeek);
+  endOfLastWeek.setDate(startOfLastWeek.getDate() + 6);
+  endOfLastWeek.setHours(23, 59, 59, 999);
+
   const [
     studentCountRow,
     teacherCountRow,
@@ -126,6 +146,8 @@ export async function getAdminDashboardData(): Promise<DashboardPayload> {
     examTrendRaw,
     subjectAvgsRaw,
     genderDistributionRaw,
+    thisWeekAttendanceRaw,
+    lastWeekAttendanceRaw,
   ] = await Promise.all([
     // 1. Total students
     db.select({ count: sql<number>`count(*)` }).from(students),
@@ -242,6 +264,34 @@ export async function getAdminDashboardData(): Promise<DashboardPayload> {
       })
       .from(students)
       .groupBy(students.gender),
+
+    // 12. This week attendance
+    db
+      .select({
+        date: attendance.attendanceDate,
+        status: attendance.status,
+      })
+      .from(attendance)
+      .where(
+        and(
+          sql`${attendance.attendanceDate} >= ${startOfThisWeek.toISOString().slice(0, 10)}`,
+          sql`${attendance.attendanceDate} <= ${endOfThisWeek.toISOString().slice(0, 10)}`
+        )
+      ),
+
+    // 13. Last week attendance
+    db
+      .select({
+        date: attendance.attendanceDate,
+        status: attendance.status,
+      })
+      .from(attendance)
+      .where(
+        and(
+          sql`${attendance.attendanceDate} >= ${startOfLastWeek.toISOString().slice(0, 10)}`,
+          sql`${attendance.attendanceDate} <= ${endOfLastWeek.toISOString().slice(0, 10)}`
+        )
+      ),
   ]);
 
   // ─── KPIs ─────────────────────────────────────────────────────────────────
@@ -424,51 +474,7 @@ export async function getAdminDashboardData(): Promise<DashboardPayload> {
   );
 
   // ─── Attendance Trend (This Week vs Last Week Mon-Sun) ───────────────────
-  const today = new Date();
-  const currentDay = today.getDay(); // 0 is Sunday, 1 is Monday...
-  const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay;
-
-  const startOfThisWeek = new Date(today);
-  startOfThisWeek.setDate(today.getDate() + distanceToMonday);
-  startOfThisWeek.setHours(0, 0, 0, 0);
-
-  const startOfLastWeek = new Date(startOfThisWeek);
-  startOfLastWeek.setDate(startOfThisWeek.getDate() - 7);
-
-  const endOfThisWeek = new Date(startOfThisWeek);
-  endOfThisWeek.setDate(startOfThisWeek.getDate() + 6);
-  endOfThisWeek.setHours(23, 59, 59, 999);
-
-  const endOfLastWeek = new Date(startOfLastWeek);
-  endOfLastWeek.setDate(startOfLastWeek.getDate() + 6);
-  endOfLastWeek.setHours(23, 59, 59, 999);
-
-  const [thisWeekAttendanceRaw, lastWeekAttendanceRaw] = await Promise.all([
-    db
-      .select({
-        date: attendance.attendanceDate,
-        status: attendance.status,
-      })
-      .from(attendance)
-      .where(
-        and(
-          sql`${attendance.attendanceDate} >= ${startOfThisWeek.toISOString().slice(0, 10)}`,
-          sql`${attendance.attendanceDate} <= ${endOfThisWeek.toISOString().slice(0, 10)}`
-        )
-      ),
-    db
-      .select({
-        date: attendance.attendanceDate,
-        status: attendance.status,
-      })
-      .from(attendance)
-      .where(
-        and(
-          sql`${attendance.attendanceDate} >= ${startOfLastWeek.toISOString().slice(0, 10)}`,
-          sql`${attendance.attendanceDate} <= ${endOfLastWeek.toISOString().slice(0, 10)}`
-        )
-      )
-  ]);
+  // Note: thisWeekAttendanceRaw and lastWeekAttendanceRaw are now parallelized in the main query block.
 
   const daysOfWeekNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 

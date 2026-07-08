@@ -219,11 +219,15 @@ export async function updateStudentProfileSettings(
 export async function updateStudentNotificationPrefs(
   userId: number,
   prefs: {
-    email: boolean;
-    inApp: boolean;
     attendance: boolean;
     assignments: boolean;
-    exams: boolean;
+    messages: boolean;
+    diary: boolean;
+    feedback: boolean;
+    leaves: boolean;
+    announcements: boolean;
+    transport: boolean;
+    general: boolean;
   }
 ) {
   const user = await requireRole('student');

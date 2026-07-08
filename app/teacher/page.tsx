@@ -1,28 +1,61 @@
-import { requireRole } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { teachers } from "@/lib/schema";
-import { eq } from "drizzle-orm";
-import { getTeacherDashboardData } from "@/lib/teacher-dashboard.service";
+"use client";
+
+import useSWR from "swr";
 import TeacherDashboardClient from "@/components/teacher/dashboard/TeacherDashboardClient";
 
-export const dynamic = "force-dynamic";
+const fetcher = (url: string) => fetch(url).then((res) => {
+  if (!res.ok) throw new Error("Failed to fetch teacher dashboard");
+  return res.json();
+});
 
-export default async function TeacherDashboardPage() {
-  const user = await requireRole("teacher");
+export default function TeacherDashboardPage() {
+  const { data, error, isLoading } = useSWR("/api/dashboard/teacher", fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 5000,
+  });
 
-  const [teacher] = await db
-    .select()
-    .from(teachers)
-    .where(eq(teachers.userId, user.id))
-    .limit(1);
+  if (isLoading) {
+    return (
+      <main className="min-h-screen bg-background text-foreground p-4 sm:p-6 lg:p-8 space-y-8 animate-pulse">
+        <div>
+          <div className="h-4 w-20 bg-muted rounded"></div>
+          <div className="h-8 w-64 bg-muted rounded mt-2"></div>
+          <div className="h-4 w-96 bg-muted rounded mt-2"></div>
+        </div>
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-28 bg-muted rounded-2xl border border-border/50"></div>
+          ))}
+        </div>
+        <div className="grid gap-8 lg:grid-cols-12">
+          <div className="lg:col-span-8 h-80 bg-muted rounded-2xl"></div>
+          <div className="lg:col-span-4 h-80 bg-muted rounded-2xl"></div>
+        </div>
+      </main>
+    );
+  }
 
-  const dashboard = await getTeacherDashboardData(user.id);
+  if (error || !data) {
+    return (
+      <main className="min-h-screen flex items-center justify-center p-8">
+        <div className="text-center space-y-4">
+          <p className="text-red-500 font-medium">Failed to load teacher dashboard metrics.</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-semibold hover:bg-primary/90 transition"
+          >
+            Retry
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <TeacherDashboardClient
-      userName={user.name}
-      dashboard={dashboard}
-      teacherDept={teacher?.department || null}
+      userName={data.userName}
+      dashboard={data.dashboard}
+      teacherDept={data.teacherDept}
     />
   );
 }

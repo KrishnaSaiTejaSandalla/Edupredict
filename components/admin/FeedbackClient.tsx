@@ -194,6 +194,7 @@ export default function FeedbackClient({ initialFeedback }: Props) {
             <option value="all">All Roles</option>
             <option value="parent">Parent</option>
             <option value="student">Student</option>
+            <option value="teacher">Teacher</option>
           </select>
         </div>
       </div>
@@ -209,6 +210,8 @@ export default function FeedbackClient({ initialFeedback }: Props) {
             const roleBadge =
               item.userRole === "parent"
                 ? "bg-purple-500/10 text-purple-400 border-purple-500/20"
+                : item.userRole === "teacher"
+                ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
                 : "bg-cyan-500/10 text-cyan-400 border-cyan-500/20";
 
             return (

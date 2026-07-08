@@ -5,48 +5,111 @@ import { notifications, users } from './schema';
 import { eq, and } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { getCurrentUser } from './auth';
+import { broadcastNotification } from './realtime';
 
 export type NotificationPreferences = {
-  academic: boolean;
   attendance: boolean;
-  system: boolean;
-  reports: boolean;
+  assignments: boolean;
+  messages: boolean;
+  diary: boolean;
+  feedback: boolean;
+  leaves: boolean;
+  announcements: boolean;
+  transport: boolean;
+  general: boolean;
 };
 
 const DEFAULT_PREFS: NotificationPreferences = {
-  academic: true,
   attendance: true,
-  system: true,
-  reports: true,
+  assignments: true,
+  messages: true,
+  diary: true,
+  feedback: true,
+  leaves: true,
+  announcements: true,
+  transport: true,
+  general: true,
 };
 
-export async function createNotification(
+function getPrefKeyForType(type: string): string {
+  const t = type.toLowerCase();
+  if (t === "attendance") return "attendance";
+  if (t === "assignment" || t === "assignments") return "assignments";
+  if (t === "message" || t === "messages" || t === "chat" || t === "chatmessage") return "messages";
+  if (t === "diary") return "diary";
+  if (t === "feedback") return "feedback";
+  if (t === "leave" || t === "leaves") return "leaves";
+  if (t === "announcement" || t === "announcements") return "announcements";
+  if (t === "transport" || t === "bus" || t === "buslocation") return "transport";
+  return "general";
+}
+
+export async function createNotificationForUser(
+  userId: number,
   title: string,
   message: string,
   type: string = 'info',
-  priority: 'low' | 'medium' | 'high' = 'medium'
+  priority: 'low' | 'medium' | 'high' = 'medium',
+  actionUrl?: string | null
 ) {
   try {
-    const user = await getCurrentUser();
-    if (!user) return;
+    const prefs = await getUserNotificationPreferences(userId);
+    const prefKey = getPrefKeyForType(type);
 
-    await db.insert(notifications).values({
-      userId: user.id,
+    if (prefs[prefKey as keyof NotificationPreferences] === false) {
+      return;
+    }
+
+    const result = await db.insert(notifications).values({
+      userId,
       title,
       message,
       type,
       priority,
       isRead: false,
+      actionUrl: actionUrl || null,
+    });
+
+    const insertId = Number(result[0].insertId);
+
+    // Broadcast in real-time with full info
+    broadcastNotification(userId, {
+      id: insertId,
+      userId,
+      title,
+      message,
+      type,
+      priority,
+      isRead: false,
+      actionUrl: actionUrl || null,
+      createdAt: new Date().toISOString(),
     });
 
     revalidatePath('/admin');
     revalidatePath('/admin/notifications');
     revalidatePath('/teacher');
     revalidatePath('/teacher/notifications');
+    revalidatePath('/student');
+    revalidatePath('/student/notifications');
+    revalidatePath('/parent');
+    revalidatePath('/parent/notifications');
   } catch (err) {
-    console.error('Failed to create notification:', err);
+    console.error('Failed to create notification for user:', err);
   }
 }
+
+export async function createNotification(
+  title: string,
+  message: string,
+  type: string = 'info',
+  priority: 'low' | 'medium' | 'high' = 'medium',
+  actionUrl?: string | null
+) {
+  const user = await getCurrentUser();
+  if (!user) return;
+  await createNotificationForUser(user.id, title, message, type, priority, actionUrl);
+}
+
 
 export async function markNotificationRead(id: number) {
   try {

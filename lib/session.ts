@@ -3,6 +3,7 @@ import { db } from './db';
 import { sessions, users, schools } from './schema';
 import { eq } from 'drizzle-orm';
 import { SESSION_COOKIE_NAME } from './env';
+import { cache } from 'react';
 
 export async function createSession(userId: number, maxAgeSeconds = 60 * 60 * 24 * 7) {
   const token = randomBytes(48).toString('hex');
@@ -20,7 +21,7 @@ export async function deleteSessionByToken(token: string) {
   await db.delete(sessions).where(eq(sessions.sessionToken, token));
 }
 
-export async function getUserBySessionToken(token: string) {
+export const getUserBySessionToken = cache(async function getUserBySessionToken(token: string) {
   const session = await getSessionByToken(token);
   if (!session) return null;
   if (session.expiresAt && new Date(session.expiresAt) < new Date()) {
@@ -76,4 +77,4 @@ export async function getUserBySessionToken(token: string) {
     schoolName,
     schoolLogoUrl,
   };
-}
+});

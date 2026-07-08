@@ -9,6 +9,8 @@ import logo from "@/branding/logo.png";
 import LogoutButton from "@/components/auth/LogoutButton";
 import WelcomeAnimation from "../admin/WelcomeAnimation";
 import { useNotificationStore } from "@/store/useNotificationStore";
+import RealtimeListener from "@/components/shared/RealtimeListener";
+import { markNotificationRead } from "@/lib/notification-actions";
 
 type TeacherShellProps = {
   children: React.ReactNode;
@@ -69,6 +71,11 @@ const baseNavItems = [
     icon: "M18 2h-3a3 3 0 0 0-6 0H6C4.9 2 4 2.9 4 4v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2Zm-6 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1Zm6 18H6V4h2v3h8V4h2v16Z",
   },
   {
+    href: "/teacher/messages",
+    label: "Messages",
+    icon: "M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2Zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z",
+  },
+  {
     href: "/teacher/leaves",
     label: "Leaves",
     icon: "M19 3h-5v2h4v14H5V5h4V3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2Z",
@@ -95,35 +102,39 @@ export default function TeacherShell({
   children,
   user,
   isClassTeacher = false,
-  alerts = [],
+  alerts: initialAlerts = [],
 }: TeacherShellProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showBottomMenu, setShowBottomMenu] = useState(false);
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
   const pathname = usePathname();
 
-  const storeUnread = useNotificationStore((s) => s.unreadCount);
-  const hydrate = useNotificationStore((s) => s.hydrate);
+  const isAcademicRoute =
+    pathname.startsWith("/teacher/attendance") ||
+    pathname.startsWith("/teacher/marks") ||
+    pathname.startsWith("/teacher/assignments") ||
+    pathname.startsWith("/teacher/timetable") ||
+    pathname.startsWith("/teacher/diary");
+
+  const showAcademics = openMenu === "Academics" || (openMenu !== "closed" && isAcademicRoute);
+
+  const toggleAcademics = () => {
+    if (showAcademics) {
+      setOpenMenu("closed");
+    } else {
+      setOpenMenu("Academics");
+    }
+  };
 
   useEffect(() => {
-    const pollNotifications = async () => {
-      try {
-        const res = await fetch("/api/notifications/unread-count");
-        if (!res.ok) return;
-        const data = await res.json();
-        hydrate(data.count);
-      } catch (error) {
-        console.error("Notification polling failed", error);
-      }
-    };
+    if (!isAcademicRoute) {
+      setOpenMenu(null);
+    }
+  }, [pathname, isAcademicRoute]);
 
-    pollNotifications();
-    const interval = setInterval(pollNotifications, 30000); // poll every 30 seconds
-    return () => clearInterval(interval);
-  }, [hydrate]);
-
-  // NOTE: unread count is managed by SharedNotificationsClient (hydrate from DB)
-  // and by the polling useEffect above. Do NOT override it from alerts prop.
+  const storeUnread = useNotificationStore((s) => s.unreadCount);
+  const notifications = useNotificationStore((s) => s.notifications);
 
   const initials = user.name
     .split(" ")
@@ -151,15 +162,53 @@ export default function TeacherShell({
     return () => window.removeEventListener("click", handleOutsideClick);
   }, [showNotifications, showProfileMenu, showBottomMenu]);
 
-  // Build nav items: if class teacher, inject My Classes after Dashboard; Leaves always last
-  const leavesItem = baseNavItems.find(item => item.href === "/teacher/leaves");
-  const otherNavItems = baseNavItems.filter(item => item.href !== "/teacher/leaves");
-  const navItems = isClassTeacher
-    ? [otherNavItems[0], classTeacherNavItem, ...otherNavItems.slice(1), ...(leavesItem ? [leavesItem] : [])]
-    : [...otherNavItems, ...(leavesItem ? [leavesItem] : [])];
+  // Sidebar navigation rendering helper
+  const renderNavItem = (item: { href: string; label: string; icon: string }) => {
+    const active = isActive(pathname, item.href);
+    return (
+      <Link
+        key={item.href}
+        href={item.href as Route}
+        className={[
+          "group relative flex items-center gap-3 rounded-xl px-3 py-2 text-base font-medium transition duration-200",
+          active
+            ? "bg-cyan-500/10 text-cyan-400 shadow-lg shadow-cyan-950/20 ring-1 ring-cyan-500/15"
+            : "text-secondary hover:bg-hover hover:text-primary",
+        ].join(" ")}
+      >
+        <span
+          className={[
+            "flex h-8 w-8 items-center justify-center rounded-lg transition duration-200",
+            active
+              ? "bg-cyan-300 text-slate-950"
+              : "bg-hover text-muted",
+          ].join(" ")}
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
+            <path d={item.icon} />
+          </svg>
+        </span>
+
+        <span className="flex-1 truncate">{item.label}</span>
+
+        {item.label === "My Classes" && (
+          <span className="ml-auto inline-flex items-center rounded-full bg-cyan-500/15 px-1.5 py-0.5 text-[9px] font-bold text-cyan-400 uppercase tracking-wider">
+            CT
+          </span>
+        )}
+
+        {item.href === "/teacher/notifications" && storeUnread > 0 && (
+          <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white shrink-0">
+            {storeUnread}
+          </span>
+        )}
+      </Link>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-base text-primary antialiased selection:bg-cyan-500/30 transition-colors duration-200">
+      <RealtimeListener role="teacher" />
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[280px] border-r border-theme bg-surface/95 shadow-2xl shadow-black/30 backdrop-blur-xl lg:flex flex-col transition-colors duration-200">
         {/* Fixed Top: Logo + Divider */}
         <div className="shrink-0 px-4 pt-5">
@@ -193,43 +242,108 @@ export default function TeacherShell({
 
         {/* Scrollable Nav Section */}
         <nav className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 space-y-0.5 scrollbar-hide">
-          {navItems.map((item) => {
-            const active = isActive(pathname, item.href);
+          {/* 1. Dashboard */}
+          {renderNavItem({
+            href: "/teacher",
+            label: "Dashboard",
+            icon: "M4 13h6V4H4v9Zm0 7h6v-5H4v5Zm8 0h8v-9h-8v9Zm0-18v7h8V2h-8Z",
+          })}
 
-            return (
-              <Link
-                key={item.href}
-                href={item.href as Route}
+          {/* 2. My Classes (conditional) */}
+          {isClassTeacher &&
+            renderNavItem({
+              href: "/teacher/classes",
+              label: "My Classes",
+              icon: "M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2ZM6 4h5v8l-2.5-1.5L6 12V4Z",
+            })}
+
+          {/* 3. Academics (collapsible) */}
+          <div>
+            <button
+              onClick={toggleAcademics}
+              className="group relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-base font-medium text-secondary transition duration-200 hover:bg-hover hover:text-primary"
+            >
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-hover text-muted">
+                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
+                  <path d="M6 3h12v18H6V3Zm3 4h6V5H9v2Zm0 4h6V9H9v2Zm0 4h4v-2H9v2Z" />
+                </svg>
+              </span>
+
+              <span className="flex-1 text-left">Academics</span>
+
+              <svg
+                viewBox="0 0 24 24"
                 className={[
-                  "group relative flex items-center gap-3 rounded-xl px-3 py-2 text-base font-medium transition duration-200",
-                  active
-                    ? "bg-cyan-500/10 text-cyan-400 shadow-lg shadow-cyan-950/20 ring-1 ring-cyan-500/15"
-                    : "text-secondary hover:bg-hover hover:text-primary",
+                  "h-4 w-4 text-muted fill-current transition-transform duration-200 shrink-0",
+                  showAcademics ? "rotate-180" : "",
                 ].join(" ")}
               >
-                <span
-                  className={[
-                    "flex h-8 w-8 items-center justify-center rounded-lg transition duration-200",
-                    active
-                      ? "bg-cyan-300 text-slate-950"
-                      : "bg-hover text-muted",
-                  ].join(" ")}
-                >
-                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
-                    <path d={item.icon} />
-                  </svg>
-                </span>
+                <path d="M7 10l5 5 5-5H7z" />
+              </svg>
+            </button>
 
-                {item.label}
+            {showAcademics && (
+              <div className="ml-11 mt-1 space-y-1 animate-in fade-in duration-200">
+                {[
+                  { label: "Attendance", href: "/teacher/attendance" },
+                  { label: "Marks", href: "/teacher/marks" },
+                  { label: "Assignments", href: "/teacher/assignments" },
+                  { label: "Timetable", href: "/teacher/timetable" },
+                  { label: "Diary", href: "/teacher/diary" },
+                  { label: "Resources", href: "/teacher/resources" },
+                ].map((subItem) => {
+                  const subActive = isActive(pathname, subItem.href);
+                  return (
+                    <Link
+                      key={subItem.href}
+                      href={subItem.href as Route}
+                      className={`block rounded-lg px-3 py-2 text-sm transition ${
+                        subActive
+                          ? "bg-cyan-500/10 text-cyan-400 font-semibold"
+                          : "text-secondary hover:bg-hover hover:text-primary"
+                      }`}
+                    >
+                      {subItem.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
-                {/* Class Teacher badge on My Classes */}
-                {item.label === "My Classes" && (
-                  <span className="ml-auto inline-flex items-center rounded-full bg-cyan-500/15 px-1.5 py-0.5 text-[9px] font-bold text-cyan-400 uppercase tracking-wider">
-                    CT
-                  </span>
-                )}
-              </Link>
-            );
+          {/* 4. Performance */}
+          {renderNavItem({
+            href: "/teacher/performance",
+            label: "Performance",
+            icon: "M4 19h16v2H4v-2Zm2-2h3V9H6v8Zm5 0h3V4h-3v13Zm5 0h3v-6h-3v6Z",
+          })}
+
+          {/* 5. Messages */}
+          {renderNavItem({
+            href: "/teacher/messages",
+            label: "Messages",
+            icon: "M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2Zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z",
+          })}
+
+          {/* 6. Feedback */}
+          {renderNavItem({
+            href: "/teacher/feedback",
+            label: "Feedback",
+            icon: "M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2ZM6 9h12v2H6V9Zm8 5H6v-2h8v2Zm4-6H6V6h12v2z",
+          })}
+
+          {/* 7. Leaves */}
+          {renderNavItem({
+            href: "/teacher/leaves",
+            label: "Leaves",
+            icon: "M19 3h-5v2h4v14H5V5h4V3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2Z",
+          })}
+
+          {/* 8. Notifications */}
+          {renderNavItem({
+            href: "/teacher/notifications",
+            label: "Notifications",
+            icon: "M12 22a2.8 2.8 0 0 0 2.7-2h-5.4A2.8 2.8 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5-6.7V3a2 2 0 0 0-4 0v1.3A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z",
           })}
         </nav>
 
@@ -322,32 +436,40 @@ export default function TeacherShell({
                     </Link>
                   </div>
                   <div className="mt-1 max-h-72 overflow-y-auto space-y-0.5 scrollbar-hide">
-                    {alerts.length === 0 || (alerts.length === 1 && alerts[0].id === "empty") ? (
-                      <div className="py-6 text-center">
-                        <p className="text-xs text-muted">No unread notifications</p>
-                      </div>
-                    ) : (
-                      alerts.map((alert) => {
+                    {(() => {
+                      const unreadNotifications = notifications.filter((n) => !n.isRead).slice(0, 5);
+                      if (unreadNotifications.length === 0) {
+                        return (
+                          <div className="py-6 text-center">
+                            <p className="text-xs text-muted">No unread notifications</p>
+                          </div>
+                        );
+                      }
+                      return unreadNotifications.map((notif) => {
                         const toneBg =
-                          alert.tone === "danger"
+                          notif.priority === "high"
                             ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
-                            : alert.tone === "warning"
+                            : notif.priority === "medium"
                               ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
                               : "bg-cyan-500/10 text-cyan-400 border-cyan-500/20";
 
                         const badgeText =
-                          alert.tone === "danger" ? "High" : alert.tone === "warning" ? "Medium" : "Info";
+                          notif.priority === "high" ? "High" : notif.priority === "medium" ? "Medium" : "Info";
 
                         return (
                           <div
-                            key={alert.id}
-                            className="group rounded-xl p-3 hover:bg-hover transition duration-200 border border-transparent"
+                            key={notif.id}
+                            className="group rounded-xl p-3 hover:bg-hover transition duration-200 border border-transparent cursor-pointer"
+                            onClick={() => {
+                              useNotificationStore.getState().markRead(notif.id);
+                              markNotificationRead(notif.id).catch(console.error);
+                            }}
                           >
                             <div className="flex gap-2.5">
                               <span
-                                className={`mt-1 h-2 w-2 shrink-0 rounded-full ${alert.tone === "danger"
+                                className={`mt-1 h-2 w-2 shrink-0 rounded-full ${notif.priority === "high"
                                   ? "bg-rose-500"
-                                  : alert.tone === "warning"
+                                  : notif.priority === "medium"
                                     ? "bg-amber-500"
                                     : "bg-cyan-500"
                                   }`}
@@ -355,26 +477,21 @@ export default function TeacherShell({
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center justify-between gap-1.5">
                                   <p className="text-xs font-semibold text-primary group-hover:text-cyan-300 transition duration-150 truncate">
-                                    {alert.title}
+                                    {notif.title}
                                   </p>
-                                  {alert.id !== "empty" && (
-                                    <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-medium ${toneBg}`}>
-                                      {badgeText}
-                                    </span>
-                                  )}
+                                  <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-medium ${toneBg}`}>
+                                    {badgeText}
+                                  </span>
                                 </div>
                                 <p className="mt-1 text-[11px] leading-relaxed text-secondary">
-                                  {alert.message}
+                                  {notif.message}
                                 </p>
-                                {alert.time && (
-                                  <p className="mt-1 text-[9px] text-muted">{alert.time}</p>
-                                )}
                               </div>
                             </div>
                           </div>
                         );
-                      })
-                    )}
+                      });
+                    })()}
                   </div>
                 </div>
               )}

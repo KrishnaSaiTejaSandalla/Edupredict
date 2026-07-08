@@ -88,12 +88,15 @@ export async function updateTeacherProfessionalInfo(
 export async function updateTeacherNotificationPrefs(
   userId: number,
   prefs: {
-    email: boolean;
-    inApp: boolean;
     attendance: boolean;
     assignments: boolean;
-    marks: boolean;
+    messages: boolean;
+    diary: boolean;
+    feedback: boolean;
+    leaves: boolean;
     announcements: boolean;
+    transport: boolean;
+    general: boolean;
   }
 ) {
   await db

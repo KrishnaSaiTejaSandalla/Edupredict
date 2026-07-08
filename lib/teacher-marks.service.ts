@@ -10,6 +10,7 @@ import {
   users,
 } from './schema';
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
+import { broadcastEntityChange } from './realtime';
 
 // ==================== TEACHER MARKS SERVICE ====================
 
@@ -133,6 +134,8 @@ export async function enterMarks(
       });
     }
   }
+
+  broadcastEntityChange("marks", "update", { examId, subjectId });
 }
 
 export type ResultFilter = {

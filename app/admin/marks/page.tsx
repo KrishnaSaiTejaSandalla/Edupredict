@@ -13,6 +13,7 @@ import {
 interface Class {
   id: number;
   name: string;
+  section?: string | null;
 }
 
 interface Exam {
@@ -141,6 +142,11 @@ export default function MarksPage() {
     }
   }
 
+  const selectedClass = classes.find(c => String(c.id) === classId);
+  const selectedClassText = selectedClass 
+    ? `${selectedClass.name}${selectedClass.section ? `-${selectedClass.section}` : ''}`
+    : 'None';
+
   return (
     <main className="min-h-screen p-8 bg-background text-foreground">
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -152,7 +158,7 @@ export default function MarksPage() {
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-2xl border border-border bg-card p-4 text-sm text-foreground">
             <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">Selected class</p>
-            <p className="mt-2 font-medium text-foreground">{classId || 'None'}</p>
+            <p className="mt-2 font-medium text-foreground">{selectedClassText}</p>
           </div>
           <div className="rounded-2xl border border-border bg-card p-4 text-sm text-foreground">
             <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">Selected exam</p>
@@ -175,7 +181,7 @@ export default function MarksPage() {
               <span>Class</span>
               <select value={classId} onChange={(e) => handleClassChange(e.target.value)} className="select-theme">
                 <option value="">Select Class</option>
-                {classes.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
+                {classes.map((c) => (<option key={c.id} value={c.id}>{c.name}{c.section ? `-${c.section}` : ''}</option>))}
               </select>
             </label>
             <label className="space-y-2 text-sm text-foreground">

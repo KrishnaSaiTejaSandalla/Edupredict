@@ -4,39 +4,11 @@ import { db } from './db';
 import { leaveRequests, users, students, studentParents, parents, notifications } from './schema';
 import { eq, and, or, sql, gte } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
-import { createNotification } from './notification-actions';
+import { createNotification, createNotificationForUser } from './notification-actions';
 import { parseDbError } from './db-errors';
 import { logAudit } from './audit-utils';
 import { getCurrentUser } from './auth';
 
-// ==================== NOTIFICATION HELPER ====================
-
-async function createNotificationForUser(
-  userId: number,
-  title: string,
-  message: string,
-  type: string = 'info',
-  priority: 'low' | 'medium' | 'high' = 'medium'
-) {
-  try {
-    await db.insert(notifications).values({
-      userId,
-      title,
-      message,
-      type,
-      priority,
-      isRead: false,
-    });
-    revalidatePath('/teacher/notifications');
-    revalidatePath('/teacher');
-    revalidatePath('/parent/notifications');
-    revalidatePath('/parent');
-    revalidatePath('/admin/notifications');
-    revalidatePath('/admin');
-  } catch (err) {
-    console.error('Failed to create notification for user:', err);
-  }
-}
 
 // ==================== LEAVE REQUEST ACTIONS ====================
 

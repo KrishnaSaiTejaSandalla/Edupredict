@@ -113,6 +113,34 @@
       "when": 1783501774121,
       "tag": "0015_modern_night_thrasher",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "5",
+      "when": 1783620225992,
+      "tag": "0016_cold_sebastian_shaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1784188195064,
+      "tag": "0017_nasty_supernaut",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1784189718327,
+      "tag": "0018_busy_shadow_king",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1785403164340,
+      "tag": "0019_last_jackal",
+      "breakpoints": true
     }
   ]
 }

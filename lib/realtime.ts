@@ -41,3 +41,9 @@ export function broadcastEntityChange(
   });
 }
 
+export function broadcastBusLocation(payload: any) {
+  realtimeEmitter.emit('bus-location', {
+    type: 'bus-location',
+    payload,
+  });
+}

@@ -5,6 +5,33 @@ import { toast } from 'sonner';
 import { ChatContact } from '@/lib/message-actions';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
 
+/* ── WhatsApp-style date / time helpers ── */
+function isSameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function formatDateSeparator(date: Date): string {
+  const now = new Date();
+  if (isSameDay(date, now)) return 'Today';
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (isSameDay(date, yesterday)) return 'Yesterday';
+  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function formatLastMessageAt(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  if (isSameDay(date, now)) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (isSameDay(date, yesterday)) return 'Yesterday';
+  const diffMs = now.getTime() - date.getTime();
+  if (diffMs < 7 * 24 * 60 * 60 * 1000) return date.toLocaleDateString(undefined, { weekday: 'long' });
+  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+}
+/* ── end helpers ── */
+
 type Message = {
   id: number;
   senderId: number;
@@ -702,11 +729,9 @@ export default function MessagesClient({ currentUserId, currentUserRole, initial
     return messages.map((msg, idx) => {
       const self = msg.senderId === currentUserId;
 
-      // Determine if a date separator is needed
+      // Determine if a date separator is needed (WhatsApp-style)
       const msgDate = new Date(msg.createdAt);
-      const dateStr = msgDate.toLocaleDateString([], {
-        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-      });
+      const dateStr = formatDateSeparator(msgDate);
 
       const showDateSeparator = dateStr !== lastDateStr;
       lastDateStr = dateStr;
@@ -886,7 +911,7 @@ export default function MessagesClient({ currentUserId, currentUserRole, initial
                       <span className="text-xs font-bold truncate text-primary">{contact.name}</span>
                       {contact.lastMessageAt && (
                         <span className="text-[9px] text-muted whitespace-nowrap">
-                          {new Date(contact.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {formatLastMessageAt(contact.lastMessageAt)}
                         </span>
                       )}
                     </div>

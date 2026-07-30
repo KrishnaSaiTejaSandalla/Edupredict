@@ -536,6 +536,27 @@ export const notifications = mysqlTable(
   })
 );
 
+// ==================== Transport Routes ====================
+export const transportRoutes = mysqlTable(
+  'transport_routes',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    schoolId: int('school_id').notNull(),
+    routeName: varchar('route_name', { length: 128 }).notNull(),
+    type: varchar('type', { length: 20 }).notNull(), // 'morning' | 'evening'
+    isActive: boolean('is_active').default(true).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (route) => ({
+    schoolIdIndex: index('transport_routes_school_id_index').on(route.schoolId),
+    fk_route_school: foreignKey({
+      columns: [route.schoolId],
+      foreignColumns: [schools.id],
+    }),
+  })
+);
+
 // ==================== Buses ====================
 export const buses = mysqlTable(
   'buses',
@@ -543,7 +564,9 @@ export const buses = mysqlTable(
     id: int('id').autoincrement().primaryKey(),
     schoolId: int('school_id').notNull(),
     registrationNumber: varchar('registration_number', { length: 64 }).unique().notNull(),
+    nickname: varchar('nickname', { length: 128 }),
     routeName: varchar('route_name', { length: 128 }),
+    routeId: int('route_id'),
     driverName: varchar('driver_name', { length: 128 }),
     driverPhone: varchar('driver_phone', { length: 20 }),
     capacity: int('capacity'),
@@ -554,9 +577,14 @@ export const buses = mysqlTable(
   (bus) => ({
     schoolIdIndex: index('buses_school_id_index').on(bus.schoolId),
     registrationNumberIndex: index('buses_registration_number_index').on(bus.registrationNumber),
+    routeIdIndex: index('buses_route_id_index').on(bus.routeId),
     fk_bus_school: foreignKey({
       columns: [bus.schoolId],
       foreignColumns: [schools.id],
+    }),
+    fk_bus_route: foreignKey({
+      columns: [bus.routeId],
+      foreignColumns: [transportRoutes.id],
     }),
   })
 );
@@ -566,20 +594,78 @@ export const busStops = mysqlTable(
   'bus_stops',
   {
     id: int('id').autoincrement().primaryKey(),
-    busId: int('bus_id').notNull(),
+    busId: int('bus_id'),
+    routeId: int('route_id'),
     stopName: varchar('stop_name', { length: 256 }).notNull(),
     pickupTime: varchar('pickup_time', { length: 10 }).notNull(),
     dropTime: varchar('drop_time', { length: 10 }).notNull(),
     sequenceNumber: int('sequence_number').notNull(),
     studentCount: int('student_count').default(0).notNull(),
+    latitude: double('latitude'),
+    longitude: double('longitude'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
   },
   (stop) => ({
     busIdIndex: index('bus_stops_bus_id_index').on(stop.busId),
+    routeIdIndex: index('bus_stops_route_id_index').on(stop.routeId),
     fk_bus_stop_bus: foreignKey({
       columns: [stop.busId],
       foreignColumns: [buses.id],
+    }),
+    fk_bus_stop_route: foreignKey({
+      columns: [stop.routeId],
+      foreignColumns: [transportRoutes.id],
+    }),
+  })
+);
+
+// ==================== Student Transport Assignments ====================
+export const studentTransportAssignments = mysqlTable(
+  'student_transport_assignments',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    studentId: int('student_id').notNull(),
+    busId: int('bus_id').notNull(),
+    routeId: int('route_id'),
+    pickupStopId: int('pickup_stop_id'),
+    dropStopId: int('drop_stop_id'),
+    assignedBy: int('assigned_by'),
+    assignedAt: timestamp('assigned_at').defaultNow(),
+    morningPickupTime: varchar('morning_pickup_time', { length: 10 }),
+    returnTime: varchar('return_time', { length: 10 }),
+    isActive: boolean('is_active').default(true).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (assignment) => ({
+    studentIdIndex: index('student_transport_assignments_student_id_index').on(assignment.studentId),
+    busIdIndex: index('student_transport_assignments_bus_id_index').on(assignment.busId),
+    routeIdIndex: index('student_transport_assignments_route_id_index').on(assignment.routeId),
+    activeIndex: index('student_transport_assignments_active_index').on(assignment.isActive),
+    fk_student_transport_student: foreignKey({
+      columns: [assignment.studentId],
+      foreignColumns: [students.id],
+    }),
+    fk_student_transport_bus: foreignKey({
+      columns: [assignment.busId],
+      foreignColumns: [buses.id],
+    }),
+    fk_student_transport_route: foreignKey({
+      columns: [assignment.routeId],
+      foreignColumns: [transportRoutes.id],
+    }),
+    fk_student_transport_pickup_stop: foreignKey({
+      columns: [assignment.pickupStopId],
+      foreignColumns: [busStops.id],
+    }),
+    fk_student_transport_drop_stop: foreignKey({
+      columns: [assignment.dropStopId],
+      foreignColumns: [busStops.id],
+    }),
+    fk_student_transport_assigned_by: foreignKey({
+      columns: [assignment.assignedBy],
+      foreignColumns: [users.id],
     }),
   })
 );
@@ -589,20 +675,140 @@ export const busLocations = mysqlTable(
   'bus_locations',
   {
     id: int('id').autoincrement().primaryKey(),
+    schoolId: int('school_id'),
     busId: int('bus_id').notNull(),
+    driverId: int('driver_id'),
+    routeId: varchar('route_id', { length: 128 }),
+    tripId: varchar('trip_id', { length: 128 }),
     latitude: double('latitude').notNull(),
     longitude: double('longitude').notNull(),
-    speed: int('speed'),
-    heading: int('heading'),
-    accuracy: int('accuracy'),
+    speed: double('speed'),
+    heading: double('heading'),
+    accuracy: double('accuracy'),
+    status: varchar('status', { length: 64 }).default('trip_started').notNull(),
+    currentStopId: int('current_stop_id'),
+    nextStopId: int('next_stop_id'),
+    remainingStops: int('remaining_stops'),
     timestamp: timestamp('timestamp').defaultNow().notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (loc) => ({
+    schoolIdIndex: index('bus_locations_school_id_index').on(loc.schoolId),
     busIdIndex: index('bus_locations_bus_id_index').on(loc.busId),
+    driverIdIndex: index('bus_locations_driver_id_index').on(loc.driverId),
+    tripIdIndex: index('bus_locations_trip_id_index').on(loc.tripId),
     timestampIndex: index('bus_locations_timestamp_index').on(loc.timestamp),
+    fk_bus_location_school: foreignKey({
+      columns: [loc.schoolId],
+      foreignColumns: [schools.id],
+    }),
     fk_bus_location_bus: foreignKey({
       columns: [loc.busId],
       foreignColumns: [buses.id],
+    }),
+    fk_bus_location_driver: foreignKey({
+      columns: [loc.driverId],
+      foreignColumns: [users.id],
+    }),
+    fk_bus_location_current_stop: foreignKey({
+      columns: [loc.currentStopId],
+      foreignColumns: [busStops.id],
+    }),
+    fk_bus_location_next_stop: foreignKey({
+      columns: [loc.nextStopId],
+      foreignColumns: [busStops.id],
+    }),
+  })
+);
+
+// ==================== Student Boarding Logs ====================
+export const studentBoardingLogs = mysqlTable(
+  'student_boarding_logs',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    studentId: int('student_id').notNull(),
+    busId: int('bus_id').notNull(),
+    routeId: int('route_id').notNull(),
+    stopId: int('stop_id').notNull(),
+    tripId: varchar('trip_id', { length: 128 }).notNull(),
+    status: varchar('status', { length: 32 }).default('boarded').notNull(), // 'boarded' | 'absent' | 'dropped'
+    direction: varchar('direction', { length: 20 }).default('pickup').notNull(), // 'pickup' | 'dropoff'
+    boardedAt: timestamp('boarded_at').defaultNow(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (log) => ({
+    studentIdIdx: index('student_boarding_logs_student_id_idx').on(log.studentId),
+    busIdIdx: index('student_boarding_logs_bus_id_idx').on(log.busId),
+    routeIdIdx: index('student_boarding_logs_route_id_idx').on(log.routeId),
+    tripIdIdx: index('student_boarding_logs_trip_id_idx').on(log.tripId),
+    fk_boarding_student: foreignKey({
+      columns: [log.studentId],
+      foreignColumns: [students.id],
+    }),
+    fk_boarding_bus: foreignKey({
+      columns: [log.busId],
+      foreignColumns: [buses.id],
+    }),
+    fk_boarding_route: foreignKey({
+      columns: [log.routeId],
+      foreignColumns: [transportRoutes.id],
+    }),
+    fk_boarding_stop: foreignKey({
+      columns: [log.stopId],
+      foreignColumns: [busStops.id],
+    }),
+  })
+);
+
+// ==================== Bus Live Locations ====================
+export const busLiveLocations = mysqlTable(
+  'bus_live_locations',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    schoolId: int('school_id').notNull(),
+    busId: int('bus_id').notNull(),
+    driverId: int('driver_id').notNull(),
+    routeId: varchar('route_id', { length: 128 }),
+    tripId: varchar('trip_id', { length: 128 }).notNull(),
+    latitude: double('latitude').notNull(),
+    longitude: double('longitude').notNull(),
+    speed: double('speed'),
+    heading: double('heading'),
+    accuracy: double('accuracy'),
+    status: varchar('status', { length: 64 }).default('trip_started').notNull(),
+    currentStopId: int('current_stop_id'),
+    nextStopId: int('next_stop_id'),
+    remainingStops: int('remaining_stops'),
+    lastUpdatedAt: timestamp('last_updated_at').defaultNow().notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (loc) => ({
+    busIdUnique: uniqueIndex('bus_live_locations_bus_id_unique').on(loc.busId),
+    schoolIdIndex: index('bus_live_locations_school_id_index').on(loc.schoolId),
+    driverIdIndex: index('bus_live_locations_driver_id_index').on(loc.driverId),
+    tripIdIndex: index('bus_live_locations_trip_id_index').on(loc.tripId),
+    statusIndex: index('bus_live_locations_status_index').on(loc.status),
+    fk_bus_live_location_school: foreignKey({
+      columns: [loc.schoolId],
+      foreignColumns: [schools.id],
+    }),
+    fk_bus_live_location_bus: foreignKey({
+      columns: [loc.busId],
+      foreignColumns: [buses.id],
+    }),
+    fk_bus_live_location_driver: foreignKey({
+      columns: [loc.driverId],
+      foreignColumns: [users.id],
+    }),
+    fk_bus_live_location_current_stop: foreignKey({
+      columns: [loc.currentStopId],
+      foreignColumns: [busStops.id],
+    }),
+    fk_bus_live_location_next_stop: foreignKey({
+      columns: [loc.nextStopId],
+      foreignColumns: [busStops.id],
     }),
   })
 );
@@ -684,6 +890,30 @@ export const feedback = mysqlTable(
     userIdIdx: index('feedback_user_id_idx').on(table.userId),
     fk_feedback_school: foreignKey({ columns: [table.schoolId], foreignColumns: [schools.id] }),
     fk_feedback_user: foreignKey({ columns: [table.userId], foreignColumns: [users.id] }),
+  })
+);
+
+// ==================== Help Tickets ====================
+export const helpTickets = mysqlTable(
+  'help_tickets',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    ticketId: varchar('ticket_id', { length: 64 }).notNull(),
+    driverId: int('driver_id').notNull(),
+    driverName: varchar('driver_name', { length: 128 }).notNull(),
+    driverPhone: varchar('driver_phone', { length: 32 }),
+    category: varchar('category', { length: 64 }).notNull(),
+    priority: varchar('priority', { length: 32 }).default('medium').notNull(),
+    message: text('message').notNull(),
+    status: varchar('status', { length: 32 }).default('OPEN').notNull(),
+    replies: text('replies'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    driverIdIdx: index('help_tickets_driver_id_idx').on(table.driverId),
+    ticketIdIdx: index('help_tickets_ticket_id_idx').on(table.ticketId),
+    statusIdx: index('help_tickets_status_idx').on(table.status),
   })
 );
 

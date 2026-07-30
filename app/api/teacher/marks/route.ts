@@ -52,9 +52,10 @@ export async function GET(request: Request) {
       const search = searchParams.get("search") || undefined;
       const classId = searchParams.get("classId") ? Number(searchParams.get("classId")) : undefined;
       const subjectId = searchParams.get("subjectId") ? Number(searchParams.get("subjectId")) : undefined;
+      const examId = searchParams.get("examId") || undefined;
       const examType = searchParams.get("examType") || undefined;
 
-      const data = await getTeacherResults(teacher.id, { page, pageSize, search, classId, subjectId, examType });
+      const data = await getTeacherResults(teacher.id, { page, pageSize, search, classId, subjectId, examId, examType });
       return NextResponse.json(data);
     }
 

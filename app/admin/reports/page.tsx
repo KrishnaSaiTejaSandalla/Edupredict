@@ -11,6 +11,7 @@ import {
 interface Class {
   id: number;
   name: string;
+  section?: string | null;
 }
 
 interface Exam {
@@ -41,6 +42,7 @@ interface DetailedReportData {
     name: string;
     rollNumber: string;
     classId: number;
+    className?: string;
   };
   subjectScores: SubjectScore[];
   total: number;
@@ -153,6 +155,8 @@ export default function ReportsPage() {
   }
 
   const rangeLabel = timeRange === '3m' ? 'Last 3 Months' : timeRange === '6m' ? 'Last 6 Months' : 'Last 1 Year';
+  const selectedClassObj = classes.find((c) => c.id === Number(classId));
+  const classDisplayName = selectedClassObj ? `Class ${selectedClassObj.name}${selectedClassObj.section ? `-${selectedClassObj.section}` : ''}` : 'None';
 
   return (
     <main className="min-h-screen bg-background text-foreground p-4 sm:p-6 lg:p-8 space-y-8">
@@ -167,7 +171,7 @@ export default function ReportsPage() {
         <div className="flex gap-4">
           <div className="rounded-2xl border border-border bg-card px-5 py-3.5 text-sm text-foreground shadow-md">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Selected Class</p>
-            <p className="mt-1 font-semibold text-foreground">{classId ? `Class ${classId}` : 'None'}</p>
+            <p className="mt-1 font-semibold text-foreground">{classDisplayName}</p>
           </div>
           {classId && (
             <div className="rounded-2xl border border-border bg-card px-5 py-3.5 text-sm text-foreground shadow-md animate-in fade-in duration-200">
@@ -243,7 +247,7 @@ export default function ReportsPage() {
                 <option value="">Select Class</option>
                 {classes.map((c) => (
                   <option key={c.id} value={c.id}>
-                    Class {c.name}
+                    Class {c.name}{c.section ? `-${c.section}` : ''}
                   </option>
                 ))}
               </select>
@@ -450,7 +454,7 @@ export default function ReportsPage() {
                     <p className="mt-1.5 text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
                       <span>Name: <strong className="text-foreground">{detailedReport.student.name}</strong></span>
                       <span>Roll Number: <strong className="text-foreground">{detailedReport.student.rollNumber || '—'}</strong></span>
-                      <span>Class: <strong className="text-foreground">{detailedReport.student.classId}</strong></span>
+                      <span>Class: <strong className="text-foreground">{detailedReport.student.className || detailedReport.student.classId}</strong></span>
                     </p>
                   </div>
                   <button

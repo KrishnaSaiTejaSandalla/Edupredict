@@ -37,6 +37,7 @@ export async function getTeacherExams(teacherId: number) {
       subjectId: exams.subjectId,
       className: classes.name,
       classSection: classes.section,
+      academicYear: classes.academicYear,
       subjectName: subjects.name,
     })
     .from(exams)
@@ -60,6 +61,7 @@ export async function getTeacherExams(teacherId: number) {
     classId: r.classId,
     subjectId: r.subjectId,
     className: `${r.className ?? ''}${r.classSection ? ` ${r.classSection}` : ''}`,
+    academicYear: r.academicYear ?? 'N/A',
     subjectName: r.subjectName ?? 'N/A',
   }));
 }
@@ -141,6 +143,7 @@ export async function enterMarks(
 export type ResultFilter = {
   classId?: number;
   subjectId?: number;
+  examId?: string;
   examType?: string;
   search?: string;
   page?: number;
@@ -148,7 +151,7 @@ export type ResultFilter = {
 };
 
 export async function getTeacherResults(teacherId: number, filter: ResultFilter = {}) {
-  const { page = 1, pageSize = 15, search, classId, subjectId, examType } = filter;
+  const { page = 1, pageSize = 15, search, classId, subjectId, examId, examType } = filter;
   const offset = (page - 1) * pageSize;
 
   // Get teacher's assigned classes and subjects
@@ -202,6 +205,12 @@ export async function getTeacherResults(teacherId: number, filter: ResultFilter 
 
   if (classId) filtered = filtered.filter((r) => r.classId === classId);
   if (subjectId) filtered = filtered.filter((r) => r.subjectId === subjectId);
+  if (examId) {
+    const ids = String(examId).split(",").map(Number).filter(Boolean);
+    if (ids.length > 0) {
+      filtered = filtered.filter((r) => r.examId !== null && ids.includes(r.examId));
+    }
+  }
   if (examType) filtered = filtered.filter((r) => r.examType === examType);
   if (search) {
     const q = search.toLowerCase();

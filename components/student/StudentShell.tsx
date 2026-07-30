@@ -194,12 +194,6 @@ export default function StudentShell({ children, user, alerts: initialAlerts = [
           icon: "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
         })}
 
-        {/* 5. Messages */}
-        {renderNavItem({
-          href: "/student/messages",
-          label: "Messages",
-          icon: "M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2Zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"
-        })}
 
         {/* 6. Feedback */}
         {renderNavItem({

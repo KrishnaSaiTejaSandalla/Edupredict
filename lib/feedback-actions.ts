@@ -180,3 +180,16 @@ export async function submitTeacherFeedbackAction(data: {
 
   revalidatePath('/student/feedback');
 }
+
+export async function getAllHelpTickets() {
+  const { helpTickets } = await import('./schema');
+  try {
+    const list = await db.select().from(helpTickets).orderBy(desc(helpTickets.createdAt));
+    return list.map((t) => ({
+      ...t,
+      replies: t.replies ? JSON.parse(t.replies) : [],
+    }));
+  } catch {
+    return [];
+  }
+}

@@ -1,5 +1,6 @@
 import { db, closeDB } from '@/lib/db';
 import { eq, sql } from 'drizzle-orm';
+import bcrypt from 'bcryptjs';
 import {
   users,
   schools,
@@ -125,6 +126,16 @@ async function seed() {
       password: 'hashed_password_here',
       role: 'parent',
       schoolId,
+    });
+
+    const driverPasswordHash = await bcrypt.hash('Driver@123', 10);
+    await db.insert(users).values({
+      email: 'driver.vijay@stmary.edu',
+      name: 'Mr. Vijay',
+      password: driverPasswordHash,
+      role: 'driver',
+      schoolId,
+      phoneNumber: '+91-9876543240',
     });
 
     console.log('✓ Users created');

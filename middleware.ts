@@ -25,18 +25,57 @@ function requiredRoleForPath(path: string): string | null {
  *      (presence = has ever logged in; actual validity checked by the layout's requireRole()).
  *   3. Role mismatch → check role-specific hint cookie.
  */
+const allowedOrigins = [
+  'http://localhost:8081',
+  'http://localhost:8082',
+  'http://localhost:19006',
+];
+
+function isAllowedOrigin(origin: string): boolean {
+  if (allowedOrigins.includes(origin)) return true;
+  // Allow any localhost port during development (Expo web dev server can use varying ports)
+  try {
+    const url = new URL(origin);
+    return url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+  } catch {
+    return false;
+  }
+}
+
+function handleCors(req: NextRequest, response: NextResponse) {
+  const origin = req.headers.get('origin');
+  if (origin && isAllowedOrigin(origin)) {
+    response.headers.set('Access-Control-Allow-Origin', origin);
+    response.headers.set('Access-Control-Allow-Credentials', 'true');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    response.headers.set('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Authorization, Accept, Origin, X-App-Version, X-Platform');
+  }
+  return response;
+}
+
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  if (pathname.startsWith('/api/mobile')) {
+    if (req.method === 'OPTIONS') {
+      const response = new NextResponse(null, { status: 204 });
+      return handleCors(req, response);
+    }
+  }
 
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set('x-pathname', pathname);
 
   if (isPublic(pathname)) {
-    return NextResponse.next({
+    let response = NextResponse.next({
       request: {
         headers: requestHeaders,
       }
     });
+    if (pathname.startsWith('/api/mobile')) {
+      response = handleCors(req, response);
+    }
+    return response;
   }
 
   const requiredRole = requiredRoleForPath(pathname);

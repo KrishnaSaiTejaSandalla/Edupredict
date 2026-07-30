@@ -519,15 +519,17 @@ export async function getStudentReportByClassFiltered(classId: number, timeRange
     };
 }
 
-
 export async function getStudentReport(studentId: number) {
     const stdData = await db
         .select({
             student: students,
             user: users,
+            className: classes.name,
+            classSection: classes.section,
         })
         .from(students)
         .leftJoin(users, eq(users.id, students.userId))
+        .leftJoin(classes, eq(classes.id, students.classId))
         .where(eq(students.id, studentId))
         .limit(1);
 
@@ -536,6 +538,7 @@ export async function getStudentReport(studentId: number) {
     const s = stdData[0] as any;
     const studentUser = s.user;
     const studentRec = s.student;
+    const studentClassName = `${stdData[0].className ?? ''}${stdData[0].classSection ? `-${stdData[0].classSection}` : ''}`;
 
     const resultRows = await db
         .select({
@@ -634,6 +637,7 @@ export async function getStudentReport(studentId: number) {
             name: studentUser?.name || 'Unknown',
             rollNumber: studentRec.rollNumber,
             classId: studentRec.classId,
+            className: studentClassName,
         },
         subjectScores,
         total: totalMarks,

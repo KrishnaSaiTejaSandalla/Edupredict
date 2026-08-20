@@ -73,12 +73,38 @@ function isActive(pathname: string, href: string) {
 
 export default function AdminShell({ children, user, alerts: initialAlerts = [] }: AdminShellProps) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const pathname = usePathname();
 
   const storeUnread = useNotificationStore((s) => s.unreadCount);
   const notifications = useNotificationStore((s) => s.notifications);
+
+  // Close mobile drawer on route change
+  useEffect(() => {
+    setIsMobileDrawerOpen(false);
+  }, [pathname]);
+
+  // Accidental Zoom Prevention (Ctrl + MouseWheel, Ctrl/Cmd + +/-/=)
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === "+" || e.key === "-" || e.key === "=" || e.key === "_")) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("wheel", handleWheel, { passive: false });
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("wheel", handleWheel);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
 
   const isItemActive = (href: string) => {
     if (href === "/admin/marks") {
@@ -102,6 +128,7 @@ export default function AdminShell({ children, user, alerts: initialAlerts = [] 
     pathname.startsWith("/admin/attendance");
 
   const isOperationsRoute =
+    pathname.startsWith("/admin/admit-cards") ||
     pathname.startsWith("/admin/timetable") ||
     pathname.startsWith("/admin/leaves") ||
     pathname.startsWith("/admin/transport") ||
@@ -133,9 +160,278 @@ export default function AdminShell({ children, user, alerts: initialAlerts = [] 
     return () => window.removeEventListener("click", handleOutsideClick);
   }, [showNotifications, showProfileMenu]);
 
+  // Reusable Nav Content Function
+  const renderNavContent = (onLinkClick?: () => void) => (
+    <>
+      {simpleNavItems.map((item) => {
+        const active = isActive(pathname, item.href);
+
+        return (
+          <Link
+            key={item.href}
+            href={item.href as Route}
+            onClick={onLinkClick}
+            className={[
+              "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-base font-medium transition duration-200",
+              active
+                ? "bg-cyan-500/10 text-cyan-400 shadow-lg shadow-cyan-950/20 ring-1 ring-cyan-500/15"
+                : "text-secondary hover:bg-hover hover:text-primary",
+            ].join(" ")}
+          >
+            <span
+              className={[
+                "flex h-8 w-8 items-center justify-center rounded-lg transition duration-200",
+                active
+                  ? "bg-cyan-300 text-slate-950"
+                  : "bg-hover text-muted",
+              ].join(" ")}
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
+                <path d={item.icon} />
+              </svg>
+            </span>
+
+            <span className="flex-1 truncate">{item.label}</span>
+            {item.href === "/admin/notifications" && storeUnread > 0 && (
+              <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white shrink-0">
+                {storeUnread}
+              </span>
+            )}
+          </Link>
+        );
+      })}
+
+      <div>
+        <button
+          onClick={() => setOpenMenu(openMenu === "Staff" ? null : "Staff")}
+          className="group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-base font-medium text-secondary transition duration-200 hover:bg-hover hover:text-primary"
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-hover text-muted">
+            <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
+              <path d="M7 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm10-1a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM1 20a6 6 0 0 1 12 0H1Zm12.6 0a7.5 7.5 0 0 0-2.1-4.9A5 5 0 0 1 22 20h-8.4Z" />
+            </svg>
+          </span>
+
+          <span className="flex-1 text-left">Staff Management</span>
+          <svg
+            viewBox="0 0 24 24"
+            className={`h-4 w-4 fill-current text-muted transition-transform duration-200 ${
+              openMenu === "Staff" || isTeacherRoute ? "rotate-180" : ""
+            }`}
+          >
+            <path d="M7 10l5 5 5-5z" />
+          </svg>
+        </button>
+
+        {(openMenu === "Staff" || isTeacherRoute) && (
+          <div className="ml-11 mt-1 space-y-1">
+            <Link
+              href="/admin/teachers"
+              onClick={onLinkClick}
+              className={`block rounded-lg px-3 py-2 text-sm transition ${
+                pathname === "/admin/teachers" || pathname.startsWith("/admin/teachers/")
+                  ? "bg-cyan-500/10 text-cyan-400"
+                  : "text-secondary hover:bg-hover hover:text-primary"
+              }`}
+            >
+              Teachers
+            </Link>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <button
+          onClick={() => setOpenMenu(openMenu === "Academics" ? null : "Academics")}
+          className="group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-base font-medium text-secondary transition duration-200 hover:bg-hover hover:text-primary"
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-hover text-muted">
+            <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
+              <path d="M6 3h12v18H6V3Zm3 4h6V5H9v2Zm0 4h6V9H9v2Zm0 4h4v-2H9v2Z" />
+            </svg>
+          </span>
+
+          <span className="flex-1 text-left">Academics</span>
+          <svg
+            viewBox="0 0 24 24"
+            className={`h-4 w-4 fill-current text-muted transition-transform duration-200 ${
+              openMenu === "Academics" || isAcademicRoute ? "rotate-180" : ""
+            }`}
+          >
+            <path d="M7 10l5 5 5-5z" />
+          </svg>
+        </button>
+
+        {(openMenu === "Academics" || isAcademicRoute) && (
+          <div className="ml-11 mt-1 space-y-1">
+            {[
+              ["Classes", "/admin/classes"],
+              ["Subjects", "/admin/subjects"],
+              ["Exams", "/admin/exams"],
+              ["Results", "/admin/marks/results"],
+              ["Attendance", "/admin/attendance"],
+            ].map(([label, href]) => (
+              <Link
+                key={href}
+                href={href as Route}
+                onClick={onLinkClick}
+                className={`block rounded-lg px-3 py-2 text-sm transition ${
+                  isItemActive(href)
+                    ? "bg-cyan-500/10 text-cyan-400"
+                    : "text-secondary hover:bg-hover hover:text-primary"
+                }`}
+              >
+                {label}
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <button
+          onClick={() => setOpenMenu(openMenu === "Operations" ? null : "Operations")}
+          className="group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-base font-medium text-secondary transition duration-200 hover:bg-hover hover:text-primary"
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-hover text-muted">
+            <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
+              <path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm-7 14H7v-2h5v2Zm5-4H7v-2h10v2Zm0-4H7V7h10v2Z" />
+            </svg>
+          </span>
+
+          <span className="flex-1 text-left">Operations</span>
+          <svg
+            viewBox="0 0 24 24"
+            className={`h-4 w-4 fill-current text-muted transition-transform duration-200 ${
+              openMenu === "Operations" || isOperationsRoute ? "rotate-180" : ""
+            }`}
+          >
+            <path d="M7 10l5 5 5-5z" />
+          </svg>
+        </button>
+
+        {(openMenu === "Operations" || isOperationsRoute) && (
+          <div className="ml-11 mt-1 space-y-1">
+            {[
+              ["Admit Cards", "/admin/admit-cards"],
+              ["Timetable", "/admin/timetable"],
+              ["Leaves", "/admin/leaves"],
+              ["Transport", "/admin/transport"],
+              ["Feedback", "/admin/feedback"],
+              ["Announcements", "/admin/announcements"],
+            ].map(([label, href]) => (
+              <Link
+                key={href}
+                href={href as Route}
+                onClick={onLinkClick}
+                className={`block rounded-lg px-3 py-2 text-sm transition ${
+                  isItemActive(href)
+                    ? "bg-cyan-500/10 text-cyan-400"
+                    : "text-secondary hover:bg-hover hover:text-primary"
+                }`}
+              >
+                {label}
+              </Link>
+            ))}
+
+            <Link
+              href={"/admin/audit-logs" as Route}
+              onClick={onLinkClick}
+              className={`block rounded-lg px-3 py-2 text-sm transition ${
+                pathname.startsWith("/admin/audit-logs")
+                  ? "bg-cyan-500/10 text-cyan-400"
+                  : "text-secondary hover:bg-hover hover:text-primary"
+              }`}
+            >
+              Audit Logs
+            </Link>
+          </div>
+        )}
+      </div>
+    </>
+  );
+
   return (
     <div className="min-h-screen bg-base text-primary antialiased selection:bg-cyan-500/30 transition-colors duration-200">
       <RealtimeListener role="admin" />
+
+      {/* ── MOBILE SIDEBAR DRAWER OVERLAY (lg:hidden) ───────────────────── */}
+      {isMobileDrawerOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity animate-in fade-in duration-200"
+            onClick={() => setIsMobileDrawerOpen(false)}
+          />
+
+          {/* Slide-over Drawer */}
+          <aside className="relative z-10 w-[280px] max-w-[85vw] bg-surface/98 border-r border-theme shadow-2xl flex flex-col h-full animate-in slide-in-from-left duration-300">
+            {/* Top Logo + Close Button */}
+            <div className="shrink-0 px-4 pt-4 pb-3 flex items-center justify-between border-b border-theme">
+              <Link
+                href="/admin"
+                onClick={() => setIsMobileDrawerOpen(false)}
+                className="flex items-center gap-2.5"
+              >
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-theme bg-white p-1 shadow-md">
+                  <Image
+                    src={logo}
+                    alt="EduPredict"
+                    width={30}
+                    height={30}
+                    priority
+                    className="h-full w-full object-contain"
+                  />
+                </span>
+                <span>
+                  <span className="block text-base font-bold text-primary leading-tight">
+                    EduPredict AI
+                  </span>
+                  <span className="block text-xs text-muted font-medium">School ERP</span>
+                </span>
+              </Link>
+
+              <button
+                type="button"
+                aria-label="Close navigation"
+                onClick={() => setIsMobileDrawerOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-theme bg-hover text-secondary hover:text-primary transition"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
+                  <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Scrollable Nav Section */}
+            <nav className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-1 scrollbar-hide">
+              {renderNavContent(() => setIsMobileDrawerOpen(false))}
+            </nav>
+
+            {/* Mobile Profile Card */}
+            <div className="shrink-0 p-3 border-t border-theme bg-base/40">
+              <div className="flex items-center gap-2.5 rounded-xl p-2 bg-surface border border-theme">
+                {user.profileImageUrl ? (
+                  <div className="relative h-9 w-9 overflow-hidden rounded-xl border border-theme bg-white/[0.04] shrink-0">
+                    <img src={user.profileImageUrl} alt={user.name} className="h-full w-full object-cover" />
+                  </div>
+                ) : (
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-300 text-xs font-bold text-slate-950 shrink-0">
+                    {initials || "AD"}
+                  </span>
+                )}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-semibold text-primary">{user.name}</span>
+                  <span className="block truncate text-[10px] text-muted">Administrator</span>
+                </span>
+                <LogoutButton compact />
+              </div>
+            </div>
+          </aside>
+        </div>
+      )}
+
+      {/* ── DESKTOP SIDEBAR (lg:flex, completely untouched) ─────────────── */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[280px] border-r border-theme bg-surface/95 shadow-2xl shadow-black/30 backdrop-blur-xl lg:flex flex-col transition-colors duration-200">
         {/* Fixed Top: Logo + Divider */}
         <div className="shrink-0 px-4 pt-5">
@@ -169,160 +465,7 @@ export default function AdminShell({ children, user, alerts: initialAlerts = [] 
 
         {/* Scrollable Nav Section */}
         <nav className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 space-y-0.5 scrollbar-hide">
-          {simpleNavItems.map((item) => {
-            const active = isActive(pathname, item.href);
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href as Route}
-                className={[
-                  "group relative flex items-center gap-3 rounded-xl px-3 py-2 text-base font-medium transition duration-200",
-                  active
-                    ? "bg-cyan-500/10 text-cyan-400 shadow-lg shadow-cyan-950/20 ring-1 ring-cyan-500/15"
-                    : "text-secondary hover:bg-hover hover:text-primary",
-                ].join(" ")}
-              >
-                <span
-                  className={[
-                    "flex h-8 w-8 items-center justify-center rounded-lg transition duration-200",
-                    active
-                      ? "bg-cyan-300 text-slate-950"
-                      : "bg-hover text-muted",
-                  ].join(" ")}
-                >
-                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
-                    <path d={item.icon} />
-                  </svg>
-                </span>
-
-                <span className="flex-1 truncate">{item.label}</span>
-                {item.href === "/admin/notifications" && storeUnread > 0 && (
-                  <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white shrink-0">
-                    {storeUnread}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
-
-        <div>
-          <button
-            onClick={() => setOpenMenu(openMenu === "Staff" ? null : "Staff")}
-            className="group relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-base font-medium text-secondary transition duration-200 hover:bg-hover hover:text-primary"
-          >
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-hover text-muted">
-              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
-                <path d="M7 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm10-1a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM1 20a6 6 0 0 1 12 0H1Zm12.6 0a7.5 7.5 0 0 0-2.1-4.9A5 5 0 0 1 22 20h-8.4Z" />
-              </svg>
-            </span>
-
-            Staff Management
-          </button>
-
-          {(openMenu === "Staff" || isTeacherRoute) && (
-            <div className="ml-11 mt-1 space-y-1">
-              <Link
-                href="/admin/teachers"
-                className={`block rounded-lg px-3 py-2 text-sm transition ${pathname === "/admin/teachers" || pathname.startsWith("/admin/teachers/")
-                  ? "bg-cyan-500/10 text-cyan-400"
-                  : "text-secondary hover:bg-hover hover:text-primary"
-                  }`}
-              >
-                Teachers
-              </Link>
-            </div>
-          )}
-        </div>
-
-        <div>
-          <button
-            onClick={() => setOpenMenu(openMenu === "Academics" ? null : "Academics")}
-            className="group relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-base font-medium text-secondary transition duration-200 hover:bg-hover hover:text-primary"
-          >
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-hover text-muted">
-              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
-                <path d="M6 3h12v18H6V3Zm3 4h6V5H9v2Zm0 4h6V9H9v2Zm0 4h4v-2H9v2Z" />
-              </svg>
-            </span>
-
-            Academics
-          </button>
-
-          {(openMenu === "Academics" || isAcademicRoute) && (
-            <div className="ml-11 mt-1 space-y-1">
-              {[
-                ["Classes", "/admin/classes"],
-                ["Subjects", "/admin/subjects"],
-                ["Exams", "/admin/exams"],
-                ["Results", "/admin/marks/results"],
-                ["Attendance", "/admin/attendance"],
-              ].map(([label, href]) => (
-                <Link
-                  key={href}
-                  href={href as Route}
-                  className={`block rounded-lg px-3 py-2 text-sm transition ${isItemActive(href)
-                    ? "bg-cyan-500/10 text-cyan-400"
-                    : "text-secondary hover:bg-hover hover:text-primary"
-                    }`}
-                >
-                  {label}
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div>
-          <button
-            onClick={() => setOpenMenu(openMenu === "Operations" ? null : "Operations")}
-            className="group relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-base font-medium text-secondary transition duration-200 hover:bg-hover hover:text-primary"
-          >
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-hover text-muted">
-              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
-                <path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm-7 14H7v-2h5v2Zm5-4H7v-2h10v2Zm0-4H7V7h10v2Z" />
-              </svg>
-            </span>
-
-            Operations
-          </button>
-
-          {(openMenu === "Operations" || isOperationsRoute) && (
-            <div className="ml-11 mt-1 space-y-1">
-              {[
-                ["Timetable", "/admin/timetable"],
-                ["Leaves",    "/admin/leaves"],
-                ["Transport", "/admin/transport"],
-                ["Feedback",  "/admin/feedback"],
-                ["Announcements", "/admin/announcements"],
-              ].map(([label, href]) => (
-                <Link
-                  key={href}
-                  href={href as Route}
-                  className={`block rounded-lg px-3 py-2 text-sm transition ${isItemActive(href)
-                    ? "bg-cyan-500/10 text-cyan-400"
-                    : "text-secondary hover:bg-hover hover:text-primary"
-                    }`}
-                >
-                  {label}
-                </Link>
-              ))}
-
-              {/* Audit Logs — single link; other views accessible via in-page sub-nav */}
-              <Link
-                href={"/admin/audit-logs" as Route}
-                className={`block rounded-lg px-3 py-2 text-sm transition ${pathname.startsWith("/admin/audit-logs")
-                  ? "bg-cyan-500/10 text-cyan-400"
-                  : "text-secondary hover:bg-hover hover:text-primary"
-                  }`}
-              >
-                Audit Logs
-              </Link>
-            </div>
-          )}
-        </div>
-
-        {/* Remove Notifications & Settings from Sidebar */}
+          {renderNavContent()}
         </nav>
 
         {/* Fixed Bottom: Profile Card */}
@@ -348,9 +491,24 @@ export default function AdminShell({ children, user, alerts: initialAlerts = [] 
         </div>
       </aside>
 
+      {/* ── MAIN CONTENT AREA ─────────────────────────────────────────── */}
       <div className="lg:pl-[280px]">
         <header className="sticky top-0 z-20 border-b border-theme bg-base/80 backdrop-blur-xl transition-colors duration-200">
-          <div className="flex h-[72px] items-center justify-end gap-4 px-4 sm:px-6 lg:px-8">
+          <div className="flex h-[72px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+            {/* Mobile Hamburger Trigger */}
+            <div className="flex items-center gap-3 lg:hidden">
+              <button
+                type="button"
+                aria-label="Open mobile navigation"
+                onClick={() => setIsMobileDrawerOpen(true)}
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-theme bg-surface text-secondary hover:text-primary hover:bg-hover transition shadow-sm shrink-0"
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
+                  <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
+                </svg>
+              </button>
+            </div>
+
             <div className="min-w-0 flex-1">
               <WelcomeAnimation name={user.name} />
             </div>
@@ -467,8 +625,6 @@ export default function AdminShell({ children, user, alerts: initialAlerts = [] 
               {showProfileMenu && (
                 <div className="profile-dropdown-container absolute right-0 mt-3 w-60 rounded-2xl border border-theme bg-surface p-2 shadow-2xl backdrop-blur-md transition-all duration-200 z-50 animate-in fade-in slide-in-from-top-2">
                   <div className="px-3 py-2.5 border-b border-subtle flex items-center gap-3">
-
-                    {/* School Logo */}
                     <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/20 flex items-center justify-center overflow-hidden shrink-0">
                       {user.school?.logoUrl ? (
                         <img
@@ -481,10 +637,8 @@ export default function AdminShell({ children, user, alerts: initialAlerts = [] 
                           {(user.school?.name?.[0] || "S").toUpperCase()}
                         </span>
                       )}
-
                     </div>
 
-                    {/* User Info */}
                     <div className="min-w-0">
                       <p className="text-xs font-semibold text-primary truncate">
                         {user.name}
@@ -496,7 +650,6 @@ export default function AdminShell({ children, user, alerts: initialAlerts = [] 
                         </p>
                       )}
                     </div>
-
                   </div>
                   <div className="mt-1 py-1">
                     <Link

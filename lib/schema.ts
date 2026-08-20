@@ -184,6 +184,7 @@ export const students = mysqlTable(
     schoolId: int('school_id').notNull(),
     classId: int('class_id').notNull(),
     rollNumber: varchar('roll_number', { length: 64 }),
+    qrToken: varchar('qr_token', { length: 128 }).unique(),
     dateOfBirth: date('date_of_birth'),
     gender: varchar('gender', { length: 20 }),
     phoneNumber: varchar('phone_number', { length: 20 }),
@@ -198,6 +199,7 @@ export const students = mysqlTable(
     userIdIndex: index('students_user_id_index').on(student.userId),
     schoolIdIndex: index('students_school_id_index').on(student.schoolId),
     classIdIndex: index('students_class_id_index').on(student.classId),
+    qrTokenIndex: uniqueIndex('students_qr_token_unique').on(student.qrToken),
     classRollUnique: uniqueIndex('students_class_roll_unique').on(
       student.classId,
       student.rollNumber

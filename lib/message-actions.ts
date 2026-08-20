@@ -62,7 +62,81 @@ export type ChatContact = {
   lastMessageAt?: string;
 };
 
+/**
+ * Validates whether two users are permitted to communicate based on role matrix:
+ * Allowed:
+ *  - Admin <-> Teacher
+ *  - Teacher <-> Parent
+ *  - Student <-> Student
+ * Everything else is strictly blocked.
+ */
+export async function validateMessagePermission(
+  senderUserId: number,
+  receiverUserId: number
+): Promise<{ allowed: boolean; reason?: string }> {
+  if (senderUserId === receiverUserId) {
+    return { allowed: false, reason: 'Cannot message yourself.' };
+  }
+
+  const [sender] = await db
+    .select({ id: users.id, role: users.role, schoolId: users.schoolId, isActive: users.isActive })
+    .from(users)
+    .where(eq(users.id, senderUserId))
+    .limit(1);
+
+  const [receiver] = await db
+    .select({ id: users.id, role: users.role, schoolId: users.schoolId, isActive: users.isActive })
+    .from(users)
+    .where(eq(users.id, receiverUserId))
+    .limit(1);
+
+  if (!sender || !receiver || !sender.isActive || !receiver.isActive) {
+    return { allowed: false, reason: 'User not found or inactive.' };
+  }
+
+  const sRole = (sender.role || '').toLowerCase();
+  const rRole = (receiver.role || '').toLowerCase();
+
+  // 1. Admin <-> Teacher
+  if (
+    (sRole === 'admin' && rRole === 'teacher') ||
+    (sRole === 'teacher' && rRole === 'admin')
+  ) {
+    return { allowed: true };
+  }
+
+  // 2. Teacher <-> Parent
+  if (
+    (sRole === 'teacher' && rRole === 'parent') ||
+    (sRole === 'parent' && rRole === 'teacher')
+  ) {
+    return { allowed: true };
+  }
+
+  // 3. Student <-> Student
+  if (sRole === 'student' && rRole === 'student') {
+    if (sender.schoolId && receiver.schoolId && sender.schoolId !== receiver.schoolId) {
+      return {
+        allowed: false,
+        reason: 'Students from different schools cannot message each other.',
+      };
+    }
+    return { allowed: true };
+  }
+
+  // Everything else is strictly blocked
+  return {
+    allowed: false,
+    reason: `Forbidden: Messaging between ${sRole} and ${rRole} is not permitted.`,
+  };
+}
+
 export async function findOrCreateConversation(userId1: number, userId2: number): Promise<number> {
+  const perm = await validateMessagePermission(userId1, userId2);
+  if (!perm.allowed) {
+    throw new Error(perm.reason || 'Forbidden: Unauthorized conversation.');
+  }
+
   const cp1 = db
     .select({ conversationId: conversationParticipants.conversationId })
     .from(conversationParticipants)
@@ -122,6 +196,12 @@ export async function sendMessage(
     throw new Error('Message content or attachment is required.');
   }
 
+  // Check role permission
+  const perm = await validateMessagePermission(user.id, receiverId);
+  if (!perm.allowed) {
+    throw new Error(perm.reason || 'Forbidden: You are not authorized to message this user.');
+  }
+
   try {
     const conversationId = await findOrCreateConversation(user.id, receiverId);
 
@@ -150,7 +230,7 @@ export async function sendMessage(
     const sseConvId = [user.id, receiverId].sort((a, b) => a - b).join('-');
     broadcastMessage(sseConvId, newMsg);
 
-    // Create database notification for the recipient (respecting preferences)
+    // Create database notification for the recipient
     try {
       const { createNotificationForUser } = await import('./notification-actions');
       const actionUrlMap: Record<string, string> = {
@@ -159,15 +239,22 @@ export async function sendMessage(
         parent: `/parent/messages`,
         admin: `/admin/messages`,
       };
-      const recRole = (user as any).role === "student" ? "teacher" : "student"; // standard routing
+
+      const [recUser] = await db
+        .select({ role: users.role })
+        .from(users)
+        .where(eq(users.id, receiverId))
+        .limit(1);
+
+      const recRole = recUser?.role || 'student';
       const finalUrl = actionUrlMap[recRole] || `/student/messages`;
-      
+
       await createNotificationForUser(
         receiverId,
-        "New Message",
+        'New Message',
         `${user.name} sent you a message: "${message.trim().slice(0, 60)}${message.trim().length > 60 ? '...' : ''}"`,
-        "messages",
-        "low",
+        'messages',
+        'low',
         finalUrl
       );
     } catch (notifErr) {
@@ -184,6 +271,11 @@ export async function sendMessage(
 export async function getMessages(otherUserId: number, limit: number = 50, offset: number = 0) {
   const user = await getCurrentUser();
   if (!user) throw new Error('Unauthorized');
+
+  const perm = await validateMessagePermission(user.id, otherUserId);
+  if (!perm.allowed) {
+    throw new Error(perm.reason || 'Forbidden: You are not authorized to view messages with this user.');
+  }
 
   try {
     const conversationId = await findOrCreateConversation(user.id, otherUserId);
@@ -204,6 +296,11 @@ export async function getMessages(otherUserId: number, limit: number = 50, offse
 export async function markMessagesRead(senderId: number) {
   const user = await getCurrentUser();
   if (!user) throw new Error('Unauthorized');
+
+  const perm = await validateMessagePermission(user.id, senderId);
+  if (!perm.allowed) {
+    throw new Error(perm.reason || 'Forbidden');
+  }
 
   try {
     const conversationId = await findOrCreateConversation(user.id, senderId);
@@ -230,6 +327,11 @@ export async function clearConversation(otherUserId: number) {
   const user = await getCurrentUser();
   if (!user) throw new Error('Unauthorized');
 
+  const perm = await validateMessagePermission(user.id, otherUserId);
+  if (!perm.allowed) {
+    throw new Error(perm.reason || 'Forbidden');
+  }
+
   try {
     const conversationId = await findOrCreateConversation(user.id, otherUserId);
 
@@ -252,6 +354,11 @@ export async function clearConversation(otherUserId: number) {
 export async function deleteConversation(otherUserId: number) {
   const user = await getCurrentUser();
   if (!user) throw new Error('Unauthorized');
+
+  const perm = await validateMessagePermission(user.id, otherUserId);
+  if (!perm.allowed) {
+    throw new Error(perm.reason || 'Forbidden');
+  }
 
   try {
     const conversationId = await findOrCreateConversation(user.id, otherUserId);
@@ -283,6 +390,11 @@ export async function deleteConversation(otherUserId: number) {
 export async function getSharedMedia(otherUserId: number) {
   const user = await getCurrentUser();
   if (!user) throw new Error('Unauthorized');
+
+  const perm = await validateMessagePermission(user.id, otherUserId);
+  if (!perm.allowed) {
+    throw new Error(perm.reason || 'Forbidden');
+  }
 
   try {
     const conversationId = await findOrCreateConversation(user.id, otherUserId);
@@ -340,32 +452,29 @@ export async function getChatRecipients(): Promise<ChatContact[]> {
   try {
     let rawRecipients: { id: number; name: string; role: string; profileImageUrl: string | null }[] = [];
 
-    if (user.role === 'admin') {
-      // Admins can chat with Parents and Teachers in parallel
-      const [parentRecipients, teacherRecipients] = await Promise.all([
-        db
-          .select({
-            id: users.id,
-            name: users.name,
-            role: users.role,
-            profileImageUrl: users.profileImageUrl,
-          })
-          .from(users)
-          .innerJoin(parents, eq(users.id, parents.userId)),
-        db
-          .select({
-            id: users.id,
-            name: users.name,
-            role: users.role,
-            profileImageUrl: users.profileImageUrl,
-          })
-          .from(users)
-          .innerJoin(teachers, eq(users.id, teachers.userId)),
-      ]);
+    const userRole = (user.role || '').toLowerCase();
 
-      rawRecipients = [...parentRecipients, ...teacherRecipients];
-    } else if (user.role === 'teacher') {
-      // Fetch admins and teacher profile row in parallel
+    if (userRole === 'admin') {
+      // Admin <-> Teacher ONLY. (Admin <-> Parent is blocked).
+      const teacherRecipients = await db
+        .select({
+          id: users.id,
+          name: users.name,
+          role: users.role,
+          profileImageUrl: users.profileImageUrl,
+        })
+        .from(users)
+        .innerJoin(teachers, eq(users.id, teachers.userId))
+        .where(
+          and(
+            eq(users.isActive, true),
+            user.school?.id ? eq(teachers.schoolId, user.school.id) : undefined
+          )
+        );
+
+      rawRecipients = teacherRecipients;
+    } else if (userRole === 'teacher') {
+      // Teacher <-> Admin AND Teacher <-> Parent
       const [admins, teacherRows] = await Promise.all([
         db
           .select({
@@ -375,9 +484,15 @@ export async function getChatRecipients(): Promise<ChatContact[]> {
             profileImageUrl: users.profileImageUrl,
           })
           .from(users)
-          .where(eq(users.role, 'admin')),
+          .where(
+            and(
+              eq(users.role, 'admin'),
+              eq(users.isActive, true),
+              user.school?.id ? eq(users.schoolId, user.school.id) : undefined
+            )
+          ),
         db
-          .select({ id: teachers.id })
+          .select({ id: teachers.id, schoolId: teachers.schoolId })
           .from(teachers)
           .where(eq(teachers.userId, user.id))
           .limit(1),
@@ -385,7 +500,7 @@ export async function getChatRecipients(): Promise<ChatContact[]> {
       const teacherRow = teacherRows[0];
 
       if (teacherRow) {
-        // Find class IDs where they are class teacher or teach subjects in parallel
+        // Find class IDs where they are class teacher or teach subjects
         const [classTeacherClasses, subjectClasses] = await Promise.all([
           db
             .select({ id: classes.id })
@@ -432,7 +547,7 @@ export async function getChatRecipients(): Promise<ChatContact[]> {
                 })
                 .from(users)
                 .innerJoin(parents, eq(users.id, parents.userId))
-                .where(inArray(parents.id, parentIds));
+                .where(and(inArray(parents.id, parentIds), eq(users.isActive, true)));
             }
           }
         }
@@ -440,25 +555,13 @@ export async function getChatRecipients(): Promise<ChatContact[]> {
       } else {
         rawRecipients = admins;
       }
-    } else if (user.role === 'parent') {
-      // Fetch admins and parent profile row in parallel
-      const [admins, parentRows] = await Promise.all([
-        db
-          .select({
-            id: users.id,
-            name: users.name,
-            role: users.role,
-            profileImageUrl: users.profileImageUrl,
-          })
-          .from(users)
-          .where(eq(users.role, 'admin')),
-        db
-          .select({ id: parents.id })
-          .from(parents)
-          .where(eq(parents.userId, user.id))
-          .limit(1),
-      ]);
-      const parentRow = parentRows[0];
+    } else if (userRole === 'parent') {
+      // Parent <-> Teacher ONLY. (Parent <-> Admin is blocked).
+      const [parentRow] = await db
+        .select({ id: parents.id })
+        .from(parents)
+        .where(eq(parents.userId, user.id))
+        .limit(1);
 
       if (parentRow) {
         const childRelations = await db
@@ -507,14 +610,44 @@ export async function getChatRecipients(): Promise<ChatContact[]> {
                 })
                 .from(users)
                 .innerJoin(teachers, eq(users.id, teachers.userId))
-                .where(inArray(teachers.id, teacherIds));
+                .where(and(inArray(teachers.id, teacherIds), eq(users.isActive, true)));
             }
           }
         }
-        rawRecipients = [...admins, ...teacherRecipients];
-      } else {
-        rawRecipients = admins;
+        rawRecipients = teacherRecipients;
       }
+    } else if (userRole === 'student') {
+      // Student <-> Student ONLY (fellow students at same school)
+      const [studentRow] = await db
+        .select({ id: students.id, schoolId: students.schoolId })
+        .from(students)
+        .where(eq(students.userId, user.id))
+        .limit(1);
+
+      if (studentRow) {
+        const fellowStudents = await db
+          .select({
+            id: users.id,
+            name: users.name,
+            role: users.role,
+            profileImageUrl: users.profileImageUrl,
+          })
+          .from(users)
+          .innerJoin(students, eq(users.id, students.userId))
+          .where(
+            and(
+              eq(users.role, 'student'),
+              eq(users.isActive, true),
+              eq(students.schoolId, studentRow.schoolId),
+              ne(users.id, user.id)
+            )
+          );
+
+        rawRecipients = fellowStudents;
+      }
+    } else {
+      // Driver or other roles -> NO authorized messaging
+      rawRecipients = [];
     }
 
     const contactIds = rawRecipients.map((r) => r.id);
@@ -563,23 +696,26 @@ export async function getChatRecipients(): Promise<ChatContact[]> {
     const activeConversationIds = Array.from(new Set(myConvs.map((c) => c.conversationId)));
 
     // Fetch last message for each conversation in a single query
-    const lastMessages = activeConversationIds.length > 0 ? await db
-      .select({
-        conversationId: chatMessages.conversationId,
-        message: chatMessages.message,
-        createdAt: chatMessages.createdAt,
-      })
-      .from(chatMessages)
-      .where(
-        and(
-          inArray(chatMessages.conversationId, activeConversationIds),
-          sql`${chatMessages.createdAt} = (
-            select max(m2.created_at) 
-            from chat_messages m2 
-            where m2.conversation_id = chat_messages.conversation_id
-          )`
-        )
-      ) : [];
+    const lastMessages =
+      activeConversationIds.length > 0
+        ? await db
+            .select({
+              conversationId: chatMessages.conversationId,
+              message: chatMessages.message,
+              createdAt: chatMessages.createdAt,
+            })
+            .from(chatMessages)
+            .where(
+              and(
+                inArray(chatMessages.conversationId, activeConversationIds),
+                sql`${chatMessages.createdAt} = (
+                  select max(m2.created_at) 
+                  from chat_messages m2 
+                  where m2.conversation_id = chat_messages.conversation_id
+                )`
+              )
+            )
+        : [];
 
     const lastMsgMap: Record<number, { message: string; createdAt: Date }> = {};
     lastMessages.forEach((m) => {

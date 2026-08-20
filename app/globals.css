@@ -788,3 +788,43 @@ h6 {
 .btn-cyan:active:not(:disabled) {
   transform: translateY(0) !important;
 }
+
+/* Mobile-only interaction safeguards. These selectors deliberately stay below
+   the small-screen breakpoint so desktop layouts and spacing are unchanged. */
+@media (max-width: 639px) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Keep wide data grids usable without allowing them to widen the viewport. */
+  .overflow-x-auto {
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Prevent dialog content from touching the screen edge or exceeding its height. */
+  [role="dialog"] {
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+  }
+
+  button:not([role="tab"]),
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"] {
+    min-height: 2.75rem;
+  }
+}
+
+/* Avoid expensive decorative animations for people who opt out of motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

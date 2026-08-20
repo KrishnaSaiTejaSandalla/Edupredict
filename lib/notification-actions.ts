@@ -7,42 +7,14 @@ import { revalidatePath } from 'next/cache';
 import { getCurrentUser } from './auth';
 import { broadcastNotification } from './realtime';
 
-export type NotificationPreferences = {
-  attendance: boolean;
-  assignments: boolean;
-  messages: boolean;
-  diary: boolean;
-  feedback: boolean;
-  leaves: boolean;
-  announcements: boolean;
-  transport: boolean;
-  general: boolean;
-};
+import {
+  NotificationPreferences,
+  DEFAULT_NOTIFICATION_PREFERENCES as DEFAULT_PREFS,
+  matchesNotificationCategory,
+  isNotificationAllowedByPrefs,
+} from './notification-utils';
 
-const DEFAULT_PREFS: NotificationPreferences = {
-  attendance: true,
-  assignments: true,
-  messages: true,
-  diary: true,
-  feedback: true,
-  leaves: true,
-  announcements: true,
-  transport: true,
-  general: true,
-};
-
-function getPrefKeyForType(type: string): string {
-  const t = type.toLowerCase();
-  if (t === "attendance") return "attendance";
-  if (t === "assignment" || t === "assignments") return "assignments";
-  if (t === "message" || t === "messages" || t === "chat" || t === "chatmessage") return "messages";
-  if (t === "diary") return "diary";
-  if (t === "feedback") return "feedback";
-  if (t === "leave" || t === "leaves") return "leaves";
-  if (t === "announcement" || t === "announcements") return "announcements";
-  if (t === "transport" || t === "bus" || t === "buslocation") return "transport";
-  return "general";
-}
+export type { NotificationPreferences };
 
 export async function createNotificationForUser(
   userId: number,
@@ -54,9 +26,8 @@ export async function createNotificationForUser(
 ) {
   try {
     const prefs = await getUserNotificationPreferences(userId);
-    const prefKey = getPrefKeyForType(type);
 
-    if (prefs[prefKey as keyof NotificationPreferences] === false) {
+    if (!isNotificationAllowedByPrefs({ type, title, message }, prefs)) {
       return;
     }
 

@@ -3,6 +3,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { notifications } from "@/lib/schema";
 import { eq, desc } from "drizzle-orm";
+import { getUserNotificationPreferences } from "@/lib/notification-actions";
+import { isNotificationAllowedByPrefs } from "@/lib/notification-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -13,14 +15,24 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const rows = await db
-      .select()
-      .from(notifications)
-      .where(eq(notifications.userId, user.id))
-      .orderBy(desc(notifications.createdAt))
-      .limit(30);
+    const [rows, prefs] = await Promise.all([
+      db
+        .select()
+        .from(notifications)
+        .where(eq(notifications.userId, user.id))
+        .orderBy(desc(notifications.createdAt))
+        .limit(50),
+      getUserNotificationPreferences(user.id),
+    ]);
 
-    const items = rows.map((r) => ({
+    const allowedRows = rows.filter((r) =>
+      isNotificationAllowedByPrefs(
+        { type: r.type, title: r.title, message: r.message },
+        prefs
+      )
+    ).slice(0, 30);
+
+    const items = allowedRows.map((r) => ({
       id: r.id,
       userId: r.userId,
       title: r.title ?? "Notification",

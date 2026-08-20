@@ -141,6 +141,13 @@
       "when": 1785403164340,
       "tag": "0019_last_jackal",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1785500000000,
+      "tag": "0020_admit_card_qr",
+      "breakpoints": true
     }
   ]
 }

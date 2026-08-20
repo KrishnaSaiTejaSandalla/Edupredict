@@ -155,12 +155,19 @@ export default function SharedNotificationsClient({
     debounceTimer.current = setTimeout(() => setDebouncedSearch(val), 300);
   };
 
+  // Active preference-filtered items
+  const enabledPrefKeys = (Object.keys(activePrefs) as PrefKey[]).filter((k) => activePrefs[k]);
+  const prefAllowedItems = notifications.filter((item) => {
+    if (enabledPrefKeys.length === 0) return false;
+    return enabledPrefKeys.some((k) => matchesCategory(item, k));
+  });
+
   // Filter items based on active tabs, priority, search query, and category preferences
-  const filteredItems = notifications.filter((item) => {
+  const filteredItems = prefAllowedItems.filter((item) => {
     // Tab filter
     if (activeTab === "unread" && item.isRead) return false;
     if (activeTab === "read" && !item.isRead) return false;
-    // "all" tab shows everything — no read/unread filter
+    // "all" tab shows everything in active preferences
 
     // Priority filter
     if (priorityFilter !== "all") {
@@ -171,11 +178,6 @@ export default function SharedNotificationsClient({
         if (p !== priorityFilter) return false;
       }
     }
-
-    // Preferences category UI filter
-    const enabledPrefs = (Object.keys(activePrefs) as PrefKey[]).filter((k) => activePrefs[k]);
-    if (enabledPrefs.length === 0) return false;
-    if (!enabledPrefs.some((k) => matchesCategory(item, k))) return false;
 
     // Search query
     const q = debouncedSearch.toLowerCase();
@@ -213,7 +215,7 @@ export default function SharedNotificationsClient({
 
   // Mark all notifications read optimistically
   const handleMarkAllRead = async () => {
-    const hasUnread = notifications.some(n => !n.isRead);
+    const hasUnread = prefAllowedItems.some(n => !n.isRead);
     if (!hasUnread) {
       toast.info("No unread notifications");
       return;
@@ -251,9 +253,9 @@ export default function SharedNotificationsClient({
     }
   };
 
-  const activeUnreadCount = notifications.filter(n => !n.isRead).length;
-  const activeReadCount = notifications.filter(n => n.isRead).length;
-  const activeTotalCount = notifications.length;
+  const activeUnreadCount = prefAllowedItems.filter(n => !n.isRead).length;
+  const activeReadCount = prefAllowedItems.filter(n => n.isRead).length;
+  const activeTotalCount = prefAllowedItems.length;
 
   return (
     <div className="space-y-8">

@@ -38,6 +38,7 @@ const EmptyState = ({ title, description }: { title: string; description: string
 export default function AnalyticsDashboardClient() {
   const { data, error, isLoading, mutate } = useSWR("/api/dashboard/admin/analytics", fetcher);
   const [heatmapDetail, setHeatmapDetail] = useState<{ class: string; subject: string; avg: number } | null>(null);
+  const [teacherSearch, setTeacherSearch] = useState<string>("");
 
   const handleExportCSV = () => {
     if (!data) return;
@@ -76,7 +77,7 @@ export default function AnalyticsDashboardClient() {
           <div className="h-80 bg-muted rounded-2xl"></div>
           <div className="h-80 bg-muted rounded-2xl lg:col-span-2"></div>
         </div>
-        <div className="grid gap-4 grid-cols-2 md:grid-cols-4 lg:grid-cols-6">
+        <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <div key={i} className="h-28 bg-muted rounded-2xl"></div>
           ))}
@@ -100,6 +101,31 @@ export default function AnalyticsDashboardClient() {
       </main>
     );
   }
+
+  // Filter teachers by name, subject, or class
+  const filteredTeachers = (data.teacherAnalytics || []).filter((teacher: any) => {
+    if (!teacherSearch.trim()) return true;
+    const q = teacherSearch.toLowerCase();
+    const nameMatch = teacher.name?.toLowerCase().includes(q);
+    const subjectMatch = teacher.subjects?.some((s: string) => s.toLowerCase().includes(q));
+    const classMatch = teacher.classes?.some((c: string) => c.toLowerCase().includes(q));
+    return nameMatch || subjectMatch || classMatch;
+  });
+
+  const getSeverityBadge = (severity: string) => {
+    switch (severity) {
+      case "critical":
+        return "bg-rose-500/15 text-rose-400 border-rose-500/30";
+      case "high":
+        return "bg-amber-500/15 text-amber-400 border-amber-500/30";
+      case "medium":
+        return "bg-cyan-500/15 text-cyan-400 border-cyan-500/30";
+      case "low":
+        return "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
+      default:
+        return "bg-violet-500/15 text-violet-400 border-violet-500/30";
+    }
+  };
 
   return (
     <main className="min-h-screen bg-background text-foreground p-4 sm:p-6 lg:p-8 space-y-8 transition-all duration-300">
@@ -130,6 +156,77 @@ export default function AnalyticsDashboardClient() {
           </button>
         </div>
       </div>
+
+      {/* ── SECTION: TOP INSIGHTS (HIGHEST PRIORITY) ─────────────────────────── */}
+      <section className="bg-card border border-border/30 rounded-3xl p-6 shadow-xl space-y-5 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-72 h-72 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/20 pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-xl bg-cyan-500/10 flex items-center justify-center text-cyan-400">
+              <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-foreground tracking-tight">Top AI Insights & Priorities</h2>
+              <p className="text-xs text-muted-foreground">Prioritized operational findings surfaced directly from live school records</p>
+            </div>
+          </div>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-500/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-cyan-400 border border-cyan-500/20 w-fit">
+            <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+            Live Intelligence
+          </span>
+        </div>
+
+        {(!data.topInsights || data.topInsights.length === 0) ? (
+          <div className="flex flex-col items-center justify-center p-8 text-center bg-background/20 border border-dashed border-border rounded-2xl">
+            <p className="text-xs font-semibold text-muted-foreground">All operational indicators are operating within normal baseline limits.</p>
+          </div>
+        ) : (
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+            {data.topInsights.map((insight: any) => (
+              <div
+                key={insight.id}
+                className="group rounded-2xl border border-border/40 bg-background/40 p-4 hover:bg-card hover:border-cyan-500/30 transition-all duration-300 flex flex-col justify-between space-y-3"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`inline-flex items-center rounded-lg border px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider ${getSeverityBadge(insight.severity)}`}>
+                      {insight.severity}
+                    </span>
+                    {insight.entity && (
+                      <span className="text-[10px] font-semibold text-muted-foreground truncate max-w-[130px]">
+                        {insight.entity}
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="text-xs font-bold text-foreground group-hover:text-cyan-400 transition">
+                    {insight.title}
+                  </h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    {insight.message}
+                  </p>
+                </div>
+
+                <div className="pt-2 border-t border-border/20 flex flex-col gap-1.5">
+                  {insight.metric && (
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="text-muted-foreground">Key Metric:</span>
+                      <span className="font-bold text-primary font-mono">{insight.metric}</span>
+                    </div>
+                  )}
+                  {insight.action && (
+                    <div className="flex items-center gap-1.5 text-[10px] text-cyan-400 font-medium bg-cyan-500/5 rounded-lg px-2 py-1">
+                      <span>⚡</span>
+                      <span className="truncate">{insight.action}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* ── SECTION 1: SCHOOL HEALTH OVERVIEW ──────────────────────────────── */}
       <section className="grid gap-6 grid-cols-1 lg:grid-cols-3">
@@ -178,7 +275,7 @@ export default function AnalyticsDashboardClient() {
           </div>
         </div>
 
-        {/* Dynamic KPI Cards */}
+        {/* Dynamic KPI Cards (Fees Collection Status Completely Removed) */}
         <div className="lg:col-span-2 grid gap-4 grid-cols-2 sm:grid-cols-3">
           {[
             { label: "Total Students", value: data.kpis.students, color: "text-foreground" },
@@ -196,10 +293,6 @@ export default function AnalyticsDashboardClient() {
               <span className={`text-2xl font-black mt-2 block tracking-tight ${kpi.color}`}>{kpi.value}</span>
             </div>
           ))}
-          <div className="bg-card/50 border border-border/20 border-dashed rounded-2xl p-5 col-span-2 sm:col-span-3 flex flex-col justify-center">
-            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">Fees Collection Status</span>
-            <span className="text-xs text-muted-foreground mt-2 italic font-semibold">{data.kpis.feesStatus}</span>
-          </div>
         </div>
       </section>
 
@@ -455,58 +548,112 @@ export default function AnalyticsDashboardClient() {
 
       {/* ── SECTION 5: TEACHER ANALYTICS ─────────────────────────────────── */}
       <section className="bg-card border border-border/30 rounded-3xl p-6 shadow-xl space-y-6">
-        <div className="flex justify-between items-start">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-border/20 pb-4">
           <div>
             <h2 className="text-base font-bold text-foreground">Teacher Analytics</h2>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Teacher performance ratings, leaves, and workloads</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Teacher performance ratings, assigned cohorts, and workloads</p>
           </div>
-          <div className="text-right p-3 bg-cyan-500/10 border border-cyan-500/20 rounded-2xl">
-            <span className="text-[9px] uppercase font-bold text-cyan-400 block tracking-widest">Most Active Teacher</span>
-            <span className="text-xs font-black text-foreground mt-0.5 block">{data.mostActiveTeacher}</span>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+            {/* Functional Search Bar */}
+            <div className="relative flex-1 sm:w-72">
+              <input
+                type="text"
+                value={teacherSearch}
+                onChange={(e) => setTeacherSearch(e.target.value)}
+                placeholder="Search teacher, subject, class..."
+                className="w-full pl-8 pr-3 py-2 text-xs rounded-xl border border-border/40 bg-background/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-cyan-500 transition"
+              />
+              <svg className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground fill-current" viewBox="0 0 24 24">
+                <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+              </svg>
+            </div>
+
+            <div className="text-right p-2 bg-cyan-500/10 border border-cyan-500/20 rounded-xl shrink-0 hidden md:block">
+              <span className="text-[9px] uppercase font-bold text-cyan-400 block tracking-widest">Most Active Teacher</span>
+              <span className="text-xs font-black text-foreground mt-0.5 block">{data.mostActiveTeacher}</span>
+            </div>
           </div>
         </div>
 
         {data.teacherAnalytics.length === 0 ? (
           <EmptyState title="No teachers recorded" description="Add teachers and create subject assignments to generate metrics." />
+        ) : filteredTeachers.length === 0 ? (
+          <div className="flex flex-col items-center justify-center p-8 text-center bg-background/20 border border-dashed border-border rounded-2xl">
+            <p className="text-xs font-semibold text-muted-foreground">No teachers match the search &quot;{teacherSearch}&quot;.</p>
+            <button
+              onClick={() => setTeacherSearch("")}
+              className="mt-2 text-xs font-bold text-cyan-400 hover:underline"
+            >
+              Clear search filter
+            </button>
+          </div>
         ) : (
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-            {data.teacherAnalytics.map((teacher: any, idx: number) => (
-              <div key={idx} className="bg-background/30 border border-border/20 rounded-2xl p-5 shadow-sm space-y-4">
-                <div className="flex justify-between items-start border-b border-border/20 pb-3">
-                  <div>
-                    <h3 className="text-sm font-bold text-foreground">{teacher.name}</h3>
-                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">Uploader / Faculty</span>
+          /* Smooth horizontal scrolling container for smaller screens */
+          <div className="overflow-x-auto pb-3 -mx-2 px-2 scrollbar-thin">
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 min-w-[650px] lg:min-w-0">
+              {filteredTeachers.map((teacher: any, idx: number) => (
+                <div key={idx} className="bg-background/30 border border-border/20 rounded-2xl p-5 shadow-sm space-y-4 hover:border-border/60 transition">
+                  <div className="flex justify-between items-start border-b border-border/20 pb-3">
+                    <div>
+                      <h3 className="text-sm font-bold text-foreground">{teacher.name}</h3>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {teacher.subjects && teacher.subjects.length > 0 ? (
+                          teacher.subjects.map((sub: string, i: number) => (
+                            <span key={i} className="text-[9px] font-semibold px-1.5 py-0.5 rounded-md bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                              {sub}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">Faculty</span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded-full border border-emerald-500/20 font-bold shrink-0">
+                      Active
+                    </span>
                   </div>
-                  <span className="text-xs px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded-full border border-emerald-500/20 font-bold">Active</span>
+
+                  {teacher.classes && teacher.classes.length > 0 && (
+                    <div className="text-[10px] text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                      <span className="font-semibold text-foreground/80">Cohorts:</span>
+                      {teacher.classes.map((cls: string, i: number) => (
+                        <span key={i} className="px-1.5 py-0.5 rounded bg-muted/40 text-foreground border border-border/30">
+                          {cls}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block">Class Load</span>
+                      <span className="font-extrabold text-foreground">{teacher.classLoad} sections</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block">Student Score Avg</span>
+                      <span className="font-extrabold text-cyan-500">{teacher.avgStudentPerformance}%</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block">Assignments Given</span>
+                      <span className="font-extrabold text-foreground">{teacher.assignmentsGiven}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block">Evaluated (MoM)</span>
+                      <span className="font-extrabold text-violet-500">{teacher.assignmentsEvaluated}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block">Approved Leaves</span>
+                      <span className="font-extrabold text-amber-500">{teacher.leaveCount} days</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block">Resources uploaded</span>
+                      <span className="font-extrabold text-foreground">{teacher.resourcesUploaded}</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4 text-xs">
-                  <div>
-                    <span className="text-[10px] text-muted-foreground block">Class Load</span>
-                    <span className="font-extrabold text-foreground">{teacher.classLoad} sections</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-muted-foreground block">Student Score Avg</span>
-                    <span className="font-extrabold text-cyan-500">{teacher.avgStudentPerformance}%</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-muted-foreground block">Assignments Given</span>
-                    <span className="font-extrabold text-foreground">{teacher.assignmentsGiven}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-muted-foreground block">Evaluated (MoM)</span>
-                    <span className="font-extrabold text-violet-500">{teacher.assignmentsEvaluated}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-muted-foreground block">Approved Leaves</span>
-                    <span className="font-extrabold text-amber-500">{teacher.leaveCount} days</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-muted-foreground block">Resources uploaded</span>
-                    <span className="font-extrabold text-foreground">{teacher.resourcesUploaded}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
       </section>

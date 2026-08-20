@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { notifications, chatMessages } from "@/lib/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { notifications } from "@/lib/schema";
+import { eq, and } from "drizzle-orm";
+import { getUserNotificationPreferences } from "@/lib/notification-actions";
+import { isNotificationAllowedByPrefs } from "@/lib/notification-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -13,16 +15,27 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const [notifResult] = await Promise.all([
+    const [unreadRows, prefs] = await Promise.all([
       db
-        .select({ count: sql<number>`count(*)` })
+        .select({
+          id: notifications.id,
+          type: notifications.type,
+          title: notifications.title,
+          message: notifications.message,
+        })
         .from(notifications)
         .where(and(eq(notifications.userId, user.id), eq(notifications.isRead, false))),
+      getUserNotificationPreferences(user.id),
     ]);
 
-    const notifCount = Number(notifResult[0]?.count || 0);
+    const allowedUnreadCount = unreadRows.filter((r) =>
+      isNotificationAllowedByPrefs(
+        { type: r.type, title: r.title, message: r.message },
+        prefs
+      )
+    ).length;
 
-    return NextResponse.json({ count: notifCount });
+    return NextResponse.json({ count: allowedUnreadCount });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

@@ -657,6 +657,7 @@ export const useTripStore = create<TripStore>((set, get) => ({
     const normalized = normalizeQRValue(qrValue);
     const parsedId = parseStudentIdFromQR(normalized);
 
+    // 1. Try local stop matching first
     for (const stop of get().stops) {
       const student = stop.students.find((item) => {
         const candidates = [
@@ -682,34 +683,63 @@ export const useTripStore = create<TripStore>((set, get) => ({
       }
     }
 
-    if (parsedId) {
-      const isOnline = useLocationStore.getState().isOnline;
-      if (isOnline) {
-        try {
-          const res = await apiGet<any>(`/mobile/driver/students/${parsedId}`);
-          if (res.success && res.data) {
-            const apiStudent = res.data;
-            const auth = useAuthStore.getState();
-            const driverBus = auth.driver?.assignedBus;
+    // 2. Call backend /mobile/driver/scan-qr for server-side verification and authorization
+    const isOnline = useLocationStore.getState().isOnline;
+    if (isOnline) {
+      try {
+        const auth = useAuthStore.getState();
+        const driverBus = auth.driver?.assignedBus;
+        const state = get();
 
-            if (driverBus && apiStudent.assignedBusNumber && apiStudent.assignedBusNumber !== driverBus.busNumber) {
+        const scanRes = await post<any>('/mobile/driver/scan-qr', {
+          qrToken: qrValue.trim(),
+          busId: driverBus?.id,
+          routeId: driverBus?.routeId,
+          tripId: state.tripId || 'LIVE-TRIP-1',
+          direction: state.selectedDirection === 'morning' ? 'pickup' : 'dropoff',
+        });
+
+        if (scanRes.success && scanRes.data) {
+          const sData = scanRes.data;
+          const matchedStudentInStops = findStudentInStops(state.stops, String(sData.studentId));
+
+          if (matchedStudentInStops) {
+            if (scanRes.alreadyBoarded) {
               return {
-                student: {
-                  id: String(apiStudent.studentId),
-                  name: apiStudent.name,
-                  rollNumber: apiStudent.rollNumber || '',
-                  className: apiStudent.className || '',
-                  status: 'qr_pending',
-                },
-                stop: { id: String(apiStudent.stopId), name: apiStudent.pickupStopName || 'Assigned Stop' },
-                error: 'wrong_bus',
-                assignedBusNumber: apiStudent.assignedBusNumber,
-              } as any;
+                ...matchedStudentInStops,
+                error: 'already_boarded',
+              } as StudentBoardingCandidate;
             }
+            return matchedStudentInStops as StudentBoardingCandidate;
           }
-        } catch (err) {
-          console.warn('Online QR validation lookup failed:', err);
+
+          // Matched student verified on backend
+          return {
+            student: {
+              id: String(sData.studentId),
+              name: sData.studentName,
+              rollNumber: sData.rollNumber || '',
+              className: '',
+              status: scanRes.alreadyBoarded ? 'boarded' : 'qr_pending',
+            },
+            stop: { id: '1', name: 'Assigned Stop' },
+            error: scanRes.alreadyBoarded ? 'already_boarded' : undefined,
+          } as any;
+        } else if (scanRes.message && scanRes.message.includes('not assigned to this bus')) {
+          return {
+            student: {
+              id: 'unknown',
+              name: 'Student',
+              rollNumber: '',
+              className: '',
+              status: 'qr_pending',
+            },
+            stop: { id: '0', name: 'Other Route' },
+            error: 'wrong_bus',
+          } as any;
         }
+      } catch (err) {
+        console.warn('Online backend QR verification failed:', err);
       }
     }
 

@@ -200,14 +200,14 @@ export default function LiveLeafletMap({
       document.head.appendChild(style);
     }
 
-    if ((window as any).L) {
-      setLeafletLoaded(true);
-    } else {
-      const script = document.createElement("script");
-      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-      script.async = true;
-      script.onload = () => setLeafletLoaded(true);
-      document.body.appendChild(script);
+    if (typeof window !== "undefined") {
+      try {
+        const L = require("leaflet");
+        (window as any).L = L;
+        setLeafletLoaded(true);
+      } catch (err) {
+        console.error("Failed to load leaflet module:", err);
+      }
     }
   }, []);
 
@@ -303,7 +303,7 @@ export default function LiveLeafletMap({
     // Premium styling CartoDB basemaps
     const tileUrl = isDarkMode
       ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-      : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+      : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 
     L.tileLayer(tileUrl, {
       attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>',

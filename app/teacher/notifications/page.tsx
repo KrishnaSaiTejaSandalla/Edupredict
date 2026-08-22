@@ -5,6 +5,8 @@ import { eq, desc } from "drizzle-orm";
 import SharedNotificationsClient from "@/components/shared/NotificationsClient";
 import { getUserNotificationPreferences } from "@/lib/notification-actions";
 
+import { isNotificationAllowedByPrefs } from "@/lib/notification-utils";
+
 export const dynamic = "force-dynamic";
 
 export default async function TeacherNotificationsPage() {
@@ -31,7 +33,8 @@ export default async function TeacherNotificationsPage() {
     createdAt: n.createdAt ? new Date(n.createdAt).toISOString() : new Date().toISOString(),
   }));
 
-  const unreadCount = items.filter((i) => !i.isRead).length;
+  const allowedItems = items.filter((i) => isNotificationAllowedByPrefs(i, prefs));
+  const unreadCount = allowedItems.filter((i) => !i.isRead).length;
 
   return (
     <main className="min-h-screen bg-base p-4 sm:p-6 lg:p-8 text-primary transition-colors duration-200">

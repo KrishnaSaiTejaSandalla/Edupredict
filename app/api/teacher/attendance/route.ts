@@ -8,6 +8,7 @@ import {
   getAttendanceForDate,
   markBulkAttendance,
 } from "@/lib/teacher-attendance.service";
+import { isDateHoliday } from "@/lib/holiday-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,9 @@ export async function GET(request: Request) {
     const classId = Number(searchParams.get("classId"));
     const date = searchParams.get("date") || new Date().toISOString().split("T")[0];
 
-    if (!classId) return NextResponse.json({ students: [] });
+    const holidayInfo = await isDateHoliday(date, user.school?.id);
+
+    if (!classId) return NextResponse.json({ students: [], holidayInfo });
 
     // Restrict GET to Class Teacher only
     const [teacher] = await db
@@ -57,7 +60,7 @@ export async function GET(request: Request) {
       };
     });
 
-    return NextResponse.json({ students: studentsWithStatus });
+    return NextResponse.json({ students: studentsWithStatus, holidayInfo });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 401 });
   }
@@ -71,6 +74,15 @@ export async function POST(request: Request) {
 
     if (!classId || !date || !Array.isArray(records)) {
       return NextResponse.json({ error: "Invalid request. Class and Date are required." }, { status: 400 });
+    }
+
+    // Check if holiday
+    const holidayInfo = await isDateHoliday(date, user.school?.id);
+    if (holidayInfo.isHoliday) {
+      return NextResponse.json(
+        { error: `Cannot mark attendance on a holiday (${holidayInfo.reason || 'Holiday'}). Change date to a working day first.` },
+        { status: 400 }
+      );
     }
 
     // Restrict POST to Class Teacher only

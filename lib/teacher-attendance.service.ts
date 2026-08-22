@@ -65,14 +65,17 @@ export async function getStudentsByClass(classId: number) {
 }
 
 export async function getAttendanceForDate(classId: number, date: string) {
-  const dateObj = new Date(date + 'T00:00:00');
+  // Normalize to YYYY-MM-DD string
+  const dateStr = /^\d{4}-\d{2}-\d{2}$/.test(date.trim())
+    ? date.trim()
+    : new Date(date).toISOString().split('T')[0];
   return db
     .select()
     .from(attendance)
     .where(
       and(
         eq(attendance.classId, classId),
-        eq(attendance.attendanceDate, dateObj)
+        eq(attendance.attendanceDate, dateStr as any)
       )
     );
 }
@@ -93,14 +96,28 @@ export async function markBulkAttendance(
 ) {
   if (records.length === 0) return;
 
-  const dateObj = new Date(date + 'T00:00:00');
+  // Normalize date to YYYY-MM-DD string (avoid JS Date locale serialization issues with MySQL)
+  const normalizeDate = (d: string): string => {
+    // Strip time zone artifacts if any — ensure we get a clean YYYY-MM-DD
+    const raw = d.trim();
+    // If already YYYY-MM-DD, return as-is
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    // Otherwise parse and reformat
+    const parsed = new Date(raw);
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const day = String(parsed.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const dateStr = normalizeDate(date);
 
   await db
     .delete(attendance)
     .where(
       and(
         eq(attendance.classId, classId),
-        eq(attendance.attendanceDate, dateObj)
+        eq(attendance.attendanceDate, dateStr as any)
       )
     );
 
@@ -108,9 +125,9 @@ export async function markBulkAttendance(
     records.map((r) => ({
       studentId: r.studentId,
       classId,
-      subjectId,
+      subjectId: subjectId || null,
       topicTaught,
-      attendanceDate: dateObj,
+      attendanceDate: dateStr as any,
       status: r.status,
       remarks: r.remarks || null,
       markedBy,
@@ -175,7 +192,6 @@ export async function markBulkAttendance(
       }
 
       const notifValues: any[] = [];
-      const dateStr = dateObj.toLocaleDateString();
 
       records.forEach((r) => {
         const studentInfo = studentUserMap[r.studentId];

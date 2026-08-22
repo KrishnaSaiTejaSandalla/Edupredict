@@ -32,9 +32,10 @@ export type TeacherPerformanceData = {
     totalStudents: number;
   }[];
   aiInsights: {
-    problem: string;
-    why: string;
-    solution: string;
+    noticing: string;
+    contributing: string;
+    tryAction: string;
+    recheck: string;
   } | null;
   feedbackStats: {
     averageRating: number;
@@ -245,23 +246,34 @@ export async function getTeacherPerformance(teacherId: number, userId: number): 
 
         if (diff < -5) {
           aiInsights = {
-            problem: `Overall class average dropped by ${Math.abs(diff)}% in ${lastTwo[1].month}`,
-            why: `${lowestClass.className} is showing the weakest performance at ${lowestClass.avgScore}% average, which may be dragging the overall average down`,
-            solution: `Focus additional revision sessions on ${lowestClass.className}. Use differentiated practice sets and small group discussions to address knowledge gaps`,
+            noticing: `Average scores dropped by ${Math.abs(diff).toFixed(1)}% this month. ${lowestClass.className} has the lowest average at ${lowestClass.avgScore}%.`,
+            contributing: `${lowestClass.className} recent test scores were lower, which pulled down the overall average. This usually happens when a recent topic was harder or attendance dropped during key lessons.`,
+            tryAction: `1. Conduct a quick 10-minute revision on recent weak topics for ${lowestClass.className}.\n2. Share a 5-question practice sheet from the Resources tab.\n3. Pair students who scored below 60% with a study partner.`,
+            recheck: `Re-evaluate ${lowestClass.className} test scores after 2 weeks to target an improvement of at least 5%.`,
           };
         } else if (lowestClass.avgScore < 50) {
           aiInsights = {
-            problem: `${lowestClass.className} is critically underperforming at ${lowestClass.avgScore}% average`,
-            why: `Students may be struggling with foundational concepts. Low average suggests widespread difficulty, not isolated cases`,
-            solution: `Conduct a diagnostic assessment for ${lowestClass.className}. Deploy targeted remedial worksheets and peer tutoring strategies`,
+            noticing: `${lowestClass.className} needs help — current class average is ${lowestClass.avgScore}%, which is below the passing goal.`,
+            contributing: `Students in ${lowestClass.className} are struggling with foundational concepts from earlier chapters.`,
+            tryAction: `1. Run a low-stakes 5-question diagnostic quiz to find exact weak spots.\n2. Use the AI Material Builder in Resources to generate remedial practice sets.\n3. Review basic formulas and rules before introducing new topics.`,
+            recheck: `Give a brief follow-up quiz in 10 days to confirm student scores cross 60%.`,
           };
         } else if (gradingRate < 70) {
           aiInsights = {
-            problem: `${100 - gradingRate}% of submitted assignments remain ungraded`,
-            why: `Delayed feedback prevents students from understanding mistakes and reduces motivation to submit future work`,
-            solution: `Prioritize grading backlog using rubric-based quick assessments. Aim to grade all submissions within 72 hours of the due date`,
+            noticing: `${(100 - gradingRate).toFixed(0)}% of submitted student assignments are still pending your grades.`,
+            contributing: `Delayed grading feedback makes it harder for students to learn from recent mistakes before their next test.`,
+            tryAction: `1. Set aside 30 minutes today to grade pending submissions.\n2. Use quick rubric grading for routine homework assignments.\n3. Return graded work promptly so students can review before the weekend.`,
+            recheck: `Aim to clear all pending grading within 3 days to keep student feedback on track.`,
+          };
+        } else {
+          aiInsights = {
+            noticing: `Your classes are performing well with a strong overall average of ${classOutcomes.length > 0 ? (classOutcomes.reduce((sum, c) => sum + c.avgScore, 0) / classOutcomes.length).toFixed(1) : 'N/A'}% and a ${gradingRate}% grading completion rate.`,
+            contributing: `Consistent attendance and regular assessment habits are maintaining strong classroom performance.`,
+            tryAction: `1. Prepare optional challenge questions for fast-finishing students.\n2. Maintain your current teaching rhythm and attendance tracking.\n3. Generate advance revision guides for upcoming mid-term topics using the AI Builder.`,
+            recheck: `Check back after your next upcoming test to monitor continued class progress.`,
           };
         }
+
       } catch (error) {
         console.error('Error generating AI insights:', error);
         aiInsights = null;

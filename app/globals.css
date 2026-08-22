@@ -1,3 +1,4 @@
+@import "leaflet/dist/leaflet.css";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -795,6 +796,7 @@ h6 {
   html,
   body {
     overflow-x: hidden;
+    touch-action: pan-x pan-y;
   }
 
   /* Keep wide data grids usable without allowing them to widen the viewport. */

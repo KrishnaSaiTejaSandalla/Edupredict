@@ -16,6 +16,8 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
+import FormattedText from "@/components/shared/FormattedText";
+
 
 type ClassInfo = { id: number; name: string; section: string };
 
@@ -119,16 +121,16 @@ function StarRating({ rating }: { rating: number }) {
   return (
     <div className="flex items-center gap-0.5">
       {Array(full).fill(null).map((_, i) => (
-        <span key={`f${i}`} className="text-amber-400 text-xs">★</span>
+        <span key={`f${i}`} className="text-amber-400 text-xs">â˜…</span>
       ))}
       {half && (
         <span className="text-xs relative inline-block w-[12px]">
-          <span className="absolute inset-0 overflow-hidden w-1/2 text-amber-400">★</span>
-          <span className="text-muted">★</span>
+          <span className="absolute inset-0 overflow-hidden w-1/2 text-amber-400">â˜…</span>
+          <span className="text-muted">â˜…</span>
         </span>
       )}
       {Array(empty).fill(null).map((_, i) => (
-        <span key={`e${i}`} className="text-muted text-xs">★</span>
+        <span key={`e${i}`} className="text-muted text-xs">â˜…</span>
       ))}
     </div>
   );
@@ -220,9 +222,45 @@ export default function MyClassesClient({
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [search, setSearch] = useState("");
 
+  // Student AI Diagnostic Insights
+  const [studentAIData, setStudentAIData] = useState<{
+    overview?: string;
+    whyThisMatters?: string;
+    recommendedActions?: string[];
+    strongSubjects?: string[];
+    weakSubjects?: string[];
+    trend?: string;
+    insufficientData?: boolean;
+    message?: string;
+  } | null>(null);
+  const [generatingStudentAI, setGeneratingStudentAI] = useState(false);
+
+  const handleGenerateStudentAI = async (studentId: number) => {
+    setGeneratingStudentAI(true);
+    try {
+      const res = await fetch("/api/teacher/ai/student-insights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to generate AI insights");
+      setStudentAIData(data);
+      if (data.insufficientData) {
+        toast.info("Insufficient data recorded for this student.");
+      } else {
+        toast.success("AI Insights generated successfully!");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate AI insights");
+    } finally {
+      setGeneratingStudentAI(false);
+    }
+  };
+
   const sortedClasses = useMemo(() => sortClasses(myClasses), [myClasses]);
 
-  // ── Exam filter & pagination state ──────────────────────────────────────────
+  // â”€â”€ Exam filter & pagination state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [selectedSubject, setSelectedSubject] = useState("All");
   const [examPage, setExamPage] = useState(0);
   const EXAMS_PER_PAGE = 5;
@@ -275,6 +313,7 @@ export default function MyClassesClient({
   const fetchStudentProfile = async (student: Student) => {
     setLoadingProfile(true);
     setProfileDetails(null);
+    setStudentAIData(null);
     // Reset exam filter state when opening a new student
     setSelectedSubject("All");
     setExamPage(0);
@@ -331,7 +370,7 @@ export default function MyClassesClient({
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.35em] text-cyan-500 dark:text-cyan-400">Faculty Portal</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-primary sm:text-4xl">My Classes</h1>
-          <p className="mt-2 text-sm text-secondary">Class Teacher Overview — student profiles, performance ratings, and academic insights.</p>
+          <p className="mt-2 text-sm text-secondary">Class Teacher Overview â€” student profiles, performance ratings, and academic insights.</p>
         </div>
         <EmptyState title="No Class Assigned" message="Contact administrator to assign a class." />
       </div>
@@ -352,9 +391,9 @@ export default function MyClassesClient({
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.28em] text-cyan-500 dark:text-cyan-400">Faculty Portal · Class Teacher</p>
+          <p className="text-xs font-bold uppercase tracking-[0.28em] text-cyan-500 dark:text-cyan-400">Faculty Portal Â· Class Teacher</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-primary sm:text-4xl">My Classes</h1>
-          <p className="mt-2 text-sm text-secondary">Class Teacher Overview — student profiles, performance ratings, and academic insights.</p>
+          <p className="mt-2 text-sm text-secondary">Class Teacher Overview â€” student profiles, performance ratings, and academic insights.</p>
         </div>
       </div>
 
@@ -394,7 +433,7 @@ export default function MyClassesClient({
         </div>
       )}
 
-      {/* ── Unified Filter Bar ─────────────────────────────────────────────── */}
+      {/* â”€â”€ Unified Filter Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {selectedClass && (
         <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           {/* Search */}
@@ -443,7 +482,7 @@ export default function MyClassesClient({
         </div>
       )}
 
-      {/* ── Student Cards Grid ─────────────────────────────────────────────── */}
+      {/* â”€â”€ Student Cards Grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {
         loading ? (
           <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -485,7 +524,7 @@ export default function MyClassesClient({
                         <p className="text-[10px] text-muted-foreground font-medium">Roll No.{student.rollNumber}</p>
                       </div>
                       <span className={`text-base font-bold ${trend === "up" ? "text-emerald-500" : trend === "down" ? "text-rose-500" : "text-muted-foreground"}`}>
-                        {trend === "up" ? "↑" : trend === "down" ? "↓" : "→"}
+                        {trend === "up" ? "â†‘" : trend === "down" ? "â†“" : "â†’"}
                       </span>
                     </div>
 
@@ -526,7 +565,7 @@ export default function MyClassesClient({
         )
       }
 
-      {/* ── Student Detail Modal ───────────────────────────────────────────── */}
+      {/* â”€â”€ Student Detail Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {
         selectedStudent && (
           <div
@@ -631,7 +670,7 @@ export default function MyClassesClient({
                     {[1, 2, 3, 4].map((i) => <div key={i} className="skeleton h-20 rounded-xl" />)}
                   </div>
                 ) : profileTab === "personal" && profileDetails?.personal ? (
-                  /* ── Personal Tab ── */
+                  /* â”€â”€ Personal Tab â”€â”€ */
                   <div className="grid gap-6 lg:grid-cols-2">
                     {/* Left: Personal Information */}
                     <div className="rounded-2xl border border-border bg-background p-5">
@@ -641,16 +680,16 @@ export default function MyClassesClient({
                           { label: "Full Name", value: selectedStudent.name },
                           { label: "Roll Number", value: selectedStudent.rollNumber },
                           { label: "Class", value: profileDetails.personal.className || selectedStudent.className },
-                          { label: "Gender", value: profileDetails.personal.gender || "—" },
-                          { label: "Date of Birth", value: profileDetails.personal.dateOfBirth || "—" },
+                          { label: "Gender", value: profileDetails.personal.gender || "â€”" },
+                          { label: "Date of Birth", value: profileDetails.personal.dateOfBirth || "â€”" },
                           {
                             label: "Age",
                             value: profileDetails.personal.dateOfBirth
                               ? `${Math.floor((Date.now() - new Date(profileDetails.personal.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} Years`
-                              : "—",
+                              : "â€”",
                           },
-                          { label: "Phone", value: profileDetails.personal.phoneNumber || "—" },
-                          { label: "Address", value: profileDetails.personal.address || "—" },
+                          { label: "Phone", value: profileDetails.personal.phoneNumber || "â€”" },
+                          { label: "Address", value: profileDetails.personal.address || "â€”" },
                         ].map(({ label, value }) => (
                           <div key={label} className="flex justify-between items-start gap-3 py-1 border-b border-border/50 last:border-0">
                             <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium shrink-0">{label}</span>
@@ -666,10 +705,10 @@ export default function MyClassesClient({
                         <h3 className="text-xs font-bold uppercase tracking-widest text-accent mb-4">Academic Status</h3>
                         <div className="space-y-3">
                           {[
-                            { label: "Join Date", value: profileDetails.personal.joinDate || "—" },
-                            { label: "Admission No.", value: profileDetails.personal.admissionNumber || "—" },
-                            { label: "Current GPA", value: profileDetails.personal.currentGPA || "—" },
-                            { label: "Class Rank", value: profileDetails.personal.currentRank ? `#${profileDetails.personal.currentRank}` : "—" },
+                            { label: "Join Date", value: profileDetails.personal.joinDate || "â€”" },
+                            { label: "Admission No.", value: profileDetails.personal.admissionNumber || "â€”" },
+                            { label: "Current GPA", value: profileDetails.personal.currentGPA || "â€”" },
+                            { label: "Class Rank", value: profileDetails.personal.currentRank ? `#${profileDetails.personal.currentRank}` : "â€”" },
                           ].map(({ label, value }) => (
                             <div key={label} className="flex justify-between items-start gap-3 py-1 border-b border-border/50 last:border-0">
                               <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium shrink-0">{label}</span>
@@ -713,7 +752,7 @@ export default function MyClassesClient({
                   profileDetails?.academic && profileDetails.academic.examHistory.length > 0 ? (
                     <div className="space-y-5">
 
-                      {/* ── Header: title + subject dropdown + pagination ── */}
+                      {/* â”€â”€ Header: title + subject dropdown + pagination â”€â”€ */}
                       <div className="flex items-center justify-between gap-4 flex-wrap">
                         <h3 className="text-xs font-bold uppercase tracking-widest text-accent">
                           Recent Exam Results
@@ -737,7 +776,7 @@ export default function MyClassesClient({
                             ))}
                           </select>
 
-                          {/* Pagination arrows — only shown when needed */}
+                          {/* Pagination arrows â€” only shown when needed */}
                           {filteredExams.length > EXAMS_PER_PAGE && (
                             <div className="flex items-center gap-1">
                               <button
@@ -764,7 +803,7 @@ export default function MyClassesClient({
                         </div>
                       </div>
 
-                      {/* ── Exam Results Table or Empty State ── */}
+                      {/* â”€â”€ Exam Results Table or Empty State â”€â”€ */}
                       {filteredExams.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-10 text-center rounded-2xl border border-dashed border-border bg-background">
                           <svg className="mx-auto h-8 w-8 text-muted-foreground/30 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -774,7 +813,7 @@ export default function MyClassesClient({
                           <p className="text-xs text-muted-foreground mt-1">Try selecting a different subject or "All Subjects".</p>
                         </div>
                       ) : (
-                        /* Horizontally scrollable table — modal size stays fixed */
+                        /* Horizontally scrollable table â€” modal size stays fixed */
                         <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
                           <table
                             className="w-full text-left text-sm"
@@ -808,7 +847,7 @@ export default function MyClassesClient({
                                             <span className="text-[10px] text-muted-foreground">/ {exam.maxMarks}</span>
                                           </div>
                                         ) : (
-                                          <span className="text-muted-foreground">—</span>
+                                          <span className="text-muted-foreground">â€”</span>
                                         )}
                                       </td>
                                     );
@@ -825,7 +864,7 @@ export default function MyClassesClient({
                         </div>
                       )}
 
-                      {/* ── Performance Trend Chart ── */}
+                      {/* â”€â”€ Performance Trend Chart â”€â”€ */}
                       <div className="rounded-2xl border border-border bg-background p-5">
                         <h3 className="text-xs font-bold uppercase tracking-widest text-accent mb-4">Performance Trend</h3>
                         <div className="h-[200px]">
@@ -893,39 +932,157 @@ export default function MyClassesClient({
                           </div>
                         </div>
                       </div>
-                      {profileDetails.performance.aiInsights && profileDetails.performance.aiInsights.length > 0 ? (
-                        <div className="rounded-2xl border border-border bg-background p-5">
-                          <h3 className="text-xs font-bold uppercase tracking-widest text-accent mb-4">AI Insights</h3>
+                      {/* â”€â”€ AI Insights Section â”€â”€ */}
+                      <div className="rounded-2xl border border-border bg-background p-5 space-y-4">
+                        <div className="flex items-center justify-between gap-3 border-b border-border pb-3 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-500/15 text-cyan-400">
+                              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 21m0 0l-.813-5.096L3 15.094l5.096-.813L9 9.125l.813 5.156L15 15.094l-5.188.81Z" />
+                              </svg>
+                            </span>
+                            <div>
+                              <h3 className="text-xs font-bold uppercase tracking-widest text-foreground">AI Performance Insights</h3>
+                              <p className="text-[10px] text-muted-foreground">Evidence-grounded learning diagnosis & recommendations</p>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => selectedStudent && handleGenerateStudentAI(selectedStudent.id)}
+                            disabled={generatingStudentAI || !selectedStudent}
+                            className="btn-cyan rounded-xl px-3.5 py-1.5 text-xs font-bold disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
+                          >
+                            {generatingStudentAI ? (
+                              <>
+                                <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                Analyzing Student Data...
+                              </>
+                            ) : studentAIData ? (
+                              <>
+                                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                </svg>
+                                Regenerate Insights
+                              </>
+                            ) : (
+                              <>
+                                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 21m0 0l-.813-5.096L3 15.094l5.096-.813L9 9.125l.813 5.156L15 15.094l-5.188.81Z" />
+                                </svg>
+                                Generate AI Insights
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {studentAIData ? (
+                          studentAIData.insufficientData ? (
+                            <div className="rounded-xl border border-dashed border-border bg-card p-6 text-center">
+                              <p className="text-xs font-semibold text-muted-foreground">{studentAIData.message || "Insufficient data to generate AI insights."}</p>
+                              <p className="text-[10px] text-muted-foreground mt-1">Record more assessment marks and attendance to unlock detailed student diagnostics.</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-4 animate-fadeIn">
+                              {/* Performance Overview */}
+                              <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4 space-y-2.5">
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-400">Performance Overview</span>
+                                  {studentAIData.trend && (
+                                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                                      studentAIData.trend === "improving"
+                                        ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                                        : studentAIData.trend === "declining"
+                                        ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                                        : "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                                    }`}>
+                                      Trend: {studentAIData.trend}
+                                    </span>
+                                  )}
+                                </div>
+                                <FormattedText text={studentAIData.overview || ""} className="text-xs" />
+
+                                {(studentAIData.strongSubjects?.length || studentAIData.weakSubjects?.length) ? (
+                                  <div className="flex flex-wrap gap-2 pt-1">
+                                    {studentAIData.strongSubjects?.map((sub) => (
+                                      <span key={sub} className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 text-emerald-400 px-2 py-0.5 text-[10px] font-semibold border border-emerald-500/20">
+                                        âœ“ Strong: {sub}
+                                      </span>
+                                    ))}
+                                    {studentAIData.weakSubjects?.map((sub) => (
+                                      <span key={sub} className="inline-flex items-center gap-1 rounded-md bg-rose-500/10 text-rose-400 px-2 py-0.5 text-[10px] font-semibold border border-rose-500/20">
+                                        âš  Needs Focus: {sub}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : null}
+                              </div>
+
+                              {/* Why this matters */}
+                              {studentAIData.whyThisMatters && (
+                                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-1.5">
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">Why This Matters (Contributing Factors)</span>
+                                  <FormattedText text={studentAIData.whyThisMatters} className="text-xs" />
+                                </div>
+                              )}
+
+                              {/* Recommended Teacher Action */}
+                              {studentAIData.recommendedActions && studentAIData.recommendedActions.length > 0 && (
+                                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-2">
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Recommended Teacher Actions</span>
+                                  <ul className="space-y-1.5">
+                                    {studentAIData.recommendedActions.map((action, idx) => (
+                                      <li key={idx} className="flex items-start gap-2 text-xs text-foreground leading-relaxed">
+                                        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold mt-0.5">
+                                          {idx + 1}
+                                        </span>
+                                        <FormattedText text={action} className="text-xs" />
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        ) : profileDetails.performance.aiInsights && profileDetails.performance.aiInsights.length > 0 ? (
                           <div className="space-y-2.5">
                             {profileDetails.performance.aiInsights.map((insight, i) => (
                               <div key={i} className="flex gap-3 rounded-xl bg-amber-500/5 border border-amber-500/15 p-3">
-                                <span className="text-amber-500 shrink-0 mt-0.5">💡</span>
-                                <p className="text-xs text-amber-600 dark:text-amber-400 leading-relaxed">{insight}</p>
+                                <span className="text-amber-500 shrink-0 mt-0.5">ðŸ’¡</span>
+                                <FormattedText text={insight} className="text-xs" />
                               </div>
                             ))}
+                            <div className="pt-2 text-center">
+                              <p className="text-[11px] text-muted-foreground">Click "Generate AI Insights" above for a detailed multi-factor pedagogical breakdown.</p>
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <EmptyState title="Insufficient Data For Insights" message="Not enough data available to generate AI insights." />
-                      )}
+
+                        ) : (
+                          <div className="rounded-xl border border-dashed border-border bg-card p-6 text-center">
+                            <p className="text-xs font-semibold text-foreground">No baseline insights computed yet.</p>
+                            <p className="text-[11px] text-muted-foreground mt-1">Click the button above to generate on-demand AI analysis.</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <EmptyState title="No Performance Data Available" message="No performance records have been entered yet." />
                   )
+
                 ) : profileTab === "guardian" ? (
                   profileDetails?.guardian && (profileDetails.guardian.parentName || profileDetails.guardian.phone || profileDetails.guardian.email) ? (
-                    /* ── Guardian Tab ── */
+                    /* â”€â”€ Guardian Tab â”€â”€ */
                     <div className="grid gap-5 lg:grid-cols-2">
                       {/* Left: Contact Details */}
                       <div className="rounded-2xl border border-border bg-background p-5">
                         <h3 className="text-xs font-bold uppercase tracking-widest text-accent mb-4">Contact Information</h3>
                         <div className="space-y-3">
                           {[
-                            { label: "Parent / Guardian Name", value: profileDetails.guardian.parentName || "—" },
-                            { label: "Relationship", value: profileDetails.guardian.relationship || "—" },
-                            { label: "Phone Number", value: profileDetails.guardian.phone || "—" },
-                            { label: "Email Address", value: profileDetails.guardian.email || "—" },
-                            { label: "Occupation", value: profileDetails.guardian.occupation || "—" },
+                            { label: "Parent / Guardian Name", value: profileDetails.guardian.parentName || "â€”" },
+                            { label: "Relationship", value: profileDetails.guardian.relationship || "â€”" },
+                            { label: "Phone Number", value: profileDetails.guardian.phone || "â€”" },
+                            { label: "Email Address", value: profileDetails.guardian.email || "â€”" },
+                            { label: "Occupation", value: profileDetails.guardian.occupation || "â€”" },
                           ].map(({ label, value }) => (
                             <div key={label} className="flex justify-between items-start gap-3 py-2 border-b border-border/50 last:border-0">
                               <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold shrink-0">{label}</span>

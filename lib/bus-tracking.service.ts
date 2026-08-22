@@ -167,6 +167,14 @@ function mapSnapshot(row: {
   lastUpdatedAt: Date | string | null;
   stops: BusTrackingSnapshot['stops'];
 }): BusTrackingSnapshot {
+  const TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes timeout threshold
+  const lastUpdatedTime = row.lastUpdatedAt ? new Date(row.lastUpdatedAt).getTime() : 0;
+  const isStale = !row.lastUpdatedAt || (Date.now() - lastUpdatedTime > TIMEOUT_MS);
+
+  const finalStatus: BusTrackingSnapshot['status'] = isStale
+    ? 'offline'
+    : (row.status ? normalizeStatus(row.status) : 'offline');
+
   return {
     busId: row.busId,
     schoolId: row.schoolId,
@@ -176,16 +184,16 @@ function mapSnapshot(row: {
     driverPhone: row.driverPhone,
     capacity: row.capacity,
     nickname: row.nickname,
-    status: row.status ? normalizeStatus(row.status) : 'offline',
+    status: finalStatus,
     latitude: toNumberOrNull(row.latitude),
     longitude: toNumberOrNull(row.longitude),
-    speed: toNumberOrNull(row.speed),
+    speed: finalStatus === 'offline' ? 0 : toNumberOrNull(row.speed),
     heading: toNumberOrNull(row.heading),
     accuracy: toNumberOrNull(row.accuracy),
-    tripId: row.tripId,
-    currentStop: row.currentStopName,
-    nextStop: row.nextStopName,
-    remainingStops: row.remainingStops,
+    tripId: isStale ? null : row.tripId,
+    currentStop: finalStatus === 'offline' ? null : row.currentStopName,
+    nextStop: finalStatus === 'offline' ? null : row.nextStopName,
+    remainingStops: finalStatus === 'offline' ? null : row.remainingStops,
     lastUpdatedAt: row.lastUpdatedAt ? new Date(row.lastUpdatedAt).toISOString() : null,
     stops: row.stops,
   };

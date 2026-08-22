@@ -18,6 +18,7 @@ import {
 } from "@/lib/ai/avatars/generate";
 import { uploadUserProfileImage, deleteUserProfileImage } from "@/lib/settings-actions";
 import ImageCropperModal from "@/components/shared/ImageCropperModal";
+import { useNotificationStore } from "@/store/useNotificationStore";
 
 interface UserProps {
   id: number;
@@ -119,12 +120,17 @@ export default function TeacherSettingsClient({
   userAvatars: initialAvatars,
 }: TeacherSettingsClientProps) {
   const router = useRouter();
-  const { theme: currentTheme, density: currentDensity, colorPreset: currentPreset, setTheme, setDensity, setColorPreset } = useTheme();
+  const {
+    theme: currentTheme,
+    density: currentDensity,
+    colorPreset: currentPreset,
+    setTheme,
+    setDensity,
+    setColorPreset,
+  } = useTheme();
+
   const [activeTab, setActiveTab] = useState("profile");
-  const [isPending, startTransition] = useTransition();
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
-  const [selectedPreset, setSelectedPreset] = useState(currentPreset || "ocean-blue");
-  const [hoveredPreset, setHoveredPreset] = useState<string | null>(null);
   const [avatars, setAvatars] = useState(initialAvatars);
   const [isGeneratingAvatars, setIsGeneratingAvatars] = useState(false);
   const [isUploadingProfile, setIsUploadingProfile] = useState(false);
@@ -133,36 +139,99 @@ export default function TeacherSettingsClient({
   const [showUploadMenu, setShowUploadMenu] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const currentPresetRef = useRef(currentPreset);
+  // 1. Profile Draft State
+  const [draftProfile, setDraftProfile] = useState({
+    name: user.name || "",
+    email: user.email || "",
+    phoneNumber: user.phoneNumber || "",
+    designation: user.designation || "",
+    bio: user.bio || "",
+  });
 
-  useEffect(() => {
-    currentPresetRef.current = currentPreset;
-  }, [currentPreset]);
+  // 2. Professional Draft State
+  const [draftProfessional, setDraftProfessional] = useState({
+    qualification: teacher?.qualification || "",
+    experience: teacher?.experience !== null && teacher?.experience !== undefined ? String(teacher.experience) : "",
+    department: teacher?.department || "",
+  });
 
-  useEffect(() => {
-    if (currentPreset) {
-      setSelectedPreset(currentPreset);
-    }
-  }, [currentPreset]);
-
-  // Revert preview if active tab changes or on unmount without saving
-  useEffect(() => {
-    return () => {
-      if (currentPresetRef.current) {
-        setColorPreset(currentPresetRef.current, false);
-      }
-    };
-  }, [activeTab, setColorPreset]);
-
-  const initials = user.name.split(" ").filter(Boolean).map((p) => p[0]).join("").slice(0, 2).toUpperCase();
-
-  const profileFields = [user.name, user.email, user.bio, user.designation, user.phoneNumber, user.profileImageUrl];
-  const completedFields = profileFields.filter((f) => f && f.toString().trim() !== "").length;
-  const profileCompletionPercent = Math.round((completedFields / profileFields.length) * 100);
-
+  // 3. Notifications Draft State
   const parsedNotifs = user.notificationPreferences
     ? JSON.parse(user.notificationPreferences)
     : { attendance: true, assignments: true, messages: true, diary: true, feedback: true, leaves: true, announcements: true, transport: true, general: true };
+
+  const [notifPrefs, setNotifPrefs] = useState<Record<string, boolean>>({
+    attendance: parsedNotifs.attendance ?? true,
+    assignments: parsedNotifs.assignments ?? true,
+    messages: parsedNotifs.messages ?? true,
+    diary: parsedNotifs.diary ?? true,
+    feedback: parsedNotifs.feedback ?? true,
+    leaves: parsedNotifs.leaves ?? true,
+    announcements: parsedNotifs.announcements ?? true,
+    transport: parsedNotifs.transport ?? true,
+    general: parsedNotifs.general ?? true,
+  });
+
+  // 4. Appearance Draft State
+  const initialAppearance = user.appearancePreferences
+    ? (() => {
+        try {
+          return JSON.parse(user.appearancePreferences);
+        } catch {
+          return {};
+        }
+      })()
+    : {};
+
+  const [draftAppearance, setDraftAppearance] = useState<{
+    colorPreset: string;
+    density: Density;
+    theme: Theme;
+  }>({
+    colorPreset: initialAppearance.colorPreset || currentPreset || "ocean-blue",
+    density: (userPreferences?.density as Density) || (initialAppearance.density as Density) || currentDensity || "comfortable",
+    theme: (userPreferences?.theme as Theme) || (initialAppearance.theme as Theme) || currentTheme || "dark",
+  });
+
+  // 5. Security Draft State
+  const [draftSecurity, setDraftSecurity] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+
+  // Keep state synced when props refresh after saving
+  useEffect(() => {
+    setDraftProfile({
+      name: user.name || "",
+      email: user.email || "",
+      phoneNumber: user.phoneNumber || "",
+      designation: user.designation || "",
+      bio: user.bio || "",
+    });
+  }, [user]);
+
+  useEffect(() => {
+    if (teacher) {
+      setDraftProfessional({
+        qualification: teacher.qualification || "",
+        experience: teacher.experience !== null && teacher.experience !== undefined ? String(teacher.experience) : "",
+        department: teacher.department || "",
+      });
+    }
+  }, [teacher]);
+
+  const initials = (draftProfile.name || user.name || "TE")
+    .split(" ")
+    .filter(Boolean)
+    .map((p) => p[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  const profileFields = [draftProfile.name, user.email, draftProfile.bio, draftProfile.designation, draftProfile.phoneNumber, user.profileImageUrl];
+  const completedFields = profileFields.filter((f) => f && f.toString().trim() !== "").length;
+  const profileCompletionPercent = Math.round((completedFields / profileFields.length) * 100);
 
   const TABS = [
     { id: "profile", label: "Profile", icon: "👤" },
@@ -176,61 +245,75 @@ export default function TeacherSettingsClient({
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaveStatus("saving");
-    const formData = new FormData(e.currentTarget);
 
     try {
       if (activeTab === "profile") {
+        if (!draftProfile.name.trim()) throw new Error("Full name is required.");
         await updateTeacherProfile(user.id, {
-          name: formData.get("name") as string,
-          bio: formData.get("bio") as string,
-          designation: formData.get("designation") as string,
-          phoneNumber: formData.get("phoneNumber") as string,
+          name: draftProfile.name.trim(),
+          bio: draftProfile.bio.trim() || undefined,
+          designation: draftProfile.designation.trim() || undefined,
+          phoneNumber: draftProfile.phoneNumber.trim() || undefined,
         });
         toast.success("Profile saved successfully!");
-      } else if (activeTab === "professional" && teacher) {
+      } else if (activeTab === "professional") {
+        if (!teacher) throw new Error("Teacher record not found.");
         await updateTeacherProfessionalInfo(teacher.id, {
-          qualification: formData.get("qualification") as string,
-          experience: formData.get("experience") ? Number(formData.get("experience")) : undefined,
-          department: formData.get("department") as string,
+          qualification: draftProfessional.qualification.trim() || undefined,
+          experience: draftProfessional.experience ? Number(draftProfessional.experience) : undefined,
+          department: draftProfessional.department.trim() || undefined,
         });
-        toast.success("Professional info saved!");
+        toast.success("Professional info saved successfully!");
       } else if (activeTab === "notifications") {
-        await updateTeacherNotificationPrefs(user.id, {
-          attendance: formData.get("attendance") === "on",
-          assignments: formData.get("assignments") === "on",
-          messages: formData.get("messages") === "on",
-          diary: formData.get("diary") === "on",
-          feedback: formData.get("feedback") === "on",
-          leaves: formData.get("leaves") === "on",
-          announcements: formData.get("announcements") === "on",
-          transport: formData.get("transport") === "on",
-          general: formData.get("general") === "on",
-        });
-        toast.success("Notification preferences saved!");
+        const notifPayload = {
+          attendance: Boolean(notifPrefs.attendance),
+          assignments: Boolean(notifPrefs.assignments),
+          messages: Boolean(notifPrefs.messages),
+          diary: Boolean(notifPrefs.diary),
+          feedback: Boolean(notifPrefs.feedback),
+          leaves: Boolean(notifPrefs.leaves),
+          announcements: Boolean(notifPrefs.announcements),
+          transport: Boolean(notifPrefs.transport),
+          general: Boolean(notifPrefs.general),
+        };
+        await updateTeacherNotificationPrefs(user.id, notifPayload);
+        useNotificationStore.getState().setPreferences(notifPayload);
+        toast.success("Notification preferences saved successfully!");
       } else if (activeTab === "appearance") {
-        setColorPreset(selectedPreset, true);
-        const newDensity = formData.get("density") as string | null;
-        if (newDensity) setDensity(newDensity as any);
         await updateTeacherAppearance(user.id, {
-          theme: currentTheme,
-          density: newDensity || currentDensity,
-          colorPreset: selectedPreset,
+          theme: draftAppearance.theme,
+          density: draftAppearance.density,
+          colorPreset: draftAppearance.colorPreset,
         });
-        toast.success("Appearance updated.");
+        // Apply changes to current session context upon saving
+        setColorPreset(draftAppearance.colorPreset, true);
+        setTheme(draftAppearance.theme);
+        setDensity(draftAppearance.density);
+        toast.success("Appearance settings saved successfully!");
       } else if (activeTab === "security") {
-        const currentPassword = formData.get("currentPassword") as string;
-        const newPassword = formData.get("newPassword") as string;
-        await changeTeacherPassword(user.id, { currentPassword, newPassword });
-        toast.success("Password updated!");
-        (e.target as HTMLFormElement).reset();
+        if (!draftSecurity.currentPassword) {
+          throw new Error("Current password is required.");
+        }
+        if (!draftSecurity.newPassword || draftSecurity.newPassword.length < 8) {
+          throw new Error("New password must be at least 8 characters long.");
+        }
+        if (draftSecurity.confirmPassword && draftSecurity.newPassword !== draftSecurity.confirmPassword) {
+          throw new Error("New password and confirm password do not match.");
+        }
+        await changeTeacherPassword(user.id, {
+          currentPassword: draftSecurity.currentPassword,
+          newPassword: draftSecurity.newPassword,
+        });
+        setDraftSecurity({ currentPassword: "", newPassword: "", confirmPassword: "" });
+        toast.success("Password updated successfully!");
       }
 
       setSaveStatus("saved");
       router.refresh();
-      setTimeout(() => setSaveStatus("idle"), 2000);
+      setTimeout(() => setSaveStatus("idle"), 2500);
     } catch (err: any) {
       setSaveStatus("idle");
-      toast.error(err.message || "Failed to save");
+      toast.error(err.message || "Failed to save settings. Please try again.");
     }
   };
 
@@ -491,25 +574,58 @@ export default function TeacherSettingsClient({
                   </div>
                   <div className="grid gap-5 md:grid-cols-2">
                     <label className="block space-y-2">
-                      <span className="block text-xs font-semibold uppercase tracking-wider text-secondary">Full Name</span>
-                      <input type="text" name="name" defaultValue={user.name} required className="input-theme" />
+                      <span className="block text-xs font-semibold uppercase tracking-wider text-secondary">Full Name *</span>
+                      <input
+                        type="text"
+                        name="name"
+                        value={draftProfile.name}
+                        onChange={(e) => setDraftProfile({ ...draftProfile, name: e.target.value })}
+                        required
+                        className="input-theme"
+                      />
                     </label>
                     <label className="block space-y-2">
                       <span className="block text-xs font-semibold uppercase tracking-wider text-secondary">Email Address</span>
-                      <input type="email" name="email" defaultValue={user.email} disabled className="input-theme opacity-60 cursor-not-allowed" />
+                      <input
+                        type="email"
+                        name="email"
+                        value={user.email}
+                        disabled
+                        className="input-theme opacity-60 cursor-not-allowed"
+                      />
                       <p className="text-[10px] text-muted">Email cannot be changed here. Contact admin.</p>
                     </label>
                     <label className="block space-y-2">
                       <span className="block text-xs font-semibold uppercase tracking-wider text-secondary">Phone Number</span>
-                      <input type="text" name="phoneNumber" defaultValue={user.phoneNumber || ""} placeholder="+91 XXXXX XXXXX" className="input-theme" />
+                      <input
+                        type="text"
+                        name="phoneNumber"
+                        value={draftProfile.phoneNumber}
+                        onChange={(e) => setDraftProfile({ ...draftProfile, phoneNumber: e.target.value })}
+                        placeholder="+91 XXXXX XXXXX"
+                        className="input-theme"
+                      />
                     </label>
                     <label className="block space-y-2">
                       <span className="block text-xs font-semibold uppercase tracking-wider text-secondary">Designation</span>
-                      <input type="text" name="designation" defaultValue={user.designation || ""} placeholder="e.g. Senior Teacher, HOD" className="input-theme" />
+                      <input
+                        type="text"
+                        name="designation"
+                        value={draftProfile.designation}
+                        onChange={(e) => setDraftProfile({ ...draftProfile, designation: e.target.value })}
+                        placeholder="e.g. Senior Teacher, HOD"
+                        className="input-theme"
+                      />
                     </label>
                     <label className="block md:col-span-2 space-y-2">
                       <span className="block text-xs font-semibold uppercase tracking-wider text-secondary">Bio</span>
-                      <textarea name="bio" defaultValue={user.bio || ""} placeholder="Tell us about your teaching experience..." className="textarea-theme" />
+                      <textarea
+                        name="bio"
+                        value={draftProfile.bio}
+                        onChange={(e) => setDraftProfile({ ...draftProfile, bio: e.target.value })}
+                        placeholder="Tell us about your teaching experience..."
+                        className="textarea-theme"
+                      />
                     </label>
                   </div>
                 </>
@@ -528,20 +644,48 @@ export default function TeacherSettingsClient({
                     <div className="grid gap-5 md:grid-cols-2">
                       <label className="block space-y-2">
                         <span className="block text-xs font-semibold uppercase tracking-wider text-secondary">Employee ID</span>
-                        <input type="text" defaultValue={teacher.employeeId || ""} disabled className="input-theme opacity-60 cursor-not-allowed" />
+                        <input
+                          type="text"
+                          defaultValue={teacher.employeeId || ""}
+                          disabled
+                          className="input-theme opacity-60 cursor-not-allowed"
+                        />
                         <p className="text-[10px] text-muted">Assigned by administrator. Read-only.</p>
                       </label>
                       <label className="block space-y-2">
                         <span className="block text-xs font-semibold uppercase tracking-wider text-secondary">Department / Subject</span>
-                        <input type="text" name="department" defaultValue={teacher.department || ""} placeholder="e.g. Mathematics, Physics" className="input-theme" />
+                        <input
+                          type="text"
+                          name="department"
+                          value={draftProfessional.department}
+                          onChange={(e) => setDraftProfessional({ ...draftProfessional, department: e.target.value })}
+                          placeholder="e.g. Mathematics, Physics"
+                          className="input-theme"
+                        />
                       </label>
                       <label className="block space-y-2">
                         <span className="block text-xs font-semibold uppercase tracking-wider text-secondary">Highest Qualification</span>
-                        <input type="text" name="qualification" defaultValue={teacher.qualification || ""} placeholder="e.g. M.Sc, B.Ed, Ph.D" className="input-theme" />
+                        <input
+                          type="text"
+                          name="qualification"
+                          value={draftProfessional.qualification}
+                          onChange={(e) => setDraftProfessional({ ...draftProfessional, qualification: e.target.value })}
+                          placeholder="e.g. M.Sc, B.Ed, Ph.D"
+                          className="input-theme"
+                        />
                       </label>
                       <label className="block space-y-2">
                         <span className="block text-xs font-semibold uppercase tracking-wider text-secondary">Years of Experience</span>
-                        <input type="number" name="experience" defaultValue={teacher.experience || ""} placeholder="e.g. 5" min="0" max="50" className="input-theme" />
+                        <input
+                          type="number"
+                          name="experience"
+                          value={draftProfessional.experience}
+                          onChange={(e) => setDraftProfessional({ ...draftProfessional, experience: e.target.value })}
+                          placeholder="e.g. 5"
+                          min="0"
+                          max="50"
+                          className="input-theme"
+                        />
                       </label>
                     </div>
                   )}
@@ -553,7 +697,7 @@ export default function TeacherSettingsClient({
                 <>
                   <div className="border-b border-subtle pb-4">
                     <h2 className="text-sm font-semibold text-primary uppercase tracking-wider">Notification Preferences</h2>
-                    <p className="text-xs text-secondary mt-1">Configure which notifications you want to receive.</p>
+                    <p className="text-xs text-secondary mt-1">Configure which notifications you receive. Changes apply when you click <strong>Save Changes</strong>.</p>
                   </div>
                   <div className="space-y-4">
                     {[
@@ -567,12 +711,18 @@ export default function TeacherSettingsClient({
                       { name: "transport", label: "Transport Alerts", desc: "Get notified about bus and location updates" },
                       { name: "general", label: "General Alerts", desc: "Get notified about other updates and system info" },
                     ].map((item) => (
-                      <label key={item.name} className="flex items-start gap-4 rounded-xl border border-subtle bg-hover/30 p-4 cursor-pointer hover:bg-hover transition">
-                        <input type="checkbox" name={item.name} defaultChecked={parsedNotifs[item.name as keyof typeof parsedNotifs] !== false} className="mt-0.5 h-4 w-4 rounded border-theme accent-cyan-500" />
+                      <label key={item.name} className="flex items-center justify-between gap-4 rounded-xl border border-subtle bg-hover/30 p-4 cursor-pointer hover:bg-hover transition">
                         <div>
                           <p className="text-xs font-semibold text-primary">{item.label}</p>
                           <p className="text-[10px] text-secondary mt-0.5">{item.desc}</p>
                         </div>
+                        <input
+                          type="checkbox"
+                          name={item.name}
+                          checked={Boolean(notifPrefs[item.name])}
+                          onChange={(e) => setNotifPrefs({ ...notifPrefs, [item.name]: e.target.checked })}
+                          className="h-5 w-5 accent-cyan-500 cursor-pointer rounded border-theme shrink-0"
+                        />
                       </label>
                     ))}
                   </div>
@@ -584,7 +734,7 @@ export default function TeacherSettingsClient({
                 <>
                   <div className="border-b border-subtle pb-4">
                     <h2 className="text-sm font-semibold text-primary uppercase tracking-wider">Appearance</h2>
-                    <p className="text-xs text-secondary mt-1">Customize the portal theme and layout density.</p>
+                    <p className="text-xs text-secondary mt-1">Customize the portal theme and layout density. Changes apply when you click <strong>Save Changes</strong>.</p>
                   </div>
                   <div className="space-y-6">
                     <div>
@@ -592,27 +742,17 @@ export default function TeacherSettingsClient({
                         Color Preset
                       </span>
                       <p className="text-[11px] text-muted mt-0.5 mb-3">
-                        Choose a cohesive color system for your dashboard. Live preview switches colors instantly.
+                        Choose a cohesive color system for your dashboard.
                       </p>
                       <div className="grid gap-4 grid-cols-2 sm:grid-cols-5">
                         {THEME_PRESETS.map((preset) => {
-                          const isSelected = selectedPreset === preset.id;
+                          const isSelected = draftAppearance.colorPreset === preset.id;
                           return (
                             <button
                               key={preset.id}
                               type="button"
                               onClick={() => {
-                                setSelectedPreset(preset.id);
-                                setColorPreset(preset.id, false); // live preview
-                              }}
-                              onMouseEnter={() => {
-                                setHoveredPreset(preset.id);
-                                setColorPreset(preset.id, false); // live preview on hover
-                              }}
-                              onMouseLeave={() => {
-                                setHoveredPreset(null);
-                                // Revert to whatever is currently selected
-                                setColorPreset(selectedPreset, false);
+                                setDraftAppearance({ ...draftAppearance, colorPreset: preset.id });
                               }}
                               className={`flex flex-col items-stretch rounded-xl border p-4 text-left transition-all ${
                                 isSelected
@@ -637,23 +777,17 @@ export default function TeacherSettingsClient({
 
                               {/* Mini Dashboard Preview */}
                               <div className="rounded-lg border border-theme bg-background p-2 space-y-1.5 overflow-hidden select-none pointer-events-none">
-                                {/* Topbar */}
                                 <div className="flex items-center justify-between border-b border-subtle pb-1">
                                   <div className="h-1.5 w-8 rounded bg-muted/60" />
                                   <div className="h-2.5 w-2.5 rounded-full bg-cyan-500/20 flex items-center justify-center">
                                     <div className="h-1 w-1 rounded-full bg-cyan-400" />
                                   </div>
                                 </div>
-                                
-                                {/* Body */}
                                 <div className="flex gap-2">
-                                  {/* Sidebar */}
                                   <div className="w-8 border-r border-subtle pr-1 flex flex-col gap-1">
                                     <div className="h-1.5 w-full rounded bg-cyan-500/15" />
                                     <div className="h-1 w-2/3 rounded bg-muted/40" />
                                   </div>
-                                  
-                                  {/* Content */}
                                   <div className="flex-1 flex flex-col gap-1.5">
                                     <div className="flex items-center justify-between">
                                       <div className="h-2 w-8 rounded bg-muted/50" />
@@ -677,9 +811,16 @@ export default function TeacherSettingsClient({
                     <div>
                       <p className="text-xs font-semibold text-primary uppercase tracking-wider mb-3">Density</p>
                       <div className="flex gap-2">
-                        {["comfortable", "compact"].map((d) => (
+                        {(["comfortable", "compact"] as Density[]).map((d) => (
                           <label key={d} className="flex items-center gap-2 rounded-xl border border-subtle bg-hover/30 p-3 cursor-pointer hover:bg-hover transition">
-                            <input type="radio" name="density" value={d} defaultChecked={currentDensity === d} className="accent-cyan-500" />
+                            <input
+                              type="radio"
+                              name="density"
+                              value={d}
+                              checked={draftAppearance.density === d}
+                              onChange={() => setDraftAppearance({ ...draftAppearance, density: d })}
+                              className="accent-cyan-500"
+                            />
                             <span className="text-xs font-semibold text-primary capitalize">{d}</span>
                           </label>
                         ))}
@@ -692,8 +833,12 @@ export default function TeacherSettingsClient({
                           <button
                             key={t}
                             type="button"
-                            onClick={() => setTheme(t)}
-                            className={`rounded-xl border px-4 py-2 text-xs font-semibold capitalize transition ${currentTheme === t ? "border-cyan-400 bg-cyan-500/10 text-cyan-400" : "border-subtle text-secondary hover:bg-hover"}`}
+                            onClick={() => setDraftAppearance({ ...draftAppearance, theme: t })}
+                            className={`rounded-xl border px-4 py-2 text-xs font-semibold capitalize transition ${
+                              draftAppearance.theme === t
+                                ? "border-cyan-400 bg-cyan-500/10 text-cyan-400"
+                                : "border-subtle text-secondary hover:bg-hover"
+                            }`}
                           >
                             {t}
                           </button>
@@ -709,20 +854,51 @@ export default function TeacherSettingsClient({
                 <>
                   <div className="border-b border-subtle pb-4">
                     <h2 className="text-sm font-semibold text-primary uppercase tracking-wider">Change Password</h2>
-                    <p className="text-xs text-secondary mt-1">Update your account password for security.</p>
+                    <p className="text-xs text-secondary mt-1">Update your account password for security. Changes apply when you click <strong>Save Changes</strong>.</p>
                   </div>
                   <div className="grid gap-5 md:grid-cols-2 max-w-lg">
                     <label className="block md:col-span-2 space-y-2">
-                      <span className="block text-xs font-semibold uppercase tracking-wider text-secondary">Current Password</span>
-                      <input type="password" name="currentPassword" required className="input-theme" placeholder="••••••••" />
+                      <span className="block text-xs font-semibold uppercase tracking-wider text-secondary">Current Password *</span>
+                      <input
+                        type="password"
+                        name="currentPassword"
+                        value={draftSecurity.currentPassword}
+                        onChange={(e) => setDraftSecurity({ ...draftSecurity, currentPassword: e.target.value })}
+                        required
+                        className="input-theme"
+                        placeholder="••••••••"
+                      />
                     </label>
                     <label className="block md:col-span-2 space-y-2">
-                      <span className="block text-xs font-semibold uppercase tracking-wider text-secondary">New Password</span>
-                      <input type="password" name="newPassword" required minLength={8} className="input-theme" placeholder="Min. 8 characters" />
+                      <span className="block text-xs font-semibold uppercase tracking-wider text-secondary">New Password (min 8 chars) *</span>
+                      <input
+                        type="password"
+                        name="newPassword"
+                        value={draftSecurity.newPassword}
+                        onChange={(e) => setDraftSecurity({ ...draftSecurity, newPassword: e.target.value })}
+                        required
+                        minLength={8}
+                        className="input-theme"
+                        placeholder="Min. 8 characters"
+                      />
+                    </label>
+                    <label className="block md:col-span-2 space-y-2">
+                      <span className="block text-xs font-semibold uppercase tracking-wider text-secondary">Confirm New Password *</span>
+                      <input
+                        type="password"
+                        name="confirmPassword"
+                        value={draftSecurity.confirmPassword}
+                        onChange={(e) => setDraftSecurity({ ...draftSecurity, confirmPassword: e.target.value })}
+                        required
+                        minLength={8}
+                        className="input-theme"
+                        placeholder="Re-type new password"
+                      />
                     </label>
                   </div>
                 </>
               )}
+
 
               {/* Save Button */}
               <div className="flex justify-end border-t border-subtle pt-4">

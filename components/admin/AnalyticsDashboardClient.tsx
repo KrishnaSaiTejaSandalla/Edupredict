@@ -290,7 +290,7 @@ export default function AnalyticsDashboardClient() {
               className="bg-card border border-border/30 rounded-2xl p-5 shadow-sm hover:scale-[1.03] transition-all duration-300 group relative overflow-hidden flex flex-col justify-between"
             >
               <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">{kpi.label}</span>
-              <span className={`text-2xl font-black mt-2 block tracking-tight ${kpi.color}`}>{kpi.value}</span>
+              <span className={`text-3xl sm:text-4xl lg:text-5xl font-black mt-3 block tracking-tight ${kpi.color}`}>{kpi.value}</span>
             </div>
           ))}
         </div>

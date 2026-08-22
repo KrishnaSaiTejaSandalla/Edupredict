@@ -13,6 +13,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import type { TeacherPerformanceData } from "@/lib/teacher-performance.service";
+import FormattedText from "@/components/shared/FormattedText";
 
 type Props = {
   performance: TeacherPerformanceData;
@@ -45,8 +46,46 @@ function StarRating({ rating }: { rating: number }) {
   );
 }
 
+const MOTIVATIONAL_QUOTES = [
+  {
+    quote: "“The art of teaching is the art of assisting discovery.”",
+    author: "Mark Van Doren",
+    tip: "Keep high energy today! A 5-minute interactive quiz at the start of class boosts retention by up to 40%."
+  },
+  {
+    quote: "“Education is not the filling of a pail, but the lighting of a fire.”",
+    author: "William Butler Yeats",
+    tip: "Celebrate small student victories today. A single word of genuine praise can transform a quiet student's term."
+  },
+  {
+    quote: "“Tell me and I forget. Teach me and I remember. Involve me and I learn.”",
+    author: "Benjamin Franklin",
+    tip: "Try a rapid 2-minute peer-teaching exercise today — have students explain one concept to their bench partner."
+  },
+  {
+    quote: "“Every student can learn, just not on the same day, or in the same way.”",
+    author: "George Evans",
+    tip: "Use the AI Material Builder in Resources to generate differentiated practice sets for fast and remedial learners."
+  },
+  {
+    quote: "“One child, one teacher, one book, and one pen can change the world.”",
+    author: "Malala Yousafzai",
+    tip: "Turn upcoming review sessions into a lively quiz competition — friendly team games keep attention razor-sharp!"
+  }
+];
+
 export default function TeacherPerformanceClient({ performance }: Props) {
   const { kpis, teachingEffectiveness, classOutcomes, aiInsights, feedbackStats } = performance;
+
+  const [activeQuoteIdx, setActiveQuoteIdx] = React.useState(0);
+
+  React.useEffect(() => {
+    // Pick random quote on each page load/entry
+    const randomIdx = Math.floor(Math.random() * MOTIVATIONAL_QUOTES.length);
+    setActiveQuoteIdx(randomIdx);
+  }, []);
+
+  const activeQuote = MOTIVATIONAL_QUOTES[activeQuoteIdx];
 
   const kpiCards = [
     {
@@ -115,12 +154,46 @@ export default function TeacherPerformanceClient({ performance }: Props) {
           <p className="text-xs font-bold uppercase tracking-[0.28em] text-cyan-500 dark:text-cyan-400">
             Faculty Portal
           </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-primary sm:text-4xl">Performance</h1>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-primary sm:text-4xl">Performance & Companion</h1>
           <p className="mt-2 text-sm text-secondary">
-            Your teaching effectiveness metrics, class outcomes, and AI-driven insights.
+            Your teaching effectiveness metrics, companion insights, and classroom action plans.
           </p>
         </div>
       </div>
+
+      {/* Motivational Companion Banner */}
+      <section className="relative overflow-hidden rounded-3xl border border-cyan-500/30 bg-gradient-to-r from-cyan-500/15 via-blue-600/10 to-purple-600/10 p-6 sm:p-8 shadow-xl backdrop-blur-md">
+        <div className="absolute -right-10 -bottom-10 h-40 w-40 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none" />
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
+          <div className="space-y-2 max-w-3xl">
+            <div className="flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-cyan-500/20 text-cyan-400 text-xs font-bold">
+                ✨
+              </span>
+              <span className="text-[11px] font-bold uppercase tracking-widest text-cyan-400">
+                Daily Faculty Inspiration
+              </span>
+            </div>
+            <h2 className="text-lg sm:text-xl md:text-2xl font-black tracking-tight text-foreground leading-snug">
+              {activeQuote.quote}
+            </h2>
+            <p className="text-xs font-semibold text-cyan-500/80">
+              — {activeQuote.author}
+            </p>
+            <div className="mt-3 pt-3 border-t border-cyan-500/20 flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="text-cyan-400 font-bold">💡 Companion Tip:</span>
+              <span>{activeQuote.tip}</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveQuoteIdx((prev) => (prev + 1) % MOTIVATIONAL_QUOTES.length)}
+            className="shrink-0 rounded-2xl border border-cyan-500/30 bg-card/80 px-4 py-2.5 text-xs font-bold text-cyan-400 hover:bg-hover hover:border-cyan-500/50 transition shadow-sm active:scale-95"
+          >
+            🔄 New Motivation
+          </button>
+        </div>
+      </section>
 
       {/* KPI Cards */}
       <section className="grid gap-4 grid-cols-2 lg:grid-cols-4">
@@ -204,58 +277,112 @@ export default function TeacherPerformanceClient({ performance }: Props) {
         </div>
       </section>
 
-      {/* AI Teaching Insights */}
-      {aiInsights && (
-        <section>
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground mb-4">AI Teaching Insights</h2>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-2xl border border-rose-500/20 bg-gradient-to-br from-rose-500/10 to-rose-500/5 p-5 shadow-sm">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-500/20 text-rose-400">
-                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="8" x2="12" y2="12" />
-                    <line x1="12" y1="16" x2="12.01" y2="16" />
-                  </svg>
-                </span>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-rose-400">Problem</p>
-              </div>
-              <p className="text-xs text-foreground leading-relaxed">{aiInsights.problem}</p>
-            </div>
-            <div className="rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/10 to-amber-500/5 p-5 shadow-sm">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/20 text-amber-400">
-                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                  </svg>
-                </span>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400">Root Cause</p>
-              </div>
-              <p className="text-xs text-foreground leading-relaxed">{aiInsights.why}</p>
-            </div>
-            <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 p-5 shadow-sm">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400">
-                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </span>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">Solution</p>
-              </div>
-              <p className="text-xs text-foreground leading-relaxed">{aiInsights.solution}</p>
+      {/* AI Teaching Companion & Performance Analysis */}
+      <section className="rounded-3xl border border-cyan-500/30 bg-gradient-to-br from-cyan-500/5 via-card to-card p-6 sm:p-8 shadow-xl space-y-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border pb-5">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-600/20 text-cyan-400 text-2xl shrink-0 shadow-sm border border-cyan-500/20">
+              🤝
+            </span>
+            <div>
+              <h2 className="text-base font-bold uppercase tracking-wider text-foreground">
+                AI Teaching Companion & Classroom Strategy
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Personalized pedagogical coaching, student motivation, and exam readiness recommendations
+              </p>
             </div>
           </div>
-        </section>
-      )}
-
-      {!aiInsights && (
-        <div className="rounded-2xl border border-dashed border-border p-10 text-center">
-          <p className="text-sm font-semibold text-muted-foreground">AI insights require more data</p>
-          <p className="mt-2 text-xs text-muted-foreground max-w-md mx-auto">
-            Mark attendance, enter marks, and grade assignments regularly to enable AI-powered teaching recommendations.
-          </p>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-500/10 px-3 py-1 text-xs font-bold text-cyan-400 border border-cyan-500/20">
+            <span className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" /> Live Analysis Active
+          </span>
         </div>
-      )}
+
+        <div className="grid gap-5 md:grid-cols-2">
+          {/* Card 1: Classroom Games & Active Engagement */}
+          <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-cyan-500/10 to-transparent p-5 space-y-3">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-400 text-base">
+                🎮
+              </span>
+              <p className="text-xs font-bold uppercase tracking-widest text-cyan-400">
+                Classroom Engagement & Fun Games
+              </p>
+            </div>
+            <p className="text-xs text-foreground leading-relaxed">
+              <strong>Boost participation with lively learning games:</strong> Hold a 5-minute <em>"Speed Quiz Battle"</em> or team buzzer round at the beginning of lessons. Divide the class into two teams to compete on key formulas or vocabulary. Active competitions energize quiet students and double retention rates!
+            </p>
+          </div>
+
+          {/* Card 2: Student Focus & Weak Topics */}
+          <div className="rounded-2xl border border-rose-500/30 bg-gradient-to-br from-rose-500/10 to-transparent p-5 space-y-3">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-500/20 text-rose-400 text-base">
+                🎯
+              </span>
+              <p className="text-xs font-bold uppercase tracking-widest text-rose-400">
+                Targeted Attention & Focus Areas
+              </p>
+            </div>
+            <div className="text-xs text-foreground leading-relaxed">
+              {aiInsights?.noticing ? (
+                <FormattedText text={aiInsights.noticing} />
+              ) : (
+                <p>Focus on foundational concepts for struggling students. Identify students with scores under 60% or attendance below 75% for 1-on-1 encouragement.</p>
+              )}
+            </div>
+          </div>
+
+          {/* Card 3: Exam Prep & Study Packs */}
+          <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-transparent p-5 space-y-3">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400 text-base">
+                📚
+              </span>
+              <p className="text-xs font-bold uppercase tracking-widest text-amber-400">
+                Exam Readiness & Resource Kits
+              </p>
+            </div>
+            <p className="text-xs text-foreground leading-relaxed">
+              <strong>Keep exam readiness proactive:</strong> As chapter tests approach, generate a <em>7-Day High-Yield Revision Plan</em> or <em>Diagnostic Quiz</em> using the <strong>AI Material Builder</strong> in the Resources tab. Distribute formula sheets and model question papers 10 days before exams to eliminate test anxiety.
+            </p>
+          </div>
+
+          {/* Card 4: Actionable Teaching Experiments */}
+          <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 to-transparent p-5 space-y-3">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400 text-base">
+                💡
+              </span>
+              <p className="text-xs font-bold uppercase tracking-widest text-emerald-400">
+                Companion Pedagogical Strategy
+              </p>
+            </div>
+            <div className="text-xs text-foreground leading-relaxed">
+              {aiInsights?.tryAction ? (
+                <FormattedText text={aiInsights.tryAction} />
+              ) : (
+                <p>Encourage quiet students to participate by using think-pair-share. Clear pending grading promptly so students can learn from mistakes before the next assessment.</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-subtle bg-background/50 p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="text-[11px] text-muted-foreground flex items-center gap-2">
+            <span className="text-cyan-400">✨</span>
+            <span>Your companion suggestions automatically adapt as marks, attendance, and exam dates are recorded.</span>
+          </p>
+          <a
+            href="/teacher/resources"
+            className="text-xs font-bold text-cyan-400 hover:text-cyan-300 underline underline-offset-4 shrink-0"
+          >
+            Open AI Material Builder →
+          </a>
+        </div>
+      </section>
+
+
 
       {/* Student Feedback Section */}
       <section className="rounded-2xl border border-border bg-card p-6 shadow-md space-y-6">

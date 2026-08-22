@@ -7,6 +7,7 @@ import type { Route } from "next";
 import { usePathname, useRouter } from "next/navigation";
 import logo from "@/branding/logo.png";
 import { useNotificationStore } from "@/store/useNotificationStore";
+import { isNotificationAllowedByPrefs } from "@/lib/notification-utils";
 import { toast } from "sonner";
 import { markNotificationRead } from "@/lib/notification-actions";
 import LogoutButton from "@/components/auth/LogoutButton";
@@ -391,7 +392,10 @@ export default function ParentShell({ children, user, childName, alerts: initial
                     </div>
                     <div className="mt-1 max-h-72 overflow-y-auto space-y-0.5 scrollbar-hide">
                       {(() => {
-                        const unreadNotifications = notifications.filter((n) => !n.isRead).slice(0, 5);
+                        const storePreferences = useNotificationStore.getState().preferences;
+                        const unreadNotifications = notifications
+                          .filter((n) => !n.isRead && isNotificationAllowedByPrefs(n, storePreferences))
+                          .slice(0, 5);
                         if (unreadNotifications.length === 0) {
                           return (
                             <div className="p-4 text-center text-xs text-muted">No unread alerts</div>

@@ -8,6 +8,13 @@ export const metadata = {
   description: 'AI-powered school management for modern schools',
 };
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
   const reqHeaders = await headers();
@@ -64,6 +71,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   if (preset) {
                     document.documentElement.setAttribute('data-color-preset', preset);
                   }
+                  // Disable Windows Ctrl + Wheel / Plus / Minus browser zoom & touchpad pinch-zoom
+                  document.addEventListener('wheel', function(e) {
+                    if (e.ctrlKey) e.preventDefault();
+                  }, { passive: false });
+                  document.addEventListener('keydown', function(e) {
+                    if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '-' || e.key === '=' || e.key === '0' || e.keyCode === 187 || e.keyCode === 189 || e.keyCode === 48 || e.keyCode === 107 || e.keyCode === 109)) {
+                      e.preventDefault();
+                    }
+                  });
                 } catch (e) {}
               })();
             `

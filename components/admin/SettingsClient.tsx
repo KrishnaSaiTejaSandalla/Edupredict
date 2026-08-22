@@ -19,6 +19,7 @@ import {
   updateUserAppearancePreferences,
 } from "@/lib/settings-actions";
 import { saveNotificationPreferences } from "@/lib/notification-actions";
+import { useNotificationStore } from "@/store/useNotificationStore";
 import {
   generateUserAvatars,
   selectUserAvatar,
@@ -418,6 +419,7 @@ export default function SettingsClient({
         };
         await updateUserNotificationPreferences(user.id, notifPayload);
         await saveNotificationPreferences(user.id, notifPayload);
+        useNotificationStore.getState().setPreferences(notifPayload);
         toast.success("Notification preferences saved successfully!");
       } else if (activeTab === "surveys") {
         if (!school) throw new Error("No school record associated.");

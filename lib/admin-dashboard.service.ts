@@ -329,7 +329,7 @@ export async function getAdminDashboardData(): Promise<DashboardPayload> {
       .innerJoin(exams, eq(results.examId, exams.id))
       .innerJoin(subjects, eq(exams.subjectId, subjects.id))
       .groupBy(subjects.id, subjects.name, exams.maxMarks),
- 
+
     // 11. Gender distribution
     db
       .select({
@@ -457,35 +457,35 @@ export async function getAdminDashboardData(): Promise<DashboardPayload> {
   const [recentStudentAttendanceRaw, recentStudentPerformanceRaw] =
     recentStudentIds.length > 0
       ? await Promise.all([
-          db
-            .select({
-              studentId: attendance.studentId,
-              total: sql<number>`sum(case when ${attendance.status} != 'leave' then 1 else 0 end)`,
-              present: sql<number>`sum(case when ${attendance.status} = 'present' then 1 when ${attendance.status} = 'half_day' then 0.5 else 0 end)`,
-            })
-            .from(attendance)
-            .where(
-              sql`${attendance.studentId} in (${sql.join(
-                recentStudentIds.map((id) => sql`${id}`),
-                sql`, `
-              )})`
-            )
-            .groupBy(attendance.studentId),
-          db
-            .select({
-              studentId: results.studentId,
-              percentage: sql<number>`round(avg((${results.marks} / nullif(${exams.maxMarks}, 0)) * 100))`,
-            })
-            .from(results)
-            .innerJoin(exams, eq(exams.id, results.examId))
-            .where(
-              sql`${results.studentId} in (${sql.join(
-                recentStudentIds.map((id) => sql`${id}`),
-                sql`, `
-              )})`
-            )
-            .groupBy(results.studentId),
-        ])
+        db
+          .select({
+            studentId: attendance.studentId,
+            total: sql<number>`sum(case when ${attendance.status} != 'leave' then 1 else 0 end)`,
+            present: sql<number>`sum(case when ${attendance.status} = 'present' then 1 when ${attendance.status} = 'half_day' then 0.5 else 0 end)`,
+          })
+          .from(attendance)
+          .where(
+            sql`${attendance.studentId} in (${sql.join(
+              recentStudentIds.map((id) => sql`${id}`),
+              sql`, `
+            )})`
+          )
+          .groupBy(attendance.studentId),
+        db
+          .select({
+            studentId: results.studentId,
+            percentage: sql<number>`round(avg((${results.marks} / nullif(${exams.maxMarks}, 0)) * 100))`,
+          })
+          .from(results)
+          .innerJoin(exams, eq(exams.id, results.examId))
+          .where(
+            sql`${results.studentId} in (${sql.join(
+              recentStudentIds.map((id) => sql`${id}`),
+              sql`, `
+            )})`
+          )
+          .groupBy(results.studentId),
+      ])
       : [[], []];
 
   const attendanceByStudent = Object.fromEntries(
@@ -504,9 +504,9 @@ export async function getAdminDashboardData(): Promise<DashboardPayload> {
 
     const attendancePercentage = hasAttData
       ? calculateAttendancePercentage({
-          present: Number(attRecord.present ?? 0),
-          total: Number(attRecord.total ?? 0),
-        })
+        present: Number(attRecord.present ?? 0),
+        total: Number(attRecord.total ?? 0),
+      })
       : 0;
 
     const latestPerformance = perfRecord
@@ -542,27 +542,27 @@ export async function getAdminDashboardData(): Promise<DashboardPayload> {
 
   const alerts: DashboardAlert[] = uniqueRawAlerts.length
     ? uniqueRawAlerts.slice(0, 5).map((alert) => {
-        const tone: DashboardAlert["tone"] =
-          alert.priority === "high"
-            ? "danger"
-            : alert.priority === "medium"
+      const tone: DashboardAlert["tone"] =
+        alert.priority === "high"
+          ? "danger"
+          : alert.priority === "medium"
             ? "warning"
             : "info";
-        return {
-          id: alert.id.toString(),
-          tone,
-          title: alert.title ?? "Notification",
-          message: alert.message ?? "You have a system notification.",
-        };
-      })
+      return {
+        id: alert.id.toString(),
+        tone,
+        title: alert.title ?? "Notification",
+        message: alert.message ?? "You have a system notification.",
+      };
+    })
     : [
-        {
-          id: "friendly-status",
-          tone: "info",
-          title: "No unread alerts",
-          message: "All systems are stable. No pending notifications.",
-        },
-      ];
+      {
+        id: "friendly-status",
+        tone: "info",
+        title: "No unread alerts",
+        message: "All systems are stable. No pending notifications.",
+      },
+    ];
 
   // ─── Upcoming Exams ───────────────────────────────────────────────────────
   const upcomingExams: UpcomingExam[] = upcomingExamsRaw.map((exam) => ({
@@ -577,7 +577,7 @@ export async function getAdminDashboardData(): Promise<DashboardPayload> {
     className: row.className || "No Class",
     count: Number(row.count ?? 0),
   }));
- 
+
   // ─── Gender Distribution ──────────────────────────────────────────────────
   const genderDistribution = genderDistributionRaw.map((row) => ({
     gender: row.gender || "Unknown",
@@ -592,9 +592,9 @@ export async function getAdminDashboardData(): Promise<DashboardPayload> {
       exam: row.name ?? "Exam",
       examDate: row.examDate
         ? new Date(row.examDate).toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-          })
+          month: "short",
+          day: "numeric",
+        })
         : "—",
       percentage: maxM > 0 ? Math.round((avg / maxM) * 100) : 0,
     };
@@ -927,10 +927,10 @@ export async function getAdminDashboardData(): Promise<DashboardPayload> {
     needsAttention: [
       highRiskAttCount > 0
         ? `${highRiskAttCount} students flagged with critical attendance decline patterns.`
-        : "Attendance patterns are stable across all enrolled students.",
+        : "No critical attendance issues detected.",
       pendingLeavesCount > 0
         ? `${pendingLeavesCount} leave applications awaiting administrative verification.`
-        : "All submitted leave requests have been processed.",
+        : "No pending leave requests.",
     ],
     potentialRisks: [
       highWorkloadTeachers > 0

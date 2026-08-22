@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   BarChart,
@@ -10,16 +10,15 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts";
 import type { TeacherDashboardData } from "@/lib/teacher-dashboard.service";
+import FormattedText from "@/components/shared/FormattedText";
 
 type Props = {
   userName: string;
   dashboard: TeacherDashboardData;
   teacherDept: string | null;
 };
-
 const tooltipStyle = {
   backgroundColor: "var(--card)",
   backdropFilter: "blur(16px)",
@@ -29,6 +28,15 @@ const tooltipStyle = {
   boxShadow: "var(--shadow-md)",
   padding: "10px 14px",
   fontSize: "12px",
+};
+
+type ProactiveInsight = {
+  type: string;
+  severity: "high" | "medium" | "low" | string;
+  title: string;
+  evidence: string[];
+  recommendation: string;
+  affectedStudents?: string[];
 };
 
 function KpiCard({
@@ -106,19 +114,89 @@ function KpiCard({
 
 export default function TeacherDashboardClient({ userName, dashboard, teacherDept }: Props) {
   const [perfMetric, setPerfMetric] = useState<"avgMarks" | "avgAttendance">("avgMarks");
+  const { kpis, todayTimetable, classPerformance, recentAnnouncements, currentPeriod } = dashboard;
 
-  const { kpis, todayTimetable, classPerformance, aiInsights, recentAnnouncements, currentPeriod } = dashboard;
+  // Proactive Insights state
+  const [proactiveInsights, setProactiveInsights] = useState<ProactiveInsight[]>([]);
+  const [allClearMessage, setAllClearMessage] = useState<string | null>(null);
+  const [isLoadingInsights, setIsLoadingInsights] = useState(true);
+  const [expandedInsightIdx, setExpandedInsightIdx] = useState<number | null>(0);
 
-  const formatTime = (iso: string) => {
+  // Interactive Assistant Chat State
+  const [assistantMessages, setAssistantMessages] = useState<Array<{ role: "user" | "assistant"; text: string }>>([]);
+  const [assistantInput, setAssistantInput] = useState("");
+  const [isAskingAI, setIsAskingAI] = useState(false);
+
+  // Monthly Summary state
+  const [monthlyNarrative, setMonthlyNarrative] = useState<string | null>(null);
+  const [monthlyLabel, setMonthlyLabel] = useState<string>("");
+  const [isLoadingMonthly, setIsLoadingMonthly] = useState(false);
+  const [showMonthly, setShowMonthly] = useState(false);
+
+  // Load Proactive Insights on mount
+  useEffect(() => {
+    async function loadInsights() {
+      setIsLoadingInsights(true);
+      try {
+        const res = await fetch("/api/teacher/ai/assistant");
+        const data = await res.json();
+        if (data.insights) setProactiveInsights(data.insights);
+        if (data.allClear) setAllClearMessage(data.message);
+      } catch (err) {
+        console.error("Failed to load proactive insights:", err);
+      } finally {
+        setIsLoadingInsights(false);
+      }
+    }
+    loadInsights();
+  }, []);
+
+  // Load Monthly Summary on demand
+  const handleToggleMonthly = async () => {
+    if (!showMonthly && !monthlyNarrative) {
+      setIsLoadingMonthly(true);
+      try {
+        const res = await fetch("/api/teacher/ai/monthly-summary");
+        const data = await res.json();
+        if (data.narrative) {
+          setMonthlyNarrative(data.narrative);
+          setMonthlyLabel(data.month || "Current Month");
+        } else if (data.message) {
+          setMonthlyNarrative(`> **${data.month || "Notice"}**: ${data.message}`);
+          setMonthlyLabel(data.month || "Current Month");
+        }
+      } catch (err) {
+        setMonthlyNarrative("Unable to load monthly summary right now.");
+      } finally {
+        setIsLoadingMonthly(false);
+      }
+    }
+    setShowMonthly(!showMonthly);
+  };
+
+  const handleAskAssistant = async (queryText: string) => {
+    if (!queryText.trim() || isAskingAI) return;
+    const userQuery = queryText.trim();
+    setAssistantMessages((prev) => [...prev, { role: "user", text: userQuery }]);
+    setAssistantInput("");
+    setIsAskingAI(true);
+
     try {
-      return new Date(iso).toLocaleDateString([], {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
+      const res = await fetch("/api/teacher/ai/assistant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: userQuery }),
       });
-    } catch {
-      return iso;
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Assistant response failed");
+      setAssistantMessages((prev) => [...prev, { role: "assistant", text: data.reply || "No response generated." }]);
+    } catch (err: any) {
+      setAssistantMessages((prev) => [
+        ...prev,
+        { role: "assistant", text: "Unable to process request right now. Please try again." },
+      ]);
+    } finally {
+      setIsAskingAI(false);
     }
   };
 
@@ -133,7 +211,7 @@ export default function TeacherDashboardClient({ userName, dashboard, teacherDep
           Welcome back, {userName}
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-          {teacherDept ? `${teacherDept} Department · ` : ""}
+          {teacherDept ? `${teacherDept} Department Â· ` : ""}
           Your personal command center for today's classes, attendance, and grading.
         </p>
       </div>
@@ -149,13 +227,13 @@ export default function TeacherDashboardClient({ userName, dashboard, teacherDep
           <div className="flex-1 min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-widest text-cyan-500">Now Teaching</p>
             <p className="text-sm font-bold text-foreground mt-0.5">
-              {currentPeriod.subjectName} · {currentPeriod.className}
+              {currentPeriod.subjectName} Â· {currentPeriod.className}
             </p>
           </div>
           <div className="text-right shrink-0">
             <p className="text-xs font-semibold text-muted-foreground">Room {currentPeriod.roomNumber}</p>
             <p className="text-xs text-cyan-400 font-semibold mt-0.5">
-              {currentPeriod.startTime.slice(0, 5)} – {currentPeriod.endTime.slice(0, 5)}
+              {currentPeriod.startTime.slice(0, 5)} â€“ {currentPeriod.endTime.slice(0, 5)}
             </p>
           </div>
         </div>
@@ -210,6 +288,48 @@ export default function TeacherDashboardClient({ userName, dashboard, teacherDep
         />
       </section>
 
+      {/* Monthly Summary Accordion */}
+      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm transition-all">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400">
+              ðŸ“Š
+            </span>
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">Monthly AI Teaching Summary</h2>
+              <p className="text-[11px] text-muted-foreground">Aggregated analysis from actual attendance, assessment, and grading records</p>
+            </div>
+          </div>
+          <button
+            onClick={handleToggleMonthly}
+            className="rounded-xl border border-subtle bg-hover px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-hover/80 transition flex items-center gap-1.5"
+          >
+            {isLoadingMonthly ? (
+              <span className="h-3 w-3 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin" />
+            ) : showMonthly ? (
+              "Hide Summary â–²"
+            ) : (
+              "View Monthly Summary â–¼"
+            )}
+          </button>
+        </div>
+
+        {showMonthly && (
+          <div className="mt-4 pt-4 border-t border-subtle">
+            {isLoadingMonthly ? (
+              <div className="p-6 text-center text-xs text-muted-foreground animate-pulse">
+                Analyzing monthly attendance, marks, and assignment completion...
+              </div>
+            ) : monthlyNarrative ? (
+              <div className="bg-background/60 rounded-xl p-5 border border-subtle/60 shadow-inner">
+                <FormattedText text={monthlyNarrative} />
+              </div>
+            ) : null}
+
+          </div>
+        )}
+      </section>
+
       {/* Row 2: Today's Timetable + Class Performance */}
       <section className="grid gap-6 lg:grid-cols-12">
         {/* Today's Timetable */}
@@ -238,26 +358,16 @@ export default function TeacherDashboardClient({ userName, dashboard, teacherDep
                       <p className="text-xs font-semibold text-foreground group-hover:text-cyan-500 dark:group-hover:text-cyan-400 transition truncate">
                         {entry.subjectName}
                       </p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">{entry.className} · Room {entry.roomNumber}</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">{entry.className}</p>
                     </div>
-                    <span className="shrink-0 rounded-lg bg-blue-500/10 px-2 py-0.5 text-[9px] font-semibold text-blue-500 dark:text-blue-300 border border-blue-500/20">
-                      {entry.startTime.slice(0, 5)}
-                    </span>
+                    <div className="text-right shrink-0">
+                      <p className="text-[11px] font-medium text-foreground">{entry.startTime.slice(0, 5)}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">Rm {entry.roomNumber}</p>
+                    </div>
                   </div>
                 </div>
               ))
             )}
-          </div>
-          <div className="shrink-0 mt-3 pt-3 border-t border-subtle">
-            <Link
-              href="/teacher/timetable"
-              className="flex items-center justify-center gap-1.5 text-xs font-semibold text-cyan-500 dark:text-cyan-400 hover:text-cyan-600 transition"
-            >
-              View Full Timetable
-              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
-                <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" />
-              </svg>
-            </Link>
           </div>
         </div>
 
@@ -289,7 +399,6 @@ export default function TeacherDashboardClient({ userName, dashboard, teacherDep
               <div className="h-full flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border">
                 <svg viewBox="0 0 24 24" className="h-8 w-8 text-muted-foreground/30" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75Z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625Z" />
                 </svg>
                 <p className="text-xs text-muted-foreground">No data available for visualization</p>
               </div>
@@ -309,19 +418,12 @@ export default function TeacherDashboardClient({ userName, dashboard, teacherDep
                     tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
                     tickLine={false}
                     axisLine={false}
-                    tickFormatter={(v) => `${v}%`}
-                    dx={-4}
                   />
-                  <Tooltip
-                    contentStyle={tooltipStyle}
-                    cursor={{ fill: "var(--bg-hover)", radius: 6 }}
-                  />
+                  <Tooltip contentStyle={tooltipStyle} />
                   <Bar
                     dataKey={perfMetric}
-                    name={perfMetric === "avgMarks" ? "Avg Marks" : "Attendance %"}
-                    fill="#22d3ee"
+                    fill={perfMetric === "avgMarks" ? "#06b6d4" : "#10b981"}
                     radius={[6, 6, 0, 0]}
-                    maxBarSize={48}
                   />
                 </BarChart>
               </ResponsiveContainer>
@@ -330,119 +432,250 @@ export default function TeacherDashboardClient({ userName, dashboard, teacherDep
         </div>
       </section>
 
-      {/* Row 3: AI Teaching Assistant + Recent Announcements */}
-      <section className="grid gap-6 lg:grid-cols-2">
-        {/* AI Teaching Assistant */}
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-md flex flex-col transition-colors duration-200">
-          <div className="shrink-0 mb-4 pb-3 border-b border-subtle flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500/15 text-cyan-500">
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 21m0 0l-.813-5.096L3 15.094l5.096-.813L9 9.125l.813 5.156L15 15.094l-5.188.81Z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.071 4.929a10 10 0 00-14.142 0M12 3v2" />
-              </svg>
-            </span>
-            <div>
-              <h2 className="text-base font-semibold text-foreground tracking-tight">AI Teaching Assistant</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">Insights based on your class data</p>
-            </div>
-          </div>
-          <div className="flex-1 overflow-y-auto scrollbar-hide space-y-2">
-            {aiInsights.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-24 text-center rounded-xl border border-dashed border-border p-4">
-                <p className="text-xs text-muted-foreground font-medium">AI requires more classroom data to generate insights.</p>
-                <p className="text-[10px] text-muted-foreground mt-1">Mark attendance and enter marks to enable AI recommendations.</p>
+      {/* Row 3: Interactive Assistant + Proactive AI Insights & Announcements */}
+      <section className="grid gap-6 lg:grid-cols-12 items-stretch">
+        {/* Interactive Co-Pilot Q&A â€” wider left column */}
+        <div className="lg:col-span-7 flex flex-col">
+          {/* AI Faculty Co-Pilot Interactive Q&A */}
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-md flex flex-col h-full transition-colors duration-200">
+            <div className="shrink-0 mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+                  ðŸ’¬
+                </span>
+                <div>
+                  <h2 className="text-base font-semibold text-foreground tracking-tight">Ask Co-Pilot</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">Interactive Q&A on your students and classes</p>
+                </div>
               </div>
-            ) : (
-              aiInsights.map((insight) => (
-                <div
-                  key={insight.id}
-                  className="group rounded-xl border border-subtle bg-hover/20 p-3.5 hover:bg-hover hover:border-border transition-all duration-300 flex items-start justify-between gap-3"
+            </div>
+
+            {/* Dynamic Quick Prompt Chips */}
+            <div className="flex flex-wrap gap-1.5 mb-2.5">
+              {[
+                "Which students need attention today?",
+                "Show students with low attendance",
+                "How to improve my class score average?",
+                "Summary of my pending grading",
+              ].map((chip) => (
+                <button
+                  key={chip}
+                  type="button"
+                  onClick={() => handleAskAssistant(chip)}
+                  disabled={isAskingAI}
+                  className="rounded-lg border border-subtle bg-hover/30 px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:text-cyan-400 hover:border-cyan-500/30 transition disabled:opacity-50 text-left"
                 >
-                  <p className="text-xs text-secondary leading-relaxed font-medium">{insight.message}</p>
-                  <span
-                    className={`inline-flex shrink-0 items-center rounded-lg border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
-                      insight.severity === "high"
-                        ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
-                        : insight.severity === "medium"
-                        ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                        : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                  âš¡ {chip}
+                </button>
+              ))}
+            </div>
+
+            {/* Chat Response Area */}
+            <div className="flex-1 overflow-y-auto max-h-[380px] min-h-[260px] scrollbar-hide space-y-2.5 rounded-xl border border-subtle bg-background/50 p-3.5">
+              {assistantMessages.length === 0 ? (
+                <div className="text-center py-10">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Ask any question about your students, weak topics, or lesson strategy.
+                  </p>
+                  <p className="text-[10px] text-muted-foreground/70 mt-1">
+                    Tap a quick chip above or type your question below.
+                  </p>
+                </div>
+              ) : (
+                assistantMessages.map((msg, idx) => (
+                  <div
+                    key={idx}
+                    className={`rounded-xl p-3 text-xs leading-relaxed ${
+                      msg.role === "user"
+                        ? "bg-cyan-500/10 text-cyan-200 border border-cyan-500/20 ml-6 font-medium"
+                        : "bg-card border border-border text-foreground mr-2 shadow-sm font-normal"
                     }`}
                   >
-                    {insight.severity}
-                  </span>
+                    {msg.role === "user" ? (
+                      msg.text
+                    ) : (
+                      <FormattedText text={msg.text} />
+                    )}
+                  </div>
+                ))
+              )}
+              {isAskingAI && (
+                <div className="flex items-center gap-2 rounded-xl bg-card border border-border p-3 text-xs text-muted-foreground animate-pulse">
+                  <span className="h-2 w-2 rounded-full bg-cyan-400 animate-ping" />
+                  Generating live response from your database records...
                 </div>
-              ))
-            )}
-          </div>
-          <div className="shrink-0 mt-3 pt-3 border-t border-subtle">
-            <Link
-              href="/teacher/performance"
-              className="flex items-center justify-center gap-1.5 text-xs font-semibold text-cyan-500 dark:text-cyan-400 hover:text-cyan-600 transition"
+              )}
+            </div>
+
+            {/* Input Bar */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (assistantInput.trim()) handleAskAssistant(assistantInput);
+              }}
+              className="mt-3.5 flex gap-2"
             >
-              View AI Insights
-              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
-                <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" />
-              </svg>
-            </Link>
+              <input
+                type="text"
+                placeholder="Ask about a student, class trend, or teaching plan..."
+                className="input-theme flex-1 text-xs"
+                value={assistantInput}
+                onChange={(e) => setAssistantInput(e.target.value)}
+                disabled={isAskingAI}
+              />
+              <button
+                type="submit"
+                disabled={isAskingAI || !assistantInput.trim()}
+                className="btn-cyan rounded-xl px-4 py-2 text-xs font-bold disabled:opacity-50 shrink-0"
+              >
+                Ask
+              </button>
+            </form>
+
           </div>
         </div>
 
-        {/* Recent Announcements */}
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-md flex flex-col transition-colors duration-200">
-          <div className="shrink-0 mb-3 flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-semibold text-foreground tracking-tight">Recent Announcements</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">Teacher-specific notifications</p>
+        {/* Proactive AI Insights + Announcements â€” right column */}
+        <div className="lg:col-span-5 space-y-6 flex flex-col">
+          {/* Proactive Class Insights */}
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-md flex flex-col transition-colors duration-200">
+            <div className="shrink-0 mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400 text-sm">
+                  ðŸ§ 
+                </span>
+                <div>
+                  <h2 className="text-base font-semibold text-foreground tracking-tight">Proactive Class Insights</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">Automated detection from real database records</p>
+                </div>
+              </div>
+              <span className="inline-flex items-center gap-1 rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-bold text-cyan-400 border border-cyan-500/20">
+                <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" /> Live DB Scan
+              </span>
+            </div>
+
+            <div className="flex-1 overflow-y-auto max-h-[300px] space-y-3 scrollbar-hide">
+              {isLoadingInsights ? (
+                <div className="space-y-3 p-2">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-20 rounded-xl bg-hover/40 animate-pulse border border-subtle" />
+                  ))}
+                </div>
+              ) : allClearMessage && proactiveInsights.length === 0 ? (
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-center">
+                  <span className="text-2xl mb-1 block">âœ…</span>
+                  <p className="text-xs font-semibold text-emerald-400">All Clear!</p>
+                  <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">{allClearMessage}</p>
+                </div>
+              ) : proactiveInsights.length === 0 ? (
+                <div className="p-6 text-center text-xs text-muted-foreground">
+                  No active insights surfaced for your classes.
+                </div>
+              ) : (
+                proactiveInsights.map((insight, idx) => {
+                  const isExpanded = expandedInsightIdx === idx;
+                  const severityBorder =
+                    insight.severity === "high"
+                      ? "border-rose-500/30 bg-rose-500/5"
+                      : insight.severity === "medium"
+                      ? "border-amber-500/30 bg-amber-500/5"
+                      : "border-cyan-500/30 bg-cyan-500/5";
+
+                  const badgeColor =
+                    insight.severity === "high"
+                      ? "bg-rose-500/20 text-rose-400"
+                      : insight.severity === "medium"
+                      ? "bg-amber-500/20 text-amber-400"
+                      : "bg-cyan-500/20 text-cyan-400";
+
+                  return (
+                    <div
+                      key={idx}
+                      className={`rounded-xl border p-3.5 transition-all duration-200 ${severityBorder}`}
+                    >
+                      <div
+                        className="flex items-start justify-between gap-2 cursor-pointer"
+                        onClick={() => setExpandedInsightIdx(isExpanded ? null : idx)}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${badgeColor}`}>
+                              {insight.severity}
+                            </span>
+                            <h3 className="text-xs font-bold text-foreground truncate">{insight.title}</h3>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed line-clamp-2">
+                            {insight.recommendation}
+                          </p>
+                        </div>
+                        <span className="text-xs text-muted-foreground shrink-0 mt-0.5">
+                          {isExpanded ? "â–²" : "â–¼"}
+                        </span>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="mt-3 pt-3 border-t border-subtle space-y-2">
+                          <div>
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-400 mb-1">
+                              ðŸ“Š Database Evidence:
+                            </p>
+                            <ul className="space-y-1">
+                              {insight.evidence.map((ev, eIdx) => (
+                                <li key={eIdx} className="text-[11px] text-foreground flex items-start gap-1.5">
+                                  <span className="text-cyan-400 text-xs shrink-0">â€¢</span>
+                                  <span>{ev}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                          {insight.affectedStudents && insight.affectedStudents.length > 0 && (
+                            <div className="pt-1">
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                                Students Involved:
+                              </p>
+                              <div className="flex flex-wrap gap-1">
+                                {insight.affectedStudents.map((st, sIdx) => (
+                                  <span key={sIdx} className="rounded-md bg-hover border border-subtle px-1.5 py-0.5 text-[10px] text-foreground">
+                                    {st}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide space-y-2">
-            {(() => {
-              const seen = new Set<string>();
-              const uniqueAnn = recentAnnouncements.filter((ann) => {
-                const key = `${ann.title?.trim()}|||${ann.message?.trim()}`;
-                if (seen.has(key)) return false;
-                seen.add(key);
-                return true;
-              });
-              if (uniqueAnn.length === 0) {
-                return (
-                  <div className="flex flex-col items-center justify-center h-24 rounded-xl border border-dashed border-border text-center">
-                    <p className="text-xs text-muted-foreground">No announcements available</p>
-                  </div>
-                );
-              }
-              return uniqueAnn.map((ann) => {
-                const priorityColor =
-                  ann.priority === "high"
-                    ? "border-l-rose-500 bg-rose-500/5"
-                    : ann.priority === "medium"
-                    ? "border-l-amber-500 bg-amber-500/5"
-                    : "border-l-cyan-500 bg-cyan-500/5";
-                return (
+
+          {/* Recent Announcements â€” placed below PCI */}
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-md flex flex-col transition-colors duration-200">
+            <div className="shrink-0 mb-3 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-foreground tracking-tight">Recent Announcements</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Teacher notifications</p>
+              </div>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide space-y-2 max-h-[140px]">
+              {recentAnnouncements.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-16 rounded-xl border border-dashed border-border text-center">
+                  <p className="text-xs text-muted-foreground">No unread announcements</p>
+                </div>
+              ) : (
+                recentAnnouncements.map((ann) => (
                   <div
                     key={ann.id}
-                    className={`rounded-xl border border-subtle border-l-4 p-3 hover:bg-hover transition duration-200 ${priorityColor}`}
+                    className="rounded-xl border border-subtle border-l-4 border-l-cyan-500 bg-hover/20 p-2.5 hover:bg-hover transition duration-200"
                   >
                     <p className="text-xs font-semibold text-foreground">{ann.title}</p>
-                    <p className="mt-1 text-[10px] text-muted-foreground leading-relaxed line-clamp-2">{ann.message}</p>
-                    <p className="mt-1 text-[9px] text-muted-foreground">
-                      {new Date(ann.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })}
-                    </p>
+                    <p className="mt-0.5 text-[10px] text-muted-foreground line-clamp-1">{ann.message}</p>
                   </div>
-                );
-              });
-            })()}
-          </div>
-          <div className="shrink-0 mt-3 pt-3 border-t border-subtle">
-            <Link
-              href="/teacher/notifications"
-              className="flex items-center justify-center gap-1.5 text-xs font-semibold text-cyan-500 dark:text-cyan-400 hover:text-cyan-600 transition"
-            >
-              View All Notifications
-              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
-                <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" />
-              </svg>
-            </Link>
+                ))
+              )}
+            </div>
           </div>
         </div>
       </section>

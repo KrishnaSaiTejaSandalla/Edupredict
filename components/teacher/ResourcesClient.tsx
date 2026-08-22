@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import DeleteConfirmModal from "@/components/ui/DeleteConfirmModal";
+import FormattedText from "@/components/shared/FormattedText";
 
 type Resource = {
   id: number;
@@ -27,10 +28,13 @@ type Props = {
 };
 
 type AIGenerateForm = {
-  tool: "notes" | "quiz" | "worksheet" | "lesson_plan";
+  tool: string;
   subject: string;
   classLevel: string;
   topic: string;
+  difficultyLevel: "easy" | "medium" | "hard" | "mixed";
+  learningObjective: string;
+  resourceContext: string;
 };
 
 const RESOURCE_TYPES = [
@@ -47,10 +51,18 @@ const RESOURCE_TYPES = [
 ];
 
 const AI_TOOLS = [
-  { id: "notes" as const, label: "Generate Notes", desc: "Create structured study notes", icon: "📝", color: "from-blue-500/15 border-blue-500/20 text-blue-400" },
-  { id: "quiz" as const, label: "Generate Quiz", desc: "Create MCQ/short answer questions", icon: "❓", color: "from-violet-500/15 border-violet-500/20 text-violet-400" },
-  { id: "worksheet" as const, label: "Generate Worksheet", desc: "Create practice exercises", icon: "📄", color: "from-emerald-500/15 border-emerald-500/20 text-emerald-400" },
-  { id: "lesson_plan" as const, label: "Generate Lesson Plan", desc: "Create structured lesson plan", icon: "📋", color: "from-amber-500/15 border-amber-500/20 text-amber-400" },
+  { id: "notes", label: "Study Notes", desc: "Structured topic notes & concepts", icon: "📝" },
+  { id: "lesson_plan", label: "Lesson Plan", desc: "45-min curriculum flow", icon: "📋" },
+  { id: "quiz", label: "Quiz", desc: "10-question diagnostic quiz", icon: "❓" },
+  { id: "mcqs", label: "MCQs Bank", desc: "Multiple-choice set with key", icon: "🔢" },
+  { id: "question_paper", label: "Exam Paper", desc: "Standardized test paper", icon: "📑" },
+  { id: "worksheet", label: "Worksheet", desc: "Practice & application drills", icon: "📄" },
+  { id: "revision", label: "Revision Plan", desc: "7-day review schedule", icon: "⚡" },
+  { id: "remedial", label: "Remedial Material", desc: "Foundational & step-by-step", icon: "🌱" },
+  { id: "advanced", label: "Olympiad / Challenge", desc: "Higher-order thinking drills", icon: "🏆" },
+  { id: "concept_explanation", label: "Concept Breakdown", desc: "Deep dive with examples", icon: "💡" },
+  { id: "homework", label: "Homework", desc: "Take-home problem set", icon: "🏠" },
+  { id: "answer_key", label: "Answer Key & Rubric", desc: "Detailed scoring rubric", icon: "🗝️" },
 ];
 
 const RESOURCE_COLORS: Record<string, { bg: string; text: string; ring: string }> = {
@@ -162,9 +174,14 @@ export default function ResourcesClient({
     subject: assignedSubjects[0] || department || "",
     classLevel: assignedClasses[0]?.label || "",
     topic: "",
+    difficultyLevel: "medium",
+    learningObjective: "",
+    resourceContext: "",
   });
+  const [refinementInput, setRefinementInput] = useState("");
   const [generating, setGenerating] = useState(false);
   const [generatedContent, setGeneratedContent] = useState<string | null>(null);
+  const [aiViewMode, setAiViewMode] = useState<"preview" | "edit">("preview");
   const [savingGenerated, setSavingGenerated] = useState(false);
 
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -312,7 +329,10 @@ export default function ResourcesClient({
 
   // AI handlers
   const handleGenerate = useCallback(async () => {
-    if (!aiForm.subject || !aiForm.topic) { toast.error("Please fill subject and topic"); return; }
+    if (!aiForm.subject || (!aiForm.topic && !aiForm.resourceContext)) {
+      toast.error("Please fill subject and topic or provide resource notes");
+      return;
+    }
     setGenerating(true);
     setGeneratedContent(null);
     try {
@@ -324,12 +344,38 @@ export default function ResourcesClient({
       if (!res.ok) throw new Error((await res.json()).error || "Failed");
       const data = await res.json();
       setGeneratedContent(data.content);
+      toast.success("Material generated successfully!");
     } catch (err: any) {
       toast.error(err.message || "AI generation failed");
     } finally {
       setGenerating(false);
     }
   }, [aiForm]);
+
+  const handleRefine = useCallback(async (instruction: string) => {
+    if (!generatedContent || !instruction.trim()) return;
+    setGenerating(true);
+    try {
+      const res = await fetch("/api/teacher/ai/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...aiForm,
+          refinementPrompt: instruction.trim(),
+          previousContent: generatedContent,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Refinement failed");
+      const data = await res.json();
+      setGeneratedContent(data.content);
+      setRefinementInput("");
+      toast.success("Material updated with your refinements!");
+    } catch (err: any) {
+      toast.error(err.message || "Refinement failed");
+    } finally {
+      setGenerating(false);
+    }
+  }, [aiForm, generatedContent]);
 
   const handleSaveGenerated = useCallback(async () => {
     if (!generatedContent) return;
@@ -559,34 +605,34 @@ export default function ResourcesClient({
         ))}
       </div>
 
-      {/* ── AI Panel ── */}
-      <div className="rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-cyan-500/5 via-surface/30 to-blue-500/5 p-5 space-y-4 shadow-sm">
-        <div className="flex items-center gap-3">
-          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-400 shrink-0">
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 21m0 0l-.813-5.096L3 15.094l5.096-.813L9 9.125l.813 5.156L15 15.094l-5.188.81Z" />
-            </svg>
-          </span>
-          <div>
-            <h2 className="text-xs font-black text-primary uppercase tracking-widest">AI Material Builder</h2>
-            <p className="text-[10px] text-secondary mt-0.5">Generate cheatsheets, quiz handouts, and study notes in seconds.</p>
+      {/* ── AI Teaching Workspace Launcher ── */}
+      <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-500/10 via-card to-blue-500/10 p-5 shadow-md">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-400 shrink-0 text-xl shadow-inner">
+              🪄
+            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-foreground tracking-tight">AI Teaching Material Workspace</h2>
+                <span className="rounded-full bg-cyan-500/20 text-cyan-400 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider border border-cyan-500/30">
+                  Subject-Grounded
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                Generate topic-specific study notes, diagnostic quizzes, lesson plans, or practice worksheets grounded in your curriculum or uploaded reference notes.
+              </p>
+            </div>
           </div>
-        </div>
-        <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-          {AI_TOOLS.map((tool) => (
-            <button
-              key={tool.id}
-              onClick={() => { setAIForm(f => ({ ...f, tool: tool.id })); setShowAIModal(true); setGeneratedContent(null); }}
-              type="button"
-              className={`group rounded-xl border bg-surface p-3.5 text-left hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 ${tool.color}`}
-            >
-              <span className="text-xl mb-2 block">{tool.icon}</span>
-              <p className="text-[11px] font-bold text-primary group-hover:text-cyan-400 transition">{tool.label}</p>
-              <p className="text-[10px] text-secondary mt-0.5 leading-relaxed">{tool.desc}</p>
-            </button>
-          ))}
+          <button
+            onClick={() => { setShowAIModal(true); setGeneratedContent(null); }}
+            className="btn-cyan rounded-xl px-5 py-2.5 text-xs font-bold shrink-0 flex items-center gap-2 shadow-lg shadow-cyan-950/20 hover:scale-[1.02] transition"
+          >
+            <span>✨ Create New AI Material</span>
+          </button>
         </div>
       </div>
+
 
       {/* ── Single-Row Filter Toolbar ── */}
       <div className="rounded-2xl border border-theme bg-surface px-4 py-3 shadow-sm">
@@ -822,70 +868,234 @@ export default function ResourcesClient({
 
       {/* ── AI Generate Modal ── */}
       {showAIModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/85 backdrop-blur-sm">
-          <div className="relative w-full max-w-xl overflow-hidden rounded-3xl border border-theme bg-surface shadow-2xl animate-in zoom-in-95 duration-200 max-h-[85vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-background/80 backdrop-blur-md animate-fadeIn">
+          <div className="relative w-full max-w-3xl overflow-hidden rounded-3xl border border-border bg-card shadow-2xl animate-in zoom-in-95 duration-200 max-h-[92vh] flex flex-col">
             <button
               onClick={() => { setShowAIModal(false); setGeneratedContent(null); }}
               type="button"
-              className="absolute right-5 top-5 z-10 flex h-8 w-8 items-center justify-center rounded-lg border border-theme bg-hover text-secondary hover:text-primary transition"
+              className="absolute right-5 top-5 z-10 flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-hover/50 text-muted-foreground hover:text-foreground transition"
             >
               ✕
             </button>
-            <div className="border-b border-theme px-6 py-5 shrink-0">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-primary">
-                {AI_TOOLS.find(t => t.id === aiForm.tool)?.icon} {AI_TOOLS.find(t => t.id === aiForm.tool)?.label}
-              </h3>
-              <p className="text-[10px] text-secondary mt-0.5">Generate premium course materials using AI assistant.</p>
-            </div>
-            <div className="p-6 space-y-4 overflow-y-auto flex-1">
-              <div className="grid grid-cols-4 gap-1 rounded-xl border border-theme bg-hover/20 p-1">
-                {AI_TOOLS.map(t => (
-                  <button
-                    key={t.id}
-                    onClick={() => setAIForm(f => ({ ...f, tool: t.id }))}
-                    type="button"
-                    className={`rounded-lg py-2.5 text-[9px] font-bold text-center transition ${aiForm.tool === t.id ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shadow-sm" : "text-secondary hover:bg-hover"}`}
-                  >
-                    {t.icon} {t.label.replace("Generate ", "")}
-                  </button>
-                ))}
+            <div className="border-b border-border px-6 py-4 shrink-0 bg-background/50 flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-400 text-lg">
+                {AI_TOOLS.find(t => t.id === aiForm.tool)?.icon || "✨"}
+              </span>
+              <div>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">
+                  AI Material Builder — {AI_TOOLS.find(t => t.id === aiForm.tool)?.label}
+                </h3>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Generate customized, syllabus-grounded learning materials and question banks.
+                </p>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+            </div>
+
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              {/* Tool Category Selector */}
+              <div>
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
+                  Select Material Type
+                </span>
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-1.5 rounded-xl border border-border bg-background/50 p-1.5">
+                  {AI_TOOLS.map(t => (
+                    <button
+                      key={t.id}
+                      onClick={() => setAIForm(f => ({ ...f, tool: t.id }))}
+                      type="button"
+                      className={`rounded-lg py-2 px-1 text-[10px] font-bold text-center transition flex flex-col items-center gap-1 ${
+                        aiForm.tool === t.id
+                          ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 shadow-sm"
+                          : "text-muted-foreground hover:bg-hover hover:text-foreground"
+                      }`}
+                    >
+                      <span className="text-sm">{t.icon}</span>
+                      <span className="truncate w-full">{t.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Subject, Class, Difficulty */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <label className="block space-y-1">
-                  <span className="block text-[10px] font-bold uppercase tracking-wider text-secondary">Subject *</span>
-                  <select className="select-theme" value={aiForm.subject} onChange={e => setAIForm(f => ({ ...f, subject: e.target.value }))}>
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Subject *</span>
+                  <select className="select-theme text-xs" value={aiForm.subject} onChange={e => setAIForm(f => ({ ...f, subject: e.target.value }))}>
                     {uniqueSubjects.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </label>
                 <label className="block space-y-1">
-                  <span className="block text-[10px] font-bold uppercase tracking-wider text-secondary">Class / Level *</span>
-                  <select className="select-theme" value={aiForm.classLevel} onChange={e => setAIForm(f => ({ ...f, classLevel: e.target.value }))}>
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Class / Level *</span>
+                  <select className="select-theme text-xs" value={aiForm.classLevel} onChange={e => setAIForm(f => ({ ...f, classLevel: e.target.value }))}>
                     {uniqueClasses.map(c => <option key={c.id} value={c.label}>{c.label}</option>)}
                   </select>
                 </label>
+                <label className="block space-y-1">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Difficulty Level</span>
+                  <select
+                    className="select-theme text-xs"
+                    value={aiForm.difficultyLevel}
+                    onChange={e => setAIForm(f => ({ ...f, difficultyLevel: e.target.value as any }))}
+                  >
+                    <option value="easy">Easy (Foundational)</option>
+                    <option value="medium">Medium (Standard)</option>
+                    <option value="hard">Hard (Advanced / Olympiad)</option>
+                    <option value="mixed">Mixed (Graduated Difficulty)</option>
+                  </select>
+                </label>
               </div>
+
+              {/* Topic & Learning Objective */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="block space-y-1">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Topic / Chapter *</span>
+                  <input
+                    type="text"
+                    className="input-theme text-xs"
+                    placeholder="e.g. Thermodynamics, Photosynthesis, Quadratic Equations..."
+                    value={aiForm.topic}
+                    onChange={e => setAIForm(f => ({ ...f, topic: e.target.value }))}
+                  />
+                </label>
+                <label className="block space-y-1">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Learning Objective (Optional)</span>
+                  <input
+                    type="text"
+                    className="input-theme text-xs"
+                    placeholder="e.g. Master problem-solving steps & derivations..."
+                    value={aiForm.learningObjective}
+                    onChange={e => setAIForm(f => ({ ...f, learningObjective: e.target.value }))}
+                  />
+                </label>
+              </div>
+
+              {/* Reference Notes / Context */}
               <label className="block space-y-1">
-                <span className="block text-[10px] font-bold uppercase tracking-wider text-secondary">Topic *</span>
-                <input type="text" className="input-theme" value={aiForm.topic} onChange={e => setAIForm(f => ({ ...f, topic: e.target.value }))} placeholder="e.g. Newton First Law, Shakespeare..." />
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Reference Notes / Teacher Context (Optional)
+                </span>
+                <textarea
+                  className="textarea-theme text-xs"
+                  rows={2}
+                  placeholder="Paste textbook excerpts or specific points to ground AI output strictly in your curriculum..."
+                  value={aiForm.resourceContext}
+                  onChange={e => setAIForm(f => ({ ...f, resourceContext: e.target.value }))}
+                />
               </label>
+
+              {/* Generate Button */}
               <button
-                onClick={handleGenerate}
-                disabled={generating || !aiForm.topic}
                 type="button"
-                className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 w-full rounded-xl py-3.5 text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm transition active:scale-95"
+                onClick={handleGenerate}
+                disabled={generating || (!aiForm.topic && !aiForm.resourceContext)}
+                className="w-full btn-cyan rounded-2xl py-3 text-xs font-bold disabled:opacity-50 transition active:scale-95 shadow-md flex items-center justify-center gap-2"
               >
-                {generating ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />Creating...</> : "Generate Material"}
+                {generating ? (
+                  <>
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                    Generating {AI_TOOLS.find(t => t.id === aiForm.tool)?.label}...
+                  </>
+                ) : (
+                  <>
+                    <span>✨</span> Generate {AI_TOOLS.find(t => t.id === aiForm.tool)?.label}
+                  </>
+                )}
               </button>
+
+              {/* Generated Content & Refinement Section */}
               {generatedContent && (
-                <div className="space-y-4 pt-2 animate-in fade-in duration-250">
-                  <div className="rounded-xl border border-theme bg-hover/20 p-4 max-h-56 overflow-y-auto">
-                    <pre className="text-xs text-primary whitespace-pre-wrap font-mono leading-relaxed">{generatedContent}</pre>
+                <div className="space-y-4 pt-3 border-t border-border animate-in fade-in duration-250">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-foreground">Generated Material</span>
+                      <div className="flex rounded-lg border border-border bg-background p-0.5 text-[10px] font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => setAiViewMode("preview")}
+                          className={`px-2.5 py-1 rounded-md transition ${aiViewMode === "preview" ? "bg-cyan-500/15 text-cyan-400 font-bold" : "text-muted-foreground hover:text-foreground"}`}
+                        >
+                          👁️ Formatted View
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAiViewMode("edit")}
+                          className={`px-2.5 py-1 rounded-md transition ${aiViewMode === "edit" ? "bg-cyan-500/15 text-cyan-400 font-bold" : "text-muted-foreground hover:text-foreground"}`}
+                        >
+                          ✏️ Edit Source
+                        </button>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">Ready to review & save</span>
                   </div>
-                  <div className="flex gap-3">
+
+                  {/* Formatted View or Editable Textarea */}
+                  {aiViewMode === "preview" ? (
+                    <div className="max-h-[380px] overflow-y-auto rounded-2xl border border-cyan-500/20 bg-background/60 p-5 scrollbar-hide">
+                      <FormattedText text={generatedContent} />
+                    </div>
+                  ) : (
+                    <textarea
+                      rows={10}
+                      value={generatedContent}
+                      onChange={e => setGeneratedContent(e.target.value)}
+                      className="w-full rounded-xl border border-border bg-background p-3.5 text-xs text-foreground font-mono leading-relaxed resize-y focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
+                    />
+                  )}
+
+                  {/* Refinement Suggestions */}
+                  <div className="space-y-2">
+                    <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Refine with AI:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        "Make it easier",
+                        "Make it harder",
+                        "Add more application questions",
+                        "Focus on weak concepts",
+                        "Create answer key",
+                        "Convert to MCQs",
+                        "Create a 7-day revision plan",
+                      ].map(chip => (
+                        <button
+                          key={chip}
+                          type="button"
+                          onClick={() => handleRefine(chip)}
+                          disabled={generating}
+                          className="rounded-lg border border-border bg-hover/40 px-2.5 py-1 text-[10px] font-semibold text-muted-foreground hover:text-cyan-400 hover:border-cyan-500/30 transition disabled:opacity-50"
+                        >
+                          + {chip}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Custom Refinement Input */}
+                    <div className="flex gap-2 pt-1">
+                      <input
+                        type="text"
+                        placeholder="Custom instruction (e.g. Add 3 case study questions)..."
+                        className="input-theme flex-1 text-xs"
+                        value={refinementInput}
+                        onChange={e => setRefinementInput(e.target.value)}
+                        disabled={generating}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRefine(refinementInput)}
+                        disabled={generating || !refinementInput.trim()}
+                        className="btn-cyan rounded-xl px-4 py-1.5 text-xs font-bold disabled:opacity-50 shrink-0"
+                      >
+                        Refine
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3 pt-2 border-t border-border">
                     <button
-                      onClick={() => { navigator.clipboard.writeText(generatedContent); toast.success("Copied!"); }}
+                      onClick={() => { navigator.clipboard.writeText(generatedContent); toast.success("Copied to clipboard!"); }}
                       type="button"
-                      className="flex-1 rounded-xl border border-theme bg-surface py-2.5 text-xs font-bold text-primary hover:bg-hover transition active:scale-95"
+                      className="flex-1 rounded-xl border border-border bg-card py-2.5 text-xs font-bold text-foreground hover:bg-hover transition active:scale-95"
                     >
                       Copy Content
                     </button>
@@ -893,7 +1103,7 @@ export default function ResourcesClient({
                       onClick={handleSaveGenerated}
                       disabled={savingGenerated}
                       type="button"
-                      className="flex-1 bg-cyan-400 hover:bg-cyan-300 text-slate-950 rounded-xl py-2.5 text-xs font-bold disabled:opacity-50 transition active:scale-95"
+                      className="flex-1 btn-cyan rounded-xl py-2.5 text-xs font-bold disabled:opacity-50 transition active:scale-95 shadow-sm"
                     >
                       {savingGenerated ? "Saving..." : "Save to Library"}
                     </button>
@@ -904,6 +1114,7 @@ export default function ResourcesClient({
           </div>
         </div>
       )}
+
 
       {/* ── Upload Modal ── */}
       {showUploadModal && (
@@ -1068,7 +1279,7 @@ export default function ResourcesClient({
             </div>
             <div className="flex-1 overflow-y-auto rounded-2xl border border-theme bg-hover/10 p-6 m-6">
               {previewResource.aiContent ? (
-                <pre className="text-xs text-primary whitespace-pre-wrap font-mono leading-relaxed">{previewResource.aiContent}</pre>
+                <FormattedText text={previewResource.aiContent} />
               ) : previewResource.description ? (
                 <p className="text-xs text-primary leading-relaxed">{previewResource.description}</p>
               ) : (

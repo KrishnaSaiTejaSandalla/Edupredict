@@ -7,7 +7,6 @@ import {
   markAllNotificationsRead,
   deleteNotification,
   saveNotificationPreferences,
-  type NotificationPreferences,
 } from "@/lib/notification-actions";
 import { useNotificationStore, type NotificationItem } from "@/store/useNotificationStore";
 
@@ -28,43 +27,11 @@ const PREF_FILTERS = [
 
 type PrefKey = (typeof PREF_FILTERS)[number]["key"];
 
-// Map notification types to preference categories
-function matchesCategory(item: NotificationItem, category: string): boolean {
-  const t = item.type?.toLowerCase() ?? "";
-  const title = item.title?.toLowerCase() ?? "";
-  const msg = item.message?.toLowerCase() ?? "";
-
-  switch (category) {
-    case "attendance":
-      return t === "attendance" || title.includes("attendance") || title.includes("absent") || msg.includes("attendance") || msg.includes("absent");
-    case "assignments":
-      return t === "assignment" || t === "assignments" || title.includes("assignment") || msg.includes("assignment");
-    case "messages":
-      return t === "message" || t === "messages" || t === "chat" || title.includes("message") || title.includes("chat") || msg.includes("message") || msg.includes("chat");
-    case "diary":
-      return t === "diary" || title.includes("diary") || msg.includes("diary");
-    case "feedback":
-      return t === "feedback" || title.includes("feedback") || msg.includes("feedback");
-    case "leaves":
-      return t === "leave" || t === "leaves" || title.includes("leave") || msg.includes("leave");
-    case "announcements":
-      return t === "announcement" || t === "announcements" || title.includes("announcement") || msg.includes("announcement");
-    case "transport":
-      return t === "transport" || t === "bus" || t === "buslocation" || title.includes("transport") || title.includes("bus") || msg.includes("transport") || msg.includes("bus");
-    case "general":
-      return (
-        t === "general" ||
-        t === "info" ||
-        t === "academic" ||
-        t === "marks" ||
-        t === "exam" ||
-        t === "exams" ||
-        (!["attendance", "assignment", "assignments", "message", "messages", "chat", "diary", "feedback", "leave", "leaves", "announcement", "announcements", "transport"].includes(t))
-      );
-    default:
-      return true;
-  }
-}
+import {
+  NotificationPreferences,
+  isNotificationAllowedByPrefs,
+  getNotificationCategory,
+} from "@/lib/notification-utils";
 
 function getPriorityStyle(priority: string) {
   if (priority === "high")
@@ -142,10 +109,33 @@ export default function SharedNotificationsClient({
     general: initialPrefs?.general ?? true,
   });
 
+  const storePreferences = useNotificationStore((s) => s.preferences);
+  const storeSetPreferences = useNotificationStore((s) => s.setPreferences);
+
+  // Sync activePrefs whenever store preferences are updated
+  useEffect(() => {
+    if (storePreferences) {
+      setActivePrefs({
+        attendance: storePreferences.attendance ?? true,
+        assignments: storePreferences.assignments ?? true,
+        messages: storePreferences.messages ?? true,
+        diary: storePreferences.diary ?? true,
+        feedback: storePreferences.feedback ?? true,
+        leaves: storePreferences.leaves ?? true,
+        announcements: storePreferences.announcements ?? true,
+        transport: storePreferences.transport ?? true,
+        general: storePreferences.general ?? true,
+      });
+    }
+  }, [storePreferences]);
+
   // Sync server items with store on mount & when database gets updated
   useEffect(() => {
     setNotifications(initialItems);
-  }, [initialItems, setNotifications]);
+    if (initialPrefs) {
+      storeSetPreferences(initialPrefs);
+    }
+  }, [initialItems, initialPrefs, setNotifications, storeSetPreferences]);
 
   // Debounce search
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
@@ -156,11 +146,10 @@ export default function SharedNotificationsClient({
   };
 
   // Active preference-filtered items
-  const enabledPrefKeys = (Object.keys(activePrefs) as PrefKey[]).filter((k) => activePrefs[k]);
   const prefAllowedItems = notifications.filter((item) => {
-    if (enabledPrefKeys.length === 0) return false;
-    return enabledPrefKeys.some((k) => matchesCategory(item, k));
+    return isNotificationAllowedByPrefs(item, activePrefs as any);
   });
+
 
   // Filter items based on active tabs, priority, search query, and category preferences
   const filteredItems = prefAllowedItems.filter((item) => {
@@ -245,6 +234,7 @@ export default function SharedNotificationsClient({
   const togglePref = async (key: PrefKey) => {
     const updated = { ...activePrefs, [key]: !activePrefs[key] };
     setActivePrefs(updated);
+    storeSetPreferences(updated as any);
     try {
       await saveNotificationPreferences(userId, updated as any);
       toast.success("Preferences updated successfully");

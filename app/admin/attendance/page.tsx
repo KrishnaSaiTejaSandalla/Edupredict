@@ -154,9 +154,8 @@ export default async function AttendancePage() {
                     <td className="p-4 px-6 text-muted-foreground font-medium">{row.total}</td>
                     <td className="p-4 px-6">
                       <div className="flex items-center gap-3">
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-lg border ${
-                          isHigh ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-                        }`}>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-lg border ${isHigh ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                          }`}>
                           {percentage}%
                         </span>
                         <div className="w-24 h-2 rounded-full bg-hover overflow-hidden hidden sm:block">

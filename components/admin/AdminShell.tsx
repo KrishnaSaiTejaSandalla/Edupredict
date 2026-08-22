@@ -9,6 +9,7 @@ import logo from "@/branding/logo.png";
 import LogoutButton from "@/components/auth/LogoutButton";
 import WelcomeAnimation from "./WelcomeAnimation";
 import { useNotificationStore } from "@/store/useNotificationStore";
+import { isNotificationAllowedByPrefs } from "@/lib/notification-utils";
 import RealtimeListener from "@/components/shared/RealtimeListener";
 import { markNotificationRead } from "@/lib/notification-actions";
 
@@ -543,7 +544,10 @@ export default function AdminShell({ children, user, alerts: initialAlerts = [] 
                   </div>
                   <div className="mt-1 max-h-72 overflow-y-auto space-y-0.5 scrollbar-hide">
                     {(() => {
-                      const unreadNotifications = notifications.filter((n) => !n.isRead).slice(0, 5);
+                      const storePreferences = useNotificationStore.getState().preferences;
+                      const unreadNotifications = notifications
+                        .filter((n) => !n.isRead && isNotificationAllowedByPrefs(n, storePreferences))
+                        .slice(0, 5);
                       if (unreadNotifications.length === 0) {
                         return (
                           <div className="text-center py-6 text-xs text-muted">

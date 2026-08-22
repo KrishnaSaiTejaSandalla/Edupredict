@@ -1424,3 +1424,21 @@ export const chatMessages = mysqlTable(
   })
 );
 
+// ==================== Attendance Holidays ====================
+export const attendanceHolidays = mysqlTable(
+  'attendance_holidays',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    schoolId: int('school_id'),
+    holidayDate: date('holiday_date').notNull(),
+    reason: varchar('reason', { length: 256 }).notNull(),
+    createdBy: int('created_by'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    holidayDateIdx: uniqueIndex('attendance_holidays_date_unique').on(table.schoolId, table.holidayDate),
+    createdByDateIdx: index('attendance_holidays_created_by_idx').on(table.createdBy),
+  })
+);
+

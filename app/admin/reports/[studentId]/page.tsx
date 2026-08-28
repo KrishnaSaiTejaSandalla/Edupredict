@@ -16,6 +16,7 @@ interface StudentReportData {
     name: string;
     rollNumber: string;
     classId: number;
+    className: string;
   };
   subjectScores: SubjectScore[];
   total: number;
@@ -134,7 +135,7 @@ export default function StudentReportPage({ params }: Props) {
               </div>
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground print:text-slate-500">Class Room</span>
-                <p className="text-lg font-bold text-foreground mt-0.5 print:text-black">Class {report.student.classId}</p>
+                <p className="text-lg font-bold text-foreground mt-0.5 print:text-black">Class {report.student.className || report.student.classId}</p>
               </div>
             </div>
           </div>

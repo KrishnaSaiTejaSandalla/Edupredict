@@ -226,6 +226,12 @@ export async function uploadUserProfileImage(userId: number, formData: FormData)
 
   revalidatePath('/admin/settings');
   revalidatePath('/admin');
+  revalidatePath('/teacher/settings');
+  revalidatePath('/teacher');
+  revalidatePath('/student/settings');
+  revalidatePath('/student');
+  revalidatePath('/parent/settings');
+  revalidatePath('/parent');
   return { success: true, profileImageUrl: publicUrl };
 }
 
@@ -234,10 +240,15 @@ export async function uploadUserProfileImage(userId: number, formData: FormData)
 export async function updateUserNotificationPreferences(
   userId: number,
   preferences: {
-    email: boolean;
-    inApp: boolean;
     attendance: boolean;
-    exams: boolean;
+    assignments: boolean;
+    messages: boolean;
+    diary: boolean;
+    feedback: boolean;
+    leaves: boolean;
+    announcements: boolean;
+    transport: boolean;
+    general: boolean;
   }
 ) {
   try {
@@ -321,6 +332,37 @@ export async function getUserPreferences(userId: number) {
   };
 }
 
+// ==================== School Feedback / Survey Toggles ====================
+
+export async function updateSchoolFeedbackSettings(
+  schoolId: number,
+  data: {
+    monthlyFeedbackOpen: boolean;
+    teacherFeedbackOpen: boolean;
+    schoolSurveyOpen: boolean;
+  }
+) {
+  try {
+    await db
+      .update(schools)
+      .set({
+        monthlyFeedbackOpen: data.monthlyFeedbackOpen,
+        teacherFeedbackOpen: data.teacherFeedbackOpen,
+        schoolSurveyOpen: data.schoolSurveyOpen,
+        updatedAt: new Date(),
+      })
+      .where(eq(schools.id, schoolId));
+  } catch (err) {
+    throw new Error(parseDbError(err));
+  }
+
+  revalidatePath('/admin/settings');
+  revalidatePath('/admin/feedback');
+  revalidatePath('/student/feedback');
+  revalidatePath('/teacher');
+  return { success: true };
+}
+
 // ==================== Legacy appearance preferences (kept for compatibility) ====================
 
 export async function updateUserAppearancePreferences(
@@ -343,5 +385,26 @@ export async function updateUserAppearancePreferences(
   }
 
   revalidatePath('/admin/settings');
+  return { success: true };
+}
+
+export async function deleteUserProfileImage(userId: number) {
+  try {
+    await db
+      .update(users)
+      .set({ profileImageUrl: null, updatedAt: new Date() })
+      .where(eq(users.id, userId));
+  } catch (err) {
+    throw new Error(parseDbError(err));
+  }
+
+  revalidatePath('/admin/settings');
+  revalidatePath('/admin');
+  revalidatePath('/teacher/settings');
+  revalidatePath('/teacher');
+  revalidatePath('/student/settings');
+  revalidatePath('/student');
+  revalidatePath('/parent/settings');
+  revalidatePath('/parent');
   return { success: true };
 }

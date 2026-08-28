@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { teachers } from "@/lib/schema";
-import { eq } from "drizzle-orm";
+import { teachers, classTeacherAssignments } from "@/lib/schema";
+import { eq, and } from "drizzle-orm";
 import {
   getStudentsByClass,
   getAttendanceForDate,
   markBulkAttendance,
 } from "@/lib/teacher-attendance.service";
+import { isDateHoliday } from "@/lib/holiday-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,35 @@ export async function GET(request: Request) {
     const classId = Number(searchParams.get("classId"));
     const date = searchParams.get("date") || new Date().toISOString().split("T")[0];
 
-    if (!classId) return NextResponse.json({ students: [] });
+    const holidayInfo = await isDateHoliday(date, user.school?.id);
+
+    if (!classId) return NextResponse.json({ students: [], holidayInfo });
+
+    // Restrict GET to Class Teacher only
+    const [teacher] = await db
+      .select({ id: teachers.id })
+      .from(teachers)
+      .where(eq(teachers.userId, user.id))
+      .limit(1);
+
+    if (!teacher) {
+      return NextResponse.json({ error: "Teacher record not found" }, { status: 403 });
+    }
+
+    const [assignment] = await db
+      .select()
+      .from(classTeacherAssignments)
+      .where(
+        and(
+          eq(classTeacherAssignments.teacherId, teacher.id),
+          eq(classTeacherAssignments.classId, classId)
+        )
+      )
+      .limit(1);
+
+    if (!assignment) {
+      return NextResponse.json({ error: "Access denied. Only the assigned Class Teacher can manage attendance." }, { status: 403 });
+    }
 
     const studentList = await getStudentsByClass(classId);
     const existingAttendance = await getAttendanceForDate(classId, date);
@@ -31,7 +60,7 @@ export async function GET(request: Request) {
       };
     });
 
-    return NextResponse.json({ students: studentsWithStatus });
+    return NextResponse.json({ students: studentsWithStatus, holidayInfo });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 401 });
   }
@@ -43,11 +72,48 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { classId, subjectId, topicTaught, date, records } = body;
 
-    if (!classId || !subjectId || !topicTaught?.trim() || !date || !Array.isArray(records)) {
-      return NextResponse.json({ error: "Invalid request. Class, Subject, and Topic Taught are required." }, { status: 400 });
+    if (!classId || !date || !Array.isArray(records)) {
+      return NextResponse.json({ error: "Invalid request. Class and Date are required." }, { status: 400 });
     }
 
-    await markBulkAttendance(Number(classId), Number(subjectId), topicTaught.trim(), date, records, user.id);
+    // Check if holiday
+    const holidayInfo = await isDateHoliday(date, user.school?.id);
+    if (holidayInfo.isHoliday) {
+      return NextResponse.json(
+        { error: `Cannot mark attendance on a holiday (${holidayInfo.reason || 'Holiday'}). Change date to a working day first.` },
+        { status: 400 }
+      );
+    }
+
+    // Restrict POST to Class Teacher only
+    const [teacher] = await db
+      .select({ id: teachers.id })
+      .from(teachers)
+      .where(eq(teachers.userId, user.id))
+      .limit(1);
+
+    if (!teacher) {
+      return NextResponse.json({ error: "Teacher record not found" }, { status: 403 });
+    }
+
+    const [assignment] = await db
+      .select()
+      .from(classTeacherAssignments)
+      .where(
+        and(
+          eq(classTeacherAssignments.teacherId, teacher.id),
+          eq(classTeacherAssignments.classId, Number(classId))
+        )
+      )
+      .limit(1);
+
+    if (!assignment) {
+      return NextResponse.json({ error: "Access denied. Only the assigned Class Teacher can manage attendance." }, { status: 403 });
+    }
+
+    const finalTopicTaught = topicTaught?.trim() || "General Class Attendance";
+
+    await markBulkAttendance(Number(classId), subjectId ? Number(subjectId) : null, finalTopicTaught, date, records, user.id);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 401 });

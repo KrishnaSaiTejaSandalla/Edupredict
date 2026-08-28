@@ -10,6 +10,7 @@ const poolConfig = {
   user: process.env.MYSQL_USER || 'root',
   password: process.env.MYSQL_PASSWORD || '',
   database: process.env.MYSQL_DATABASE || 'edupredict',
+  timezone: 'Z',
 
   waitForConnections: true,
   connectionLimit: 10,

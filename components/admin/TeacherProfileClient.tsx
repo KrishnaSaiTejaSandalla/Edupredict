@@ -126,7 +126,7 @@ function MultiSelectDropdown({
         {isOpen && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-            <div className="absolute left-0 right-0 mt-1.5 rounded-2xl border border-border bg-popover p-2 shadow-2xl z-50 max-h-60 overflow-y-auto space-y-1">
+            <div className="absolute left-0 right-0 mt-1.5 rounded-2xl border border-border bg-surface p-2 shadow-2xl z-50 max-h-60 overflow-y-auto space-y-1">
               <input
                 type="text"
                 placeholder="Search..."

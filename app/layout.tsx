@@ -8,6 +8,13 @@ export const metadata = {
   description: 'AI-powered school management for modern schools',
 };
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
   const reqHeaders = await headers();
@@ -20,7 +27,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   else if (pathname.startsWith('/student') || pathname.startsWith('/api/student')) role = 'student';
 
   const suffix = role ? `_${role}` : '';
-  const initialTheme = cookieStore.get(`ep-theme${suffix}`)?.value || 'dark';
+  const isPublicPage = !role;
+  const publicThemeCookie = cookieStore.get('ep-public-theme')?.value || 'light';
+  const initialTheme = isPublicPage ? publicThemeCookie : (cookieStore.get(`ep-theme${suffix}`)?.value || 'dark');
   const initialDensity = cookieStore.get(`ep-density${suffix}`)?.value || 'comfortable';
   const initialPreset = cookieStore.get(`ep-color-preset${suffix}`)?.value || 'ocean-blue';
 
@@ -28,6 +37,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html
       lang="en"
       data-theme={initialTheme}
+      data-public-theme={isPublicPage ? initialTheme : undefined}
       data-density={initialDensity}
       data-color-preset={initialPreset}
       className={initialTheme === 'dark' ? 'dark' : ''}
@@ -46,15 +56,26 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   else if (path.indexOf('/parent') === 0) suffix = '_parent';
                   else if (path.indexOf('/student') === 0) suffix = '_student';
 
-                  var theme = document.cookie.match(new RegExp('ep-theme' + suffix + '=([^;]+)'))?.[1];
-                  if (!theme || theme === 'system') {
-                    theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-                  }
-                  document.documentElement.setAttribute('data-theme', theme);
-                  if (theme === 'dark') {
-                    document.documentElement.classList.add('dark');
+                  var publicTheme = localStorage.getItem('ep-public-theme') === 'dark' ? 'dark' : 'light';
+                  document.documentElement.setAttribute('data-public-theme', publicTheme);
+                  if (!suffix) {
+                    document.documentElement.setAttribute('data-theme', publicTheme);
+                    if (publicTheme === 'dark') {
+                      document.documentElement.classList.add('dark');
+                    } else {
+                      document.documentElement.classList.remove('dark');
+                    }
                   } else {
-                    document.documentElement.classList.remove('dark');
+                    var theme = document.cookie.match(new RegExp('ep-theme' + suffix + '=([^;]+)'))?.[1];
+                    if (!theme || theme === 'system') {
+                      theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                    }
+                    document.documentElement.setAttribute('data-theme', theme);
+                    if (theme === 'dark') {
+                      document.documentElement.classList.add('dark');
+                    } else {
+                      document.documentElement.classList.remove('dark');
+                    }
                   }
                   var density = document.cookie.match(new RegExp('ep-density' + suffix + '=([^;]+)'))?.[1];
                   if (density) {
@@ -64,6 +85,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   if (preset) {
                     document.documentElement.setAttribute('data-color-preset', preset);
                   }
+                  // Prevent accidental browser page zoom (Ctrl/Cmd + wheel, Ctrl/Cmd + Plus/Minus/0)
+                  window.addEventListener('wheel', function(e) {
+                    if (e.ctrlKey || e.metaKey) {
+                      e.preventDefault();
+                    }
+                  }, { passive: false });
+                  document.addEventListener('keydown', function(e) {
+                    if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '-' || e.key === '=' || e.key === '0' || e.keyCode === 187 || e.keyCode === 189 || e.keyCode === 48 || e.keyCode === 107 || e.keyCode === 109)) {
+                      e.preventDefault();
+                    }
+                  });
                 } catch (e) {}
               })();
             `
@@ -79,4 +111,3 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     </html>
   );
 }
-

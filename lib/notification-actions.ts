@@ -5,48 +5,82 @@ import { notifications, users } from './schema';
 import { eq, and } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { getCurrentUser } from './auth';
+import { broadcastNotification } from './realtime';
 
-export type NotificationPreferences = {
-  academic: boolean;
-  attendance: boolean;
-  system: boolean;
-  reports: boolean;
-};
+import {
+  NotificationPreferences,
+  DEFAULT_NOTIFICATION_PREFERENCES as DEFAULT_PREFS,
+  matchesNotificationCategory,
+  isNotificationAllowedByPrefs,
+} from './notification-utils';
 
-const DEFAULT_PREFS: NotificationPreferences = {
-  academic: true,
-  attendance: true,
-  system: true,
-  reports: true,
-};
+export type { NotificationPreferences };
 
-export async function createNotification(
+export async function createNotificationForUser(
+  userId: number,
   title: string,
   message: string,
   type: string = 'info',
-  priority: 'low' | 'medium' | 'high' = 'medium'
+  priority: 'low' | 'medium' | 'high' = 'medium',
+  actionUrl?: string | null
 ) {
   try {
-    const user = await getCurrentUser();
-    if (!user) return;
+    const prefs = await getUserNotificationPreferences(userId);
 
-    await db.insert(notifications).values({
-      userId: user.id,
+    if (!isNotificationAllowedByPrefs({ type, title, message }, prefs)) {
+      return;
+    }
+
+    const result = await db.insert(notifications).values({
+      userId,
       title,
       message,
       type,
       priority,
       isRead: false,
+      actionUrl: actionUrl || null,
+    });
+
+    const insertId = Number(result[0].insertId);
+
+    // Broadcast in real-time with full info
+    broadcastNotification(userId, {
+      id: insertId,
+      userId,
+      title,
+      message,
+      type,
+      priority,
+      isRead: false,
+      actionUrl: actionUrl || null,
+      createdAt: new Date().toISOString(),
     });
 
     revalidatePath('/admin');
     revalidatePath('/admin/notifications');
     revalidatePath('/teacher');
     revalidatePath('/teacher/notifications');
+    revalidatePath('/student');
+    revalidatePath('/student/notifications');
+    revalidatePath('/parent');
+    revalidatePath('/parent/notifications');
   } catch (err) {
-    console.error('Failed to create notification:', err);
+    console.error('Failed to create notification for user:', err);
   }
 }
+
+export async function createNotification(
+  title: string,
+  message: string,
+  type: string = 'info',
+  priority: 'low' | 'medium' | 'high' = 'medium',
+  actionUrl?: string | null
+) {
+  const user = await getCurrentUser();
+  if (!user) return;
+  await createNotificationForUser(user.id, title, message, type, priority, actionUrl);
+}
+
 
 export async function markNotificationRead(id: number) {
   try {
@@ -147,3 +181,21 @@ export async function saveNotificationPreferences(
     throw new Error('Failed to save preferences');
   }
 }
+
+export async function deleteNotification(id: number) {
+  try {
+    await db.delete(notifications).where(eq(notifications.id, id));
+    revalidatePath('/parent/notifications');
+    revalidatePath('/parent');
+    revalidatePath('/student/notifications');
+    revalidatePath('/student');
+    revalidatePath('/teacher/notifications');
+    revalidatePath('/teacher');
+    revalidatePath('/admin/notifications');
+    revalidatePath('/admin');
+  } catch (err) {
+    console.error('Failed to delete notification:', err);
+    throw new Error('Failed to delete notification');
+  }
+}
+

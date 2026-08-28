@@ -67,6 +67,9 @@ export const schools = mysqlTable(
     logoUrl: varchar('logo_url', { length: 512 }),
     primaryColor: varchar('primary_color', { length: 16 }).default('#06b6d4'),
     accentColor: varchar('accent_color', { length: 16 }).default('#a78bfa'),
+    monthlyFeedbackOpen: boolean('monthly_feedback_open').default(false).notNull(),
+    teacherFeedbackOpen: boolean('teacher_feedback_open').default(false).notNull(),
+    schoolSurveyOpen: boolean('school_survey_open').default(false).notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').onUpdateNow().notNull(),
   },
@@ -181,11 +184,14 @@ export const students = mysqlTable(
     schoolId: int('school_id').notNull(),
     classId: int('class_id').notNull(),
     rollNumber: varchar('roll_number', { length: 64 }),
+    qrToken: varchar('qr_token', { length: 128 }).unique(),
     dateOfBirth: date('date_of_birth'),
     gender: varchar('gender', { length: 20 }),
     phoneNumber: varchar('phone_number', { length: 20 }),
     address: text('address'),
     admissionDate: date('admission_date'),
+    learningGoal: text('learning_goal'),
+    interests: text('interests'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
   },
@@ -193,6 +199,7 @@ export const students = mysqlTable(
     userIdIndex: index('students_user_id_index').on(student.userId),
     schoolIdIndex: index('students_school_id_index').on(student.schoolId),
     classIdIndex: index('students_class_id_index').on(student.classId),
+    qrTokenIndex: uniqueIndex('students_qr_token_unique').on(student.qrToken),
     classRollUnique: uniqueIndex('students_class_roll_unique').on(
       student.classId,
       student.rollNumber
@@ -531,6 +538,27 @@ export const notifications = mysqlTable(
   })
 );
 
+// ==================== Transport Routes ====================
+export const transportRoutes = mysqlTable(
+  'transport_routes',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    schoolId: int('school_id').notNull(),
+    routeName: varchar('route_name', { length: 128 }).notNull(),
+    type: varchar('type', { length: 20 }).notNull(), // 'morning' | 'evening'
+    isActive: boolean('is_active').default(true).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (route) => ({
+    schoolIdIndex: index('transport_routes_school_id_index').on(route.schoolId),
+    fk_route_school: foreignKey({
+      columns: [route.schoolId],
+      foreignColumns: [schools.id],
+    }),
+  })
+);
+
 // ==================== Buses ====================
 export const buses = mysqlTable(
   'buses',
@@ -538,7 +566,9 @@ export const buses = mysqlTable(
     id: int('id').autoincrement().primaryKey(),
     schoolId: int('school_id').notNull(),
     registrationNumber: varchar('registration_number', { length: 64 }).unique().notNull(),
+    nickname: varchar('nickname', { length: 128 }),
     routeName: varchar('route_name', { length: 128 }),
+    routeId: int('route_id'),
     driverName: varchar('driver_name', { length: 128 }),
     driverPhone: varchar('driver_phone', { length: 20 }),
     capacity: int('capacity'),
@@ -549,9 +579,95 @@ export const buses = mysqlTable(
   (bus) => ({
     schoolIdIndex: index('buses_school_id_index').on(bus.schoolId),
     registrationNumberIndex: index('buses_registration_number_index').on(bus.registrationNumber),
+    routeIdIndex: index('buses_route_id_index').on(bus.routeId),
     fk_bus_school: foreignKey({
       columns: [bus.schoolId],
       foreignColumns: [schools.id],
+    }),
+    fk_bus_route: foreignKey({
+      columns: [bus.routeId],
+      foreignColumns: [transportRoutes.id],
+    }),
+  })
+);
+
+// ==================== Bus Stops ====================
+export const busStops = mysqlTable(
+  'bus_stops',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    busId: int('bus_id'),
+    routeId: int('route_id'),
+    stopName: varchar('stop_name', { length: 256 }).notNull(),
+    pickupTime: varchar('pickup_time', { length: 10 }).notNull(),
+    dropTime: varchar('drop_time', { length: 10 }).notNull(),
+    sequenceNumber: int('sequence_number').notNull(),
+    studentCount: int('student_count').default(0).notNull(),
+    latitude: double('latitude'),
+    longitude: double('longitude'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (stop) => ({
+    busIdIndex: index('bus_stops_bus_id_index').on(stop.busId),
+    routeIdIndex: index('bus_stops_route_id_index').on(stop.routeId),
+    fk_bus_stop_bus: foreignKey({
+      columns: [stop.busId],
+      foreignColumns: [buses.id],
+    }),
+    fk_bus_stop_route: foreignKey({
+      columns: [stop.routeId],
+      foreignColumns: [transportRoutes.id],
+    }),
+  })
+);
+
+// ==================== Student Transport Assignments ====================
+export const studentTransportAssignments = mysqlTable(
+  'student_transport_assignments',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    studentId: int('student_id').notNull(),
+    busId: int('bus_id').notNull(),
+    routeId: int('route_id'),
+    pickupStopId: int('pickup_stop_id'),
+    dropStopId: int('drop_stop_id'),
+    assignedBy: int('assigned_by'),
+    assignedAt: timestamp('assigned_at').defaultNow(),
+    morningPickupTime: varchar('morning_pickup_time', { length: 10 }),
+    returnTime: varchar('return_time', { length: 10 }),
+    isActive: boolean('is_active').default(true).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (assignment) => ({
+    studentIdIndex: index('student_transport_assignments_student_id_index').on(assignment.studentId),
+    busIdIndex: index('student_transport_assignments_bus_id_index').on(assignment.busId),
+    routeIdIndex: index('student_transport_assignments_route_id_index').on(assignment.routeId),
+    activeIndex: index('student_transport_assignments_active_index').on(assignment.isActive),
+    fk_student_transport_student: foreignKey({
+      columns: [assignment.studentId],
+      foreignColumns: [students.id],
+    }),
+    fk_student_transport_bus: foreignKey({
+      columns: [assignment.busId],
+      foreignColumns: [buses.id],
+    }),
+    fk_student_transport_route: foreignKey({
+      columns: [assignment.routeId],
+      foreignColumns: [transportRoutes.id],
+    }),
+    fk_student_transport_pickup_stop: foreignKey({
+      columns: [assignment.pickupStopId],
+      foreignColumns: [busStops.id],
+    }),
+    fk_student_transport_drop_stop: foreignKey({
+      columns: [assignment.dropStopId],
+      foreignColumns: [busStops.id],
+    }),
+    fk_student_transport_assigned_by: foreignKey({
+      columns: [assignment.assignedBy],
+      foreignColumns: [users.id],
     }),
   })
 );
@@ -561,20 +677,140 @@ export const busLocations = mysqlTable(
   'bus_locations',
   {
     id: int('id').autoincrement().primaryKey(),
+    schoolId: int('school_id'),
     busId: int('bus_id').notNull(),
+    driverId: int('driver_id'),
+    routeId: varchar('route_id', { length: 128 }),
+    tripId: varchar('trip_id', { length: 128 }),
     latitude: double('latitude').notNull(),
     longitude: double('longitude').notNull(),
-    speed: int('speed'),
-    heading: int('heading'),
-    accuracy: int('accuracy'),
+    speed: double('speed'),
+    heading: double('heading'),
+    accuracy: double('accuracy'),
+    status: varchar('status', { length: 64 }).default('trip_started').notNull(),
+    currentStopId: int('current_stop_id'),
+    nextStopId: int('next_stop_id'),
+    remainingStops: int('remaining_stops'),
     timestamp: timestamp('timestamp').defaultNow().notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (loc) => ({
+    schoolIdIndex: index('bus_locations_school_id_index').on(loc.schoolId),
     busIdIndex: index('bus_locations_bus_id_index').on(loc.busId),
+    driverIdIndex: index('bus_locations_driver_id_index').on(loc.driverId),
+    tripIdIndex: index('bus_locations_trip_id_index').on(loc.tripId),
     timestampIndex: index('bus_locations_timestamp_index').on(loc.timestamp),
+    fk_bus_location_school: foreignKey({
+      columns: [loc.schoolId],
+      foreignColumns: [schools.id],
+    }),
     fk_bus_location_bus: foreignKey({
       columns: [loc.busId],
       foreignColumns: [buses.id],
+    }),
+    fk_bus_location_driver: foreignKey({
+      columns: [loc.driverId],
+      foreignColumns: [users.id],
+    }),
+    fk_bus_location_current_stop: foreignKey({
+      columns: [loc.currentStopId],
+      foreignColumns: [busStops.id],
+    }),
+    fk_bus_location_next_stop: foreignKey({
+      columns: [loc.nextStopId],
+      foreignColumns: [busStops.id],
+    }),
+  })
+);
+
+// ==================== Student Boarding Logs ====================
+export const studentBoardingLogs = mysqlTable(
+  'student_boarding_logs',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    studentId: int('student_id').notNull(),
+    busId: int('bus_id').notNull(),
+    routeId: int('route_id').notNull(),
+    stopId: int('stop_id').notNull(),
+    tripId: varchar('trip_id', { length: 128 }).notNull(),
+    status: varchar('status', { length: 32 }).default('boarded').notNull(), // 'boarded' | 'absent' | 'dropped'
+    direction: varchar('direction', { length: 20 }).default('pickup').notNull(), // 'pickup' | 'dropoff'
+    boardedAt: timestamp('boarded_at').defaultNow(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (log) => ({
+    studentIdIdx: index('student_boarding_logs_student_id_idx').on(log.studentId),
+    busIdIdx: index('student_boarding_logs_bus_id_idx').on(log.busId),
+    routeIdIdx: index('student_boarding_logs_route_id_idx').on(log.routeId),
+    tripIdIdx: index('student_boarding_logs_trip_id_idx').on(log.tripId),
+    fk_boarding_student: foreignKey({
+      columns: [log.studentId],
+      foreignColumns: [students.id],
+    }),
+    fk_boarding_bus: foreignKey({
+      columns: [log.busId],
+      foreignColumns: [buses.id],
+    }),
+    fk_boarding_route: foreignKey({
+      columns: [log.routeId],
+      foreignColumns: [transportRoutes.id],
+    }),
+    fk_boarding_stop: foreignKey({
+      columns: [log.stopId],
+      foreignColumns: [busStops.id],
+    }),
+  })
+);
+
+// ==================== Bus Live Locations ====================
+export const busLiveLocations = mysqlTable(
+  'bus_live_locations',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    schoolId: int('school_id').notNull(),
+    busId: int('bus_id').notNull(),
+    driverId: int('driver_id').notNull(),
+    routeId: varchar('route_id', { length: 128 }),
+    tripId: varchar('trip_id', { length: 128 }).notNull(),
+    latitude: double('latitude').notNull(),
+    longitude: double('longitude').notNull(),
+    speed: double('speed'),
+    heading: double('heading'),
+    accuracy: double('accuracy'),
+    status: varchar('status', { length: 64 }).default('trip_started').notNull(),
+    currentStopId: int('current_stop_id'),
+    nextStopId: int('next_stop_id'),
+    remainingStops: int('remaining_stops'),
+    lastUpdatedAt: timestamp('last_updated_at').defaultNow().notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (loc) => ({
+    busIdUnique: uniqueIndex('bus_live_locations_bus_id_unique').on(loc.busId),
+    schoolIdIndex: index('bus_live_locations_school_id_index').on(loc.schoolId),
+    driverIdIndex: index('bus_live_locations_driver_id_index').on(loc.driverId),
+    tripIdIndex: index('bus_live_locations_trip_id_index').on(loc.tripId),
+    statusIndex: index('bus_live_locations_status_index').on(loc.status),
+    fk_bus_live_location_school: foreignKey({
+      columns: [loc.schoolId],
+      foreignColumns: [schools.id],
+    }),
+    fk_bus_live_location_bus: foreignKey({
+      columns: [loc.busId],
+      foreignColumns: [buses.id],
+    }),
+    fk_bus_live_location_driver: foreignKey({
+      columns: [loc.driverId],
+      foreignColumns: [users.id],
+    }),
+    fk_bus_live_location_current_stop: foreignKey({
+      columns: [loc.currentStopId],
+      foreignColumns: [busStops.id],
+    }),
+    fk_bus_live_location_next_stop: foreignKey({
+      columns: [loc.nextStopId],
+      foreignColumns: [busStops.id],
     }),
   })
 );
@@ -645,6 +881,10 @@ export const feedback = mysqlTable(
     title: varchar('title', { length: 256 }).notNull(),
     message: text('message').notNull(),
     category: varchar('category', { length: 64 }).notNull(), // 'Academic', 'Facilities', 'Transport', etc.
+    priority: varchar('priority', { length: 32 }).default('medium').notNull(),
+    attachmentUrl: text('attachment_url'),
+    status: varchar('status', { length: 32 }).default('pending').notNull(),
+    replies: text('replies'), // stores JSON array of replies: { sender: string; message: string; date: string }
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => ({
@@ -652,6 +892,30 @@ export const feedback = mysqlTable(
     userIdIdx: index('feedback_user_id_idx').on(table.userId),
     fk_feedback_school: foreignKey({ columns: [table.schoolId], foreignColumns: [schools.id] }),
     fk_feedback_user: foreignKey({ columns: [table.userId], foreignColumns: [users.id] }),
+  })
+);
+
+// ==================== Help Tickets ====================
+export const helpTickets = mysqlTable(
+  'help_tickets',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    ticketId: varchar('ticket_id', { length: 64 }).notNull(),
+    driverId: int('driver_id').notNull(),
+    driverName: varchar('driver_name', { length: 128 }).notNull(),
+    driverPhone: varchar('driver_phone', { length: 32 }),
+    category: varchar('category', { length: 64 }).notNull(),
+    priority: varchar('priority', { length: 32 }).default('medium').notNull(),
+    message: text('message').notNull(),
+    status: varchar('status', { length: 32 }).default('OPEN').notNull(),
+    replies: text('replies'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    driverIdIdx: index('help_tickets_driver_id_idx').on(table.driverId),
+    ticketIdIdx: index('help_tickets_ticket_id_idx').on(table.ticketId),
+    statusIdx: index('help_tickets_status_idx').on(table.status),
   })
 );
 
@@ -754,7 +1018,7 @@ export const assignmentSubmissions = mysqlTable(
     assignmentId: int('assignment_id').notNull(),
     studentId: int('student_id').notNull(),
     submittedAt: timestamp('submitted_at').defaultNow().notNull(),
-    fileUrl: varchar('file_url', { length: 512 }),
+    fileUrl: text('file_url'),
     content: text('content'),
     grade: decimal('grade', { precision: 5, scale: 2 }),
     feedback: text('feedback'),
@@ -800,6 +1064,7 @@ export const teacherResources = mysqlTable(
     aiPrompt: text('ai_prompt'),                // the prompt used to generate it
     aiContent: text('ai_content'),              // the actual AI-generated text content
     downloadCount: int('download_count').default(0).notNull(),
+    viewCount: int('view_count').default(0).notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
   },
@@ -816,6 +1081,125 @@ export const teacherResources = mysqlTable(
       columns: [res.schoolId],
       foreignColumns: [schools.id],
     }),
+  })
+);
+
+export const resources = teacherResources;
+
+// ==================== Resource Views ====================
+export const resourceViews = mysqlTable(
+  'resource_views',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    resourceId: int('resource_id').notNull(),
+    studentId: int('student_id').notNull(),
+    viewedAt: timestamp('viewed_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    resourceIdIdx: index('resource_views_resource_id_idx').on(table.resourceId),
+    studentIdIdx: index('resource_views_student_id_idx').on(table.studentId),
+    fk_view_resource: foreignKey({ columns: [table.resourceId], foreignColumns: [teacherResources.id] }),
+    fk_view_student: foreignKey({ columns: [table.studentId], foreignColumns: [students.id] }),
+  })
+);
+
+// ==================== Resource Downloads ====================
+export const resourceDownloads = mysqlTable(
+  'resource_downloads',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    resourceId: int('resource_id').notNull(),
+    studentId: int('student_id').notNull(),
+    downloadedAt: timestamp('downloaded_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    resourceIdIdx: index('resource_downloads_resource_id_idx').on(table.resourceId),
+    studentIdIdx: index('resource_downloads_student_id_idx').on(table.studentId),
+    fk_download_resource: foreignKey({ columns: [table.resourceId], foreignColumns: [teacherResources.id] }),
+    fk_download_student: foreignKey({ columns: [table.studentId], foreignColumns: [students.id] }),
+  })
+);
+
+// ==================== Resource Bookmarks ====================
+export const resourceBookmarks = mysqlTable(
+  'resource_bookmarks',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    resourceId: int('resource_id').notNull(),
+    studentId: int('student_id').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    resourceIdIdx: index('resource_bookmarks_resource_id_idx').on(table.resourceId),
+    studentIdIdx: index('resource_bookmarks_student_id_idx').on(table.studentId),
+    fk_bookmark_resource: foreignKey({ columns: [table.resourceId], foreignColumns: [teacherResources.id] }),
+    fk_bookmark_student: foreignKey({ columns: [table.studentId], foreignColumns: [students.id] }),
+  })
+);
+
+// ==================== Student Learning Progress ====================
+export const studentLearningProgress = mysqlTable(
+  'student_learning_progress',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    studentId: int('student_id').notNull(),
+    resourceId: int('resource_id').notNull(),
+    progress: int('progress').default(0).notNull(), // 0 to 100
+    isCompleted: boolean('is_completed').default(false).notNull(),
+    lastAccessedAt: timestamp('last_accessed_at').defaultNow().onUpdateNow().notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    studentIdIdx: index('learning_progress_student_id_idx').on(table.studentId),
+    resourceIdIdx: index('learning_progress_resource_id_idx').on(table.resourceId),
+    uniqueProgress: uniqueIndex('learning_progress_student_resource_unique').on(table.studentId, table.resourceId),
+    fk_progress_resource: foreignKey({ columns: [table.resourceId], foreignColumns: [teacherResources.id] }),
+    fk_progress_student: foreignKey({ columns: [table.studentId], foreignColumns: [students.id] }),
+  })
+);
+
+// ==================== AI Predictions ====================
+export const aiPredictions = mysqlTable(
+  'ai_predictions',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    studentId: int('student_id').notNull(),
+    subjectId: int('subject_id').notNull(),
+    currentScore: decimal('current_score', { precision: 5, scale: 2 }).notNull(),
+    predictedScoreMin: decimal('predicted_score_min', { precision: 5, scale: 2 }).notNull(),
+    predictedScoreMax: decimal('predicted_score_max', { precision: 5, scale: 2 }).notNull(),
+    riskLevel: varchar('risk_level', { length: 20 }).notNull(), // 'low' | 'medium' | 'high'
+    confidence: varchar('confidence', { length: 20 }).default('medium').notNull(), // 'low' | 'medium' | 'high'
+    academicHealthScore: int('academic_health_score').notNull(), // 0 to 100
+    attendanceImpact: text('attendance_impact'),
+    assignmentImpact: text('assignment_impact'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    studentIdIdx: index('ai_predictions_student_id_idx').on(table.studentId),
+    subjectIdIdx: index('ai_predictions_subject_id_idx').on(table.subjectId),
+    fk_ai_pred_student: foreignKey({ columns: [table.studentId], foreignColumns: [students.id] }),
+    fk_ai_pred_subject: foreignKey({ columns: [table.subjectId], foreignColumns: [subjects.id] }),
+  })
+);
+
+// ==================== AI Recommendations ====================
+export const aiRecommendations = mysqlTable(
+  'ai_recommendations',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    studentId: int('student_id').notNull(),
+    type: varchar('type', { length: 64 }).notNull(), // 'academic' | 'attendance' | 'resource'
+    title: varchar('title', { length: 256 }).notNull(),
+    description: text('description').notNull(),
+    resourceId: int('resource_id'), // Optional related resource
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    studentIdIdx: index('ai_recs_student_id_idx').on(table.studentId),
+    fk_ai_rec_student: foreignKey({ columns: [table.studentId], foreignColumns: [students.id] }),
+    fk_ai_rec_resource: foreignKey({ columns: [table.resourceId], foreignColumns: [teacherResources.id] }),
   })
 );
 
@@ -903,6 +1287,158 @@ export const classTeacherAssignments = mysqlTable(
     classIdIdx: index('cta_class_id_idx').on(cta.classId),
     fk_cta_teacher: foreignKey({ columns: [cta.teacherId], foreignColumns: [teachers.id] }),
     fk_cta_class: foreignKey({ columns: [cta.classId], foreignColumns: [classes.id] }),
+  })
+);
+
+// ==================== Student Diaries (Teacher-Published) ====================
+export const studentDiaries = mysqlTable(
+  'student_diaries',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    schoolId: int('school_id').notNull(),
+    classId: int('class_id').notNull(),
+    subjectId: int('subject_id').notNull(),
+    teacherId: int('teacher_id').notNull(),
+    topicTaught: text('topic_taught').notNull(),
+    homework: text('homework'),
+    date: date('date').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (d) => ({
+    classIdIdx: index('student_diaries_class_id_idx').on(d.classId),
+    teacherIdIdx: index('student_diaries_teacher_id_idx').on(d.teacherId),
+    dateIdx: index('student_diaries_date_idx').on(d.date),
+    fk_diary_school: foreignKey({ columns: [d.schoolId], foreignColumns: [schools.id] }),
+    fk_diary_class: foreignKey({ columns: [d.classId], foreignColumns: [classes.id] }),
+    fk_diary_subject: foreignKey({ columns: [d.subjectId], foreignColumns: [subjects.id] }),
+    fk_diary_teacher: foreignKey({ columns: [d.teacherId], foreignColumns: [teachers.id] }),
+  })
+);
+
+// ==================== Student Diary Progress ====================
+export const studentDiaryProgress = mysqlTable(
+  'student_diary_progress',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    studentId: int('student_id').notNull(),
+    diaryId: int('diary_id').notNull(),
+    isCompleted: boolean('is_completed').default(false).notNull(),
+    completedAt: timestamp('completed_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (p) => ({
+    studentDiaryUnique: uniqueIndex('student_diary_progress_unique').on(p.studentId, p.diaryId),
+    fk_progress_student: foreignKey({ columns: [p.studentId], foreignColumns: [students.id] }),
+    fk_progress_diary: foreignKey({ columns: [p.diaryId], foreignColumns: [studentDiaries.id] }),
+  })
+);
+
+// ==================== Student Avatar Selections ====================
+export const studentAvatarSelections = mysqlTable(
+  'student_avatar_selections',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    studentId: int('student_id').notNull(),
+    avatarType: varchar('avatar_type', { length: 64 }).notNull(),
+    imageUrl: varchar('image_url', { length: 512 }).notNull(),
+    isSelected: boolean('is_selected').default(false).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (a) => ({
+    studentIdIdx: index('student_avatar_student_id_idx').on(a.studentId),
+    fk_avatar_student: foreignKey({ columns: [a.studentId], foreignColumns: [students.id] }),
+  })
+);
+
+// ==================== AI Generated Notes ====================
+export const aiGeneratedNotes = mysqlTable(
+  'ai_generated_notes',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    studentId: int('student_id').notNull(),
+    subjectName: varchar('subject_name', { length: 128 }),
+    topic: varchar('topic', { length: 256 }).notNull(),
+    noteType: varchar('note_type', { length: 64 }).notNull(), // 'cheatsheet','revision','mnemonic','practice'
+    title: varchar('title', { length: 256 }).notNull(),
+    content: text('content').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (n) => ({
+    studentIdIdx: index('ai_notes_student_id_idx').on(n.studentId),
+    fk_notes_student: foreignKey({ columns: [n.studentId], foreignColumns: [students.id] }),
+  })
+);
+
+// ==================== Conversations ====================
+export const conversations = mysqlTable(
+  'conversations',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  }
+);
+
+// ==================== Conversation Participants ====================
+export const conversationParticipants = mysqlTable(
+  'conversation_participants',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    conversationId: int('conversation_id').notNull(),
+    userId: int('user_id').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    conversationIdx: index('participants_conversation_idx').on(table.conversationId),
+    userIdIdx: index('participants_user_idx').on(table.userId),
+    fk_participant_conversation: foreignKey({ columns: [table.conversationId], foreignColumns: [conversations.id] }),
+    fk_participant_user: foreignKey({ columns: [table.userId], foreignColumns: [users.id] }),
+  })
+);
+
+// ==================== Chat Messages ====================
+export const chatMessages = mysqlTable(
+  'chat_messages',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    conversationId: int('conversation_id'),
+    senderId: int('sender_id').notNull(),
+    receiverId: int('receiver_id').notNull(),
+    message: text('message').notNull(),
+    attachmentUrl: varchar('attachment_url', { length: 512 }),
+    mediaType: varchar('media_type', { length: 32 }),
+    mediaSize: int('media_size'),
+    fileName: varchar('file_name', { length: 256 }),
+    isRead: boolean('is_read').default(false).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    conversationIdx: index('chat_messages_conversation_idx').on(table.conversationId),
+    senderIdx: index('chat_messages_sender_idx').on(table.senderId),
+    receiverIdx: index('chat_messages_receiver_idx').on(table.receiverId),
+    isReadIdx: index('chat_messages_is_read_idx').on(table.isRead),
+    fk_chat_conversation: foreignKey({ columns: [table.conversationId], foreignColumns: [conversations.id] }),
+    fk_chat_sender: foreignKey({ columns: [table.senderId], foreignColumns: [users.id] }),
+    fk_chat_receiver: foreignKey({ columns: [table.receiverId], foreignColumns: [users.id] }),
+  })
+);
+
+// ==================== Attendance Holidays ====================
+export const attendanceHolidays = mysqlTable(
+  'attendance_holidays',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    schoolId: int('school_id'),
+    holidayDate: date('holiday_date').notNull(),
+    reason: varchar('reason', { length: 256 }).notNull(),
+    createdBy: int('created_by'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    holidayDateIdx: uniqueIndex('attendance_holidays_date_unique').on(table.schoolId, table.holidayDate),
+    createdByDateIdx: index('attendance_holidays_created_by_idx').on(table.createdBy),
   })
 );
 

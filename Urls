@@ -1,0 +1,5 @@
+Admin = localhost:3000/Admin
+teacher = localhost:3000/teacher
+Parent = localhost:3000/parent
+student = localhost:3000/student
+Admin password recovery = http://localhost:3000/dev-reset

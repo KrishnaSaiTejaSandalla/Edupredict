@@ -4,39 +4,11 @@ import { db } from './db';
 import { leaveRequests, users, students, studentParents, parents, notifications } from './schema';
 import { eq, and, or, sql, gte } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
-import { createNotification } from './notification-actions';
+import { createNotification, createNotificationForUser } from './notification-actions';
 import { parseDbError } from './db-errors';
 import { logAudit } from './audit-utils';
 import { getCurrentUser } from './auth';
 
-// ==================== NOTIFICATION HELPER ====================
-
-async function createNotificationForUser(
-  userId: number,
-  title: string,
-  message: string,
-  type: string = 'info',
-  priority: 'low' | 'medium' | 'high' = 'medium'
-) {
-  try {
-    await db.insert(notifications).values({
-      userId,
-      title,
-      message,
-      type,
-      priority,
-      isRead: false,
-    });
-    revalidatePath('/teacher/notifications');
-    revalidatePath('/teacher');
-    revalidatePath('/parent/notifications');
-    revalidatePath('/parent');
-    revalidatePath('/admin/notifications');
-    revalidatePath('/admin');
-  } catch (err) {
-    console.error('Failed to create notification for user:', err);
-  }
-}
 
 // ==================== LEAVE REQUEST ACTIONS ====================
 
@@ -131,6 +103,58 @@ export async function submitLeaveRequest(
     'medium'
   );
 
+  // If teacher submits leave request, notify all admins
+  if (user.role === 'teacher' && !data.studentId) {
+    const adminConditions = [eq(users.role, 'admin')];
+    if (schoolId) {
+      adminConditions.push(eq(users.schoolId, schoolId));
+    }
+    const admins = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(...adminConditions));
+
+    for (const admin of admins) {
+      await createNotificationForUser(
+        admin.id,
+        'New Leave Request',
+        `${user.name} submitted a leave request.`,
+        'announcement',
+        'high'
+      );
+    }
+  }
+
+  // If parent submits leave request for student, notify class teachers
+  if (data.studentId) {
+    const { classTeacherAssignments, teachers } = await import('./schema');
+    const [student] = await db
+      .select({ classId: students.classId })
+      .from(students)
+      .where(eq(students.id, data.studentId))
+      .limit(1);
+
+    if (student?.classId) {
+      const assignedTeachers = await db
+        .select({ userId: teachers.userId })
+        .from(classTeacherAssignments)
+        .leftJoin(teachers, eq(classTeacherAssignments.teacherId, teachers.id))
+        .where(eq(classTeacherAssignments.classId, student.classId));
+
+      for (const t of assignedTeachers) {
+        if (t.userId) {
+          await createNotificationForUser(
+            t.userId,
+            'Parent Leave Request',
+            `A parent has submitted a leave request for student in class.`,
+            'info',
+            'medium'
+          );
+        }
+      }
+    }
+  }
+
   await logAudit('CREATE_LEAVE', 'leave_request', insertedId, `Submitted ${data.leaveType} leave: ${data.startDate} to ${data.endDate}`, schoolId);
 
   revalidatePath('/admin/leaves');
@@ -204,10 +228,14 @@ export async function updateLeaveStatus(
     }
   } else if (existing.userId) {
     // Teacher personal leave - notify the teacher
+    const notifTitle = status === 'approved' ? 'Approved' : 'Rejected';
+    const notifMessage = status === 'approved'
+      ? 'Your leave request has been approved.'
+      : 'Your leave request has been rejected.';
     await createNotificationForUser(
       existing.userId,
-      `Leave Request ${action}`,
-      `Your leave request from ${existing.startDate} to ${existing.endDate} has been ${status}.${remarks ? ` Reason: ${remarks}` : ''}`,
+      notifTitle,
+      notifMessage,
       status === 'approved' ? 'success' : 'warning',
       'high'
     );

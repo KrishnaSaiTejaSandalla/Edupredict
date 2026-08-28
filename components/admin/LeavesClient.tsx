@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { updateLeaveStatus } from "@/lib/leave-actions";
 
@@ -45,6 +46,7 @@ export default function LeavesClient({ initialRequests }: Props) {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const router = useRouter();
 
   const [isPending, startTransition] = useTransition();
 
@@ -58,7 +60,7 @@ export default function LeavesClient({ initialRequests }: Props) {
 
   const reloadData = async () => {
     try {
-      const res = await fetch("/api/leaves");
+      const res = await fetch("/api/leaves?t=" + Date.now(), { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         setRequests(data);
@@ -82,6 +84,7 @@ export default function LeavesClient({ initialRequests }: Props) {
       try {
         await updateLeaveStatus(id, action, remarks);
         toast.success(`Leave request has been ${action}.`);
+        router.refresh();
         await reloadData();
       } catch (err: any) {
         toast.error(err.message || "Failed to process leave request.");
@@ -273,13 +276,12 @@ export default function LeavesClient({ initialRequests }: Props) {
 
                     <td className="p-4 px-6">
                       <span
-                        className={`inline-flex items-center rounded-lg px-2.5 py-1 text-[10px] font-semibold capitalize border ${
-                          row.status === "approved"
+                        className={`inline-flex items-center rounded-lg px-2.5 py-1 text-[10px] font-semibold capitalize border ${row.status === "approved"
                             ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                             : row.status === "rejected"
-                            ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
-                            : "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                        }`}
+                              ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                              : "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                          }`}
                       >
                         {row.status}
                       </span>
@@ -351,7 +353,7 @@ export default function LeavesClient({ initialRequests }: Props) {
 
       {/* Approval/Rejection remarks input Modal */}
       {processingLeave && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background/80">
           <div className="w-full max-w-sm rounded-2xl border border-theme bg-surface p-6 shadow-2xl animate-in zoom-in-95 duration-150">
             <h3 className="text-sm font-bold text-primary mb-2">
               Confirm {processingLeave.action === "approved" ? "Approval" : "Rejection"}
@@ -379,11 +381,10 @@ export default function LeavesClient({ initialRequests }: Props) {
               <button
                 type="button"
                 onClick={handleConfirmProcess}
-                className={`flex-1 rounded-xl px-4 py-2.5 text-xs font-semibold text-white transition active:scale-[0.98] ${
-                  processingLeave.action === "approved"
+                className={`flex-1 rounded-xl px-4 py-2.5 text-xs font-semibold text-white transition active:scale-[0.98] ${processingLeave.action === "approved"
                     ? "bg-emerald-500 hover:bg-emerald-600"
                     : "bg-rose-500 hover:bg-rose-600"
-                }`}
+                  }`}
               >
                 Submit
               </button>

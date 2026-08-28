@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { teachers } from "@/lib/schema";
+import { teachers, exams, results } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import { getStudentsForExam, enterMarks, updateMark, getTeacherResults, getMarksAnalytics } from "@/lib/teacher-marks.service";
 
@@ -24,6 +24,24 @@ export async function GET(request: Request) {
     if (action === "students") {
       const examId = Number(searchParams.get("examId"));
       if (!examId) return NextResponse.json({ students: [] });
+
+      // Fetch exam from database to verify date
+      const [exam] = await db
+        .select({ examDate: exams.examDate })
+        .from(exams)
+        .where(eq(exams.id, examId))
+        .limit(1);
+
+      if (exam?.examDate) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const examDateVal = new Date(exam.examDate);
+        examDateVal.setHours(0, 0, 0, 0); // make sure it's midnight local
+        if (today < examDateVal) {
+          return NextResponse.json({ error: "Marks can only be entered after the examination date." }, { status: 400 });
+        }
+      }
+
       const students = await getStudentsForExam(examId);
       return NextResponse.json({ students });
     }
@@ -34,9 +52,10 @@ export async function GET(request: Request) {
       const search = searchParams.get("search") || undefined;
       const classId = searchParams.get("classId") ? Number(searchParams.get("classId")) : undefined;
       const subjectId = searchParams.get("subjectId") ? Number(searchParams.get("subjectId")) : undefined;
+      const examId = searchParams.get("examId") || undefined;
       const examType = searchParams.get("examType") || undefined;
 
-      const data = await getTeacherResults(teacher.id, { page, pageSize, search, classId, subjectId, examType });
+      const data = await getTeacherResults(teacher.id, { page, pageSize, search, classId, subjectId, examId, examType });
       return NextResponse.json(data);
     }
 
@@ -61,6 +80,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
 
+    // Fetch exam from database to verify date
+    const [exam] = await db
+      .select({ examDate: exams.examDate })
+      .from(exams)
+      .where(eq(exams.id, Number(examId)))
+      .limit(1);
+
+    if (exam?.examDate) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const examDateVal = new Date(exam.examDate);
+      examDateVal.setHours(0, 0, 0, 0); // make sure it's midnight local
+      if (today < examDateVal) {
+        return NextResponse.json({ error: "Marks can only be entered after the examination date." }, { status: 400 });
+      }
+    }
+
     await enterMarks(examId, subjectId, marksData);
     return NextResponse.json({ success: true });
   } catch (error: any) {
@@ -76,6 +112,24 @@ export async function PATCH(request: Request) {
 
     if (!resultId || marks === undefined) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    }
+
+    // Fetch exam from database to verify date via join
+    const [row] = await db
+      .select({ examDate: exams.examDate })
+      .from(results)
+      .innerJoin(exams, eq(results.examId, exams.id))
+      .where(eq(results.id, Number(resultId)))
+      .limit(1);
+
+    if (row?.examDate) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const examDateVal = new Date(row.examDate);
+      examDateVal.setHours(0, 0, 0, 0); // make sure it's midnight local
+      if (today < examDateVal) {
+        return NextResponse.json({ error: "Marks can only be entered after the examination date." }, { status: 400 });
+      }
     }
 
     await updateMark(resultId, marks, remarks);

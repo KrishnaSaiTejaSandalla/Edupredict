@@ -2,7 +2,7 @@
 
 import { db } from './db';
 import { timetables, classes, subjects, teachers, users, teacherClassAssignments, teacherSubjectAssignments } from './schema';
-import { eq, and, or, sql, inArray } from 'drizzle-orm';
+import { eq, ne, and, or, sql, inArray, lt, gt } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { createNotification } from './notification-actions';
 import { parseDbError } from './db-errors';
@@ -27,27 +27,44 @@ async function checkTimetableConflicts(
 ) {
   const conflicts: string[] = [];
 
+  const numSchoolId = Number(schoolId);
+  const numClassId = Number(classId);
+  const numTeacherId = Number(teacherId);
+  const numExcludeId = excludeId ? Number(excludeId) : undefined;
+
+  console.log("Timetable conflict check inputs:", {
+    schoolId: numSchoolId,
+    dayOfWeek,
+    startTime,
+    endTime,
+    classId: numClassId,
+    teacherId: numTeacherId,
+    roomNumber,
+    excludeId: numExcludeId
+  });
+
   // Build base condition: same school, same day, overlapping time
   // Time overlap: existing.start < new.end AND existing.end > new.start
   const baseConditions = [
-    eq(timetables.schoolId, schoolId),
+    eq(timetables.schoolId, numSchoolId),
     eq(timetables.dayOfWeek, dayOfWeek),
-    sql`${timetables.startTime} < ${endTime}`,
-    sql`${timetables.endTime} > ${startTime}`,
+    lt(timetables.startTime, endTime),
+    gt(timetables.endTime, startTime),
   ];
 
-  if (excludeId) {
-    baseConditions.push(sql`${timetables.id} != ${excludeId}`);
+  if (numExcludeId) {
+    baseConditions.push(ne(timetables.id, numExcludeId));
   }
 
   // Check teacher conflict
   const teacherConflict = await db
     .select({ id: timetables.id })
     .from(timetables)
-    .where(and(...baseConditions, eq(timetables.teacherId, teacherId)))
+    .where(and(...baseConditions, eq(timetables.teacherId, numTeacherId)))
     .limit(1);
 
   if (teacherConflict.length > 0) {
+    console.log("Teacher conflict rows:", teacherConflict);
     conflicts.push('This teacher is already assigned to another class at this time.');
   }
 
@@ -55,10 +72,11 @@ async function checkTimetableConflicts(
   const classConflict = await db
     .select({ id: timetables.id })
     .from(timetables)
-    .where(and(...baseConditions, eq(timetables.classId, classId)))
+    .where(and(...baseConditions, eq(timetables.classId, numClassId)))
     .limit(1);
 
   if (classConflict.length > 0) {
+    console.log("Class conflict rows:", classConflict);
     conflicts.push('This class already has a session scheduled at this time.');
   }
 
@@ -70,6 +88,7 @@ async function checkTimetableConflicts(
     .limit(1);
 
   if (roomConflict.length > 0) {
+    console.log("Room conflict rows:", roomConflict);
     conflicts.push('This room is already booked at this time.');
   }
 
@@ -124,7 +143,7 @@ export async function createTimetableEntry(data: {
   );
 
   if (conflicts.length > 0) {
-    throw new Error("Timetable conflict detected for selected period");
+    throw new Error(conflicts.join(' '));
   }
 
   let insertedId: number;
@@ -210,7 +229,7 @@ export async function updateTimetableEntry(
   );
 
   if (conflicts.length > 0) {
-    throw new Error("Timetable conflict detected for selected period");
+    throw new Error(conflicts.join(' '));
   }
 
   try {

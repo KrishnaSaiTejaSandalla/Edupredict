@@ -62,9 +62,6 @@ export async function GET(request: Request) {
       .where(eq(classes.id, classId))
       .limit(1);
 
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
     const studentsWithMetrics = await Promise.all(
       studentList.map(async (s) => {
         const attendanceRows = await db
@@ -73,15 +70,18 @@ export async function GET(request: Request) {
           .where(
             and(
               eq(attendance.studentId, s.id),
-              eq(attendance.classId, classId),
-              gte(attendance.attendanceDate, thirtyDaysAgo)
+              eq(attendance.classId, classId)
             )
           );
 
         const presentCount = attendanceRows.filter((a) => a.status === "present").length;
+        const leaveCount = attendanceRows.filter((a) => a.status === "leave").length;
+        const halfDayCount = attendanceRows.filter((a) => a.status === "half_day").length;
         const totalCount = attendanceRows.length;
-        const attendancePct = totalCount > 0 
-          ? Math.round((presentCount / totalCount) * 100) 
+        const workingDays = totalCount - leaveCount;
+        const presentWeight = presentCount + halfDayCount * 0.5;
+        const attendancePct = workingDays > 0 
+          ? Math.round((presentWeight / workingDays) * 100) 
           : 100;
 
         const resultRows = await db

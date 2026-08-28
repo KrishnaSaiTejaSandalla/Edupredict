@@ -1,6 +1,7 @@
 "use client";
 import React from 'react';
 import ThemeProvider from './ThemeProvider';
+import OfflineExperience from '@/components/shared/OfflineExperience';
 
 interface ProvidersProps {
   children: React.ReactNode;
@@ -17,6 +18,7 @@ export default function Providers({ children, initialTheme, initialDensity, init
       initialPreset={initialPreset ?? 'ocean-blue'}
     >
       {children}
+      <OfflineExperience />
     </ThemeProvider>
   );
 }

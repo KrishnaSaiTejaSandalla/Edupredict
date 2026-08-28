@@ -66,14 +66,13 @@ export default function AssignmentsClient({ teacherId, classSubjects }: Props) {
   const [gradeValue, setGradeValue] = useState<string>("");
   const [feedbackValue, setFeedbackValue] = useState<string>("");
 
-  // Create form
   const [form, setForm] = useState({
     classId: "" as number | "",
     subjectId: "" as number | "",
     title: "",
     description: "",
     dueDate: "",
-    maxMarks: 100,
+    maxMarks: 100 as number | "",
   });
   const [creating, setCreating] = useState(false);
 
@@ -117,7 +116,10 @@ export default function AssignmentsClient({ teacherId, classSubjects }: Props) {
       const res = await fetch("/api/teacher/assignments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          maxMarks: form.maxMarks === "" ? 100 : Number(form.maxMarks),
+        }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "Failed");
       toast.success("Assignment created!");
@@ -423,9 +425,13 @@ export default function AssignmentsClient({ teacherId, classSubjects }: Props) {
                   <span className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">Subject *</span>
                   <select className="select-theme" value={form.subjectId} onChange={(e) => setForm(f => ({ ...f, subjectId: e.target.value ? Number(e.target.value) : "" }))}>
                     <option value="">Select subject</option>
-                    {classSubjects.filter(cs => !form.classId || cs.classId === form.classId).map(cs => (
-                      <option key={cs.subjectId} value={cs.subjectId}>{cs.subjectName}</option>
-                    ))}
+                    {(() => {
+                      const filtered = classSubjects.filter(cs => !form.classId || cs.classId === form.classId);
+                      const unique = [...new Map(filtered.map(cs => [cs.subjectId, cs])).values()];
+                      return unique.map(cs => (
+                        <option key={cs.subjectId} value={cs.subjectId}>{cs.subjectName}</option>
+                      ));
+                    })()}
                   </select>
                 </label>
               </div>
@@ -437,7 +443,22 @@ export default function AssignmentsClient({ teacherId, classSubjects }: Props) {
                 </label>
                 <label className="block space-y-1.5">
                   <span className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">Max Marks</span>
-                  <input type="number" className="input-theme" value={form.maxMarks} onChange={(e) => setForm(f => ({ ...f, maxMarks: Number(e.target.value) }))} />
+                  <input
+                    type="number"
+                    className="input-theme"
+                    value={form.maxMarks}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "") {
+                        setForm(f => ({ ...f, maxMarks: "" }));
+                      } else {
+                        const parsed = parseInt(val, 10);
+                        if (!isNaN(parsed)) {
+                          setForm(f => ({ ...f, maxMarks: parsed }));
+                        }
+                      }
+                    }}
+                  />
                 </label>
               </div>
 

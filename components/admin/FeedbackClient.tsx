@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { toast } from "sonner";
 import DeleteConfirmModal from "@/components/ui/DeleteConfirmModal";
 import { deleteFeedback } from "@/lib/feedback-actions";
+import { MessageSquare, LifeBuoy, Send, CheckCircle, Clock, AlertCircle, Trash2 } from "lucide-react";
 
 type FeedbackItem = {
   id: number;
@@ -17,256 +18,337 @@ type FeedbackItem = {
   userRole: string;
 };
 
-type Props = {
-  initialFeedback: FeedbackItem[];
+type HelpTicketItem = {
+  id: number;
+  ticketId: string;
+  driverId: number;
+  driverName: string;
+  driverPhone: string;
+  category: string;
+  priority: string;
+  message: string;
+  status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
+  replies: Array<{ sender: string; message: string; date: string }>;
+  createdAt: string;
 };
 
-export default function FeedbackClient({ initialFeedback }: Props) {
+type Props = {
+  initialFeedback: FeedbackItem[];
+  initialTickets?: HelpTicketItem[];
+};
+
+export default function FeedbackClient({ initialFeedback, initialTickets = [] }: Props) {
+  const [activeTab, setActiveTab] = useState<'feedback' | 'tickets'>('feedback');
   const [feedbackList, setFeedbackList] = useState<FeedbackItem[]>(initialFeedback);
+  const [ticketsList, setTicketsList] = useState<HelpTicketItem[]>(initialTickets);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const [isPending, startTransition] = useTransition();
+  const [replyInput, setReplyInput] = useState<{ [ticketId: string]: string }>({});
+  const [replyingTicketId, setReplyingTicketId] = useState<string | null>(null);
 
   // Delete modal state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [feedbackToDelete, setFeedbackToDelete] = useState<{ id: number; title: string } | null>(null);
+  const [ticketToDelete, setTicketToDelete] = useState<{ ticketId: string; category: string } | null>(null);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, categoryFilter, statusFilter, activeTab]);
 
   const reloadData = async () => {
     try {
-      const res = await fetch("/api/feedback");
-      if (res.ok) {
-        const data = await res.json();
-        setFeedbackList(data);
+      if (activeTab === 'feedback') {
+        const res = await fetch("/api/feedback");
+        if (res.ok) {
+          const data = await res.json();
+          setFeedbackList(data);
+        }
+      } else {
+        const res = await fetch("/api/admin/tickets");
+        if (res.ok) {
+          const resData = await res.json();
+          if (resData.success) setTicketsList(resData.data);
+        }
       }
     } catch (err) {
-      console.error("Failed to refresh feedback:", err);
+      console.error("Failed to refresh data:", err);
+    }
+  };
+
+  const handleUpdateTicket = async (ticketId: string, newStatus?: string, replyMessage?: string) => {
+    setReplyingTicketId(ticketId);
+    try {
+      const res = await fetch("/api/admin/tickets", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketId, status: newStatus, replyMessage }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(replyMessage ? "Reply sent & notification broadcast!" : "Ticket status updated.");
+        setReplyInput((prev) => ({ ...prev, [ticketId]: "" }));
+        await reloadData();
+      } else {
+        toast.error(data.message || "Failed to update ticket.");
+      }
+    } catch {
+      toast.error("Error updating ticket.");
+    } finally {
+      setReplyingTicketId(null);
     }
   };
 
   const handleDeleteClick = (item: FeedbackItem) => {
+    setTicketToDelete(null);
     setFeedbackToDelete({ id: item.id, title: item.title });
     setDeleteModalOpen(true);
   };
 
-  const confirmDelete = async () => {
-    if (!feedbackToDelete) return;
-    setDeleteModalOpen(false);
-    startTransition(async () => {
-      try {
-        await deleteFeedback(feedbackToDelete.id);
-        toast.success(`Feedback "${feedbackToDelete.title}" deleted successfully.`);
-        await reloadData();
-      } catch (err: any) {
-        toast.error(err.message || "Failed to delete feedback.");
-      } finally {
-        setFeedbackToDelete(null);
-      }
-    });
+  const handleTicketDeleteClick = (ticket: HelpTicketItem) => {
+    setFeedbackToDelete(null);
+    setTicketToDelete({ ticketId: ticket.ticketId, category: ticket.category });
+    setDeleteModalOpen(true);
   };
 
-  // Calculate statistics
-  const totalCount = feedbackList.length;
-  const academicCount = feedbackList.filter((f) => f.category === "Academic").length;
-  const transportCount = feedbackList.filter((f) => f.category === "Transport").length;
-  const facilitiesCount = feedbackList.filter((f) => f.category === "Facilities").length;
+  const confirmDelete = async () => {
+    if (feedbackToDelete) {
+      setDeleteModalOpen(false);
+      startTransition(async () => {
+        try {
+          await deleteFeedback(feedbackToDelete.id);
+          toast.success(`Feedback "${feedbackToDelete.title}" deleted.`);
+          await reloadData();
+        } catch (err: any) {
+          toast.error(err.message || "Failed to delete feedback.");
+        } finally {
+          setFeedbackToDelete(null);
+        }
+      });
+    } else if (ticketToDelete) {
+      setDeleteModalOpen(false);
+      startTransition(async () => {
+        try {
+          const res = await fetch(`/api/admin/tickets?ticketId=${ticketToDelete.ticketId}`, {
+            method: "DELETE",
+          });
+          const data = await res.json();
+          if (data.success) {
+            toast.success(`Ticket "${ticketToDelete.ticketId}" deleted.`);
+            await reloadData();
+          } else {
+            toast.error(data.message || "Failed to delete ticket.");
+          }
+        } catch (err: any) {
+          toast.error(err.message || "Failed to delete ticket.");
+        } finally {
+          setTicketToDelete(null);
+        }
+      });
+    }
+  };
 
-  // Filter items
   const filteredFeedback = feedbackList.filter((item) => {
     const matchesSearch =
       item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.message.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.userName.toLowerCase().includes(searchQuery.toLowerCase());
-
     const matchesCategory = categoryFilter === "all" || item.category === categoryFilter;
-    const matchesRole = roleFilter === "all" || item.userRole.toLowerCase() === roleFilter;
-
-    return matchesSearch && matchesCategory && matchesRole;
+    return matchesSearch && matchesCategory;
   });
 
-  const getCategoryBadge = (category: string) => {
-    switch (category) {
-      case "Academic":
-        return "bg-cyan-500/10 text-cyan-400 border-cyan-500/20";
-      case "Transport":
-        return "bg-purple-500/10 text-purple-400 border-purple-500/20";
-      case "Facilities":
-        return "bg-amber-500/10 text-amber-400 border-amber-500/20";
-      case "Administration":
-        return "bg-blue-500/10 text-blue-400 border-blue-500/20";
-      default:
-        return "bg-slate-500/10 text-slate-400 border-slate-500/20";
-    }
-  };
+  const filteredTickets = ticketsList.filter((ticket) => {
+    const matchesSearch =
+      ticket.ticketId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ticket.driverName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ticket.message.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === "all" || ticket.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header */}
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-500 dark:text-cyan-400">
-          Operations
-        </p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight text-primary sm:text-4xl">
-          Feedback Viewer
-        </h1>
-        <p className="mt-2 text-sm text-secondary">
-          Monitor operational reviews, suggestions, and academic feedback sent by parents and students.
-        </p>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        {/* Total */}
-        <div className="rounded-2xl border border-theme bg-surface p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted">Total Submissions</p>
-          <p className="mt-2 text-3xl font-bold text-primary">{totalCount}</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Support & Feedback Desk</h1>
+          <p className="text-sm text-muted-foreground">Manage user feedback and driver partner support tickets in realtime.</p>
         </div>
 
-        {/* Academic */}
-        <div className="rounded-2xl border border-theme bg-surface p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-cyan-500">Academic</p>
-          <p className="mt-2 text-3xl font-bold text-cyan-400">{academicCount}</p>
-        </div>
-
-        {/* Transport */}
-        <div className="rounded-2xl border border-theme bg-surface p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-purple-500">Transport</p>
-          <p className="mt-2 text-3xl font-bold text-purple-400">{transportCount}</p>
-        </div>
-
-        {/* Facilities */}
-        <div className="rounded-2xl border border-theme bg-surface p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-amber-500">Facilities</p>
-          <p className="mt-2 text-3xl font-bold text-amber-400">{facilitiesCount}</p>
+        {/* Tab Switcher */}
+        <div className="flex items-center gap-2 bg-muted p-1 rounded-xl border">
+          <button
+            onClick={() => setActiveTab('feedback')}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+              activeTab === 'feedback' ? 'bg-background text-foreground shadow' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <MessageSquare className="w-4 h-4" />
+            Feedback ({feedbackList.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('tickets')}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+              activeTab === 'tickets' ? 'bg-background text-foreground shadow' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <LifeBuoy className="w-4 h-4" />
+            Driver Help Tickets ({ticketsList.length})
+          </button>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-theme pb-4">
-        <div className="flex flex-wrap items-center gap-3 flex-1">
-          {/* Search */}
-          <div className="relative w-full sm:w-64">
-            <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-              <svg viewBox="0 0 24 24" className="h-4 w-4 text-muted" fill="none" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.602 10.602Z" />
-              </svg>
-            </span>
+      {activeTab === 'feedback' ? (
+        /* FEEDBACK TAB */
+        <div className="space-y-4">
+          <div className="flex items-center gap-4">
             <input
               type="text"
-              placeholder="Search reviews..."
+              placeholder="Search feedback..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-10 w-full rounded-xl border border-theme bg-surface pl-9 pr-3 text-xs text-primary outline-none focus:border-cyan-500 placeholder:text-muted transition-all"
+              className="px-4 py-2 rounded-xl border bg-background text-sm w-72"
             />
           </div>
 
-          {/* Category filter */}
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="h-10 rounded-xl border border-theme bg-surface px-3 text-xs text-primary outline-none focus:border-cyan-500"
-          >
-            <option value="all">All Categories</option>
-            <option value="Academic">Academic</option>
-            <option value="Facilities">Facilities</option>
-            <option value="Transport">Transport</option>
-            <option value="Administration">Administration</option>
-            <option value="Other">Other</option>
-          </select>
-
-          {/* Role Filter */}
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className="h-10 rounded-xl border border-theme bg-surface px-3 text-xs text-primary outline-none focus:border-cyan-500"
-          >
-            <option value="all">All Roles</option>
-            <option value="parent">Parent</option>
-            <option value="student">Student</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Feedback Card Layout */}
-      {filteredFeedback.length === 0 ? (
-        <div className="rounded-2xl border border-theme bg-surface p-12 text-center text-sm font-medium text-muted">
-          No feedback entries found.
-        </div>
-      ) : (
-        <div className="grid gap-6 md:grid-cols-2">
-          {filteredFeedback.map((item) => {
-            const roleBadge =
-              item.userRole === "parent"
-                ? "bg-purple-500/10 text-purple-400 border-purple-500/20"
-                : "bg-cyan-500/10 text-cyan-400 border-cyan-500/20";
-
-            return (
-              <div
-                key={item.id}
-                className="group relative rounded-2xl border border-theme bg-surface hover:bg-hover p-6 shadow-sm transition duration-150 flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex justify-between items-start gap-4">
-                    <div className="min-w-0">
-                      <span className={`inline-flex items-center rounded border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${getCategoryBadge(item.category)}`}>
-                        {item.category}
-                      </span>
-                      <h3 className="text-sm font-bold text-primary mt-2 group-hover:text-cyan-400 transition truncate" title={item.title}>
-                        {item.title}
-                      </h3>
-                    </div>
-
-                    <button
-                      onClick={() => handleDeleteClick(item)}
-                      title="Delete Feedback"
-                      className="opacity-0 group-hover:opacity-100 flex h-7 w-7 items-center justify-center rounded-lg border border-subtle bg-background text-muted hover:text-rose-500 hover:border-rose-500/30 transition duration-150 shrink-0"
-                    >
-                      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6" />
-                      </svg>
-                    </button>
-                  </div>
-
-                  <p className="mt-4 text-xs text-secondary leading-relaxed whitespace-pre-wrap">
-                    {item.message}
-                  </p>
-                </div>
-
-                <div className="mt-6 border-t border-subtle pt-4 flex items-center justify-between text-[11px] text-muted">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="font-semibold text-primary truncate max-w-[120px]">
-                      {item.userName}
-                    </span>
-                    <span className={`rounded px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider ${roleBadge}`}>
-                      {item.userRole}
-                    </span>
-                  </div>
-
-                  <span>
-                    {new Date(item.createdAt).toLocaleDateString([], {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
+          <div className="grid gap-4">
+            {filteredFeedback.map((item) => (
+              <div key={item.id} className="p-4 rounded-xl border bg-card text-card-foreground shadow-sm flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-base">{item.title}</span>
+                  <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-primary/10 text-primary">
+                    {item.category}
                   </span>
                 </div>
+                <p className="text-sm text-muted-foreground">{item.message}</p>
+                <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
+                  <span>By: {item.userName} ({item.userRole})</span>
+                  <span>{new Date(item.createdAt).toLocaleDateString()}</span>
+                </div>
               </div>
-            );
-          })}
+            ))}
+            {filteredFeedback.length === 0 && (
+              <div className="p-8 text-center text-sm text-muted-foreground border rounded-xl">No feedback found.</div>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* TICKETS TAB */
+        <div className="space-y-4">
+          <div className="flex items-center gap-4">
+            <input
+              type="text"
+              placeholder="Search tickets or drivers..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="px-4 py-2 rounded-xl border bg-background text-sm w-72"
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-4 py-2 rounded-xl border bg-background text-sm"
+            >
+              <option value="all">All Statuses</option>
+              <option value="OPEN">Open</option>
+              <option value="IN_PROGRESS">In Progress</option>
+              <option value="RESOLVED">Resolved</option>
+              <option value="CLOSED">Closed</option>
+            </select>
+          </div>
+
+          <div className="grid gap-4">
+            {filteredTickets.map((ticket) => (
+              <div key={ticket.id} className="p-5 rounded-2xl border bg-card text-card-foreground shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-sm font-bold text-primary">{ticket.ticketId}</span>
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-secondary text-secondary-foreground">
+                      {ticket.category}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={ticket.status}
+                      onChange={(e) => handleUpdateTicket(ticket.ticketId, e.target.value)}
+                      className="text-xs font-bold px-3 py-1 rounded-lg border bg-background"
+                    >
+                      <option value="OPEN">OPEN</option>
+                      <option value="IN_PROGRESS">IN_PROGRESS</option>
+                      <option value="RESOLVED">RESOLVED</option>
+                      <option value="CLOSED">CLOSED</option>
+                    </select>
+                    <button
+                      onClick={() => handleTicketDeleteClick(ticket)}
+                      title="Delete Ticket"
+                      className="p-1.5 text-muted-foreground hover:text-destructive rounded-lg border hover:bg-destructive/10 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="text-xs text-muted-foreground">Driver: <span className="font-semibold text-foreground">{ticket.driverName}</span> ({ticket.driverPhone})</div>
+                  <p className="text-sm font-medium">{ticket.message}</p>
+                </div>
+
+                {/* Existing Replies */}
+                {ticket.replies && ticket.replies.length > 0 && (
+                  <div className="bg-muted/50 rounded-xl p-3 space-y-2 text-xs border">
+                    <div className="font-bold text-muted-foreground">Replies & Updates:</div>
+                    {ticket.replies.map((reply, i) => (
+                      <div key={i} className="space-y-0.5">
+                        <span className="font-semibold text-primary">{reply.sender}: </span>
+                        <span>{reply.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Admin Reply Box */}
+                <div className="flex gap-2 pt-2">
+                  <input
+                    type="text"
+                    placeholder="Type reply to driver..."
+                    value={replyInput[ticket.ticketId] || ""}
+                    onChange={(e) => setReplyInput({ ...replyInput, [ticket.ticketId]: e.target.value })}
+                    className="flex-1 px-3 py-1.5 rounded-lg border text-xs bg-background"
+                  />
+                  <button
+                    disabled={replyingTicketId === ticket.ticketId || !replyInput[ticket.ticketId]?.trim()}
+                    onClick={() => handleUpdateTicket(ticket.ticketId, undefined, replyInput[ticket.ticketId])}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg hover:opacity-90 disabled:opacity-50"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    Reply
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {filteredTickets.length === 0 && (
+              <div className="p-8 text-center text-sm text-muted-foreground border rounded-xl">No help tickets found.</div>
+            )}
+          </div>
         </div>
       )}
 
       {/* Delete Confirmation Modal */}
       <DeleteConfirmModal
         isOpen={deleteModalOpen}
-        title="Delete Feedback?"
-        message={`Are you sure you want to delete feedback "${feedbackToDelete?.title}"? This will remove it permanently from the dashboard.`}
+        title={ticketToDelete ? "Delete Help Ticket" : "Delete Feedback"}
+        message={
+          ticketToDelete
+            ? `Are you sure you want to delete ticket "${ticketToDelete.ticketId}"? This will permanently remove it from both Admin and Driver apps.`
+            : `Are you sure you want to delete "${feedbackToDelete?.title}"?`
+        }
         onConfirm={confirmDelete}
-        onCancel={() => {
-          setDeleteModalOpen(false);
-          setFeedbackToDelete(null);
-        }}
+        onCancel={() => setDeleteModalOpen(false)}
       />
     </div>
   );

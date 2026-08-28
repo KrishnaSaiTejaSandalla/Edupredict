@@ -4,9 +4,10 @@ import { useEffect, useState, useRef } from 'react';
 
 type Props = {
   name: string;
+  phrases?: string[];
 };
 
-const phrases = [
+const DEFAULT_PHRASES = [
   'manage your school.',
   'track student progress.',
   'monitor attendance.',
@@ -14,7 +15,7 @@ const phrases = [
   'review upcoming exams.',
 ];
 
-export default function WelcomeAnimation({ name }: Props) {
+export default function WelcomeAnimation({ name, phrases = DEFAULT_PHRASES }: Props) {
   const firstName = name.split(' ')[0] || name;
   const [phraseIndex, setPhraseIndex] = useState(0);
   const [displayed, setDisplayed] = useState('');
@@ -51,7 +52,7 @@ export default function WelcomeAnimation({ name }: Props) {
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
-  }, [charIndex, isDeleting, phraseIndex]);
+  }, [charIndex, isDeleting, phraseIndex, phrases]);
 
   return (
     <div className="flex flex-col justify-center">

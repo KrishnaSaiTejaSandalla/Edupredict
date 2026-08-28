@@ -6,28 +6,23 @@ import {
   results,
   subjects,
   classes,
-  teacherClassAssignments,
-  teacherSubjectAssignments,
+  classSubjects,
   users,
 } from './schema';
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
+import { broadcastEntityChange } from './realtime';
 
 // ==================== TEACHER MARKS SERVICE ====================
 
 export async function getTeacherExams(teacherId: number) {
-  // Get assigned classes for the teacher
-  const classRows = await db
-    .select({ classId: teacherClassAssignments.classId })
-    .from(teacherClassAssignments)
-    .where(eq(teacherClassAssignments.teacherId, teacherId));
-  const assignedClassIds = classRows.map((r) => r.classId);
+  // Get assigned classes and subjects for the teacher directly from classSubjects
+  const classSubjRows = await db
+    .select({ classId: classSubjects.classId, subjectId: classSubjects.subjectId })
+    .from(classSubjects)
+    .where(eq(classSubjects.teacherId, teacherId));
 
-  // Get assigned subjects for the teacher
-  const subjectRows = await db
-    .select({ subjectId: teacherSubjectAssignments.subjectId })
-    .from(teacherSubjectAssignments)
-    .where(eq(teacherSubjectAssignments.teacherId, teacherId));
-  const assignedSubjectIds = subjectRows.map((r) => r.subjectId);
+  const assignedClassIds = Array.from(new Set(classSubjRows.map((r) => r.classId).filter(Boolean))) as number[];
+  const assignedSubjectIds = Array.from(new Set(classSubjRows.map((r) => r.subjectId).filter(Boolean))) as number[];
 
   if (assignedClassIds.length === 0 || assignedSubjectIds.length === 0) return [];
 
@@ -42,6 +37,7 @@ export async function getTeacherExams(teacherId: number) {
       subjectId: exams.subjectId,
       className: classes.name,
       classSection: classes.section,
+      academicYear: classes.academicYear,
       subjectName: subjects.name,
     })
     .from(exams)
@@ -65,6 +61,7 @@ export async function getTeacherExams(teacherId: number) {
     classId: r.classId,
     subjectId: r.subjectId,
     className: `${r.className ?? ''}${r.classSection ? ` ${r.classSection}` : ''}`,
+    academicYear: r.academicYear ?? 'N/A',
     subjectName: r.subjectName ?? 'N/A',
   }));
 }
@@ -139,11 +136,14 @@ export async function enterMarks(
       });
     }
   }
+
+  broadcastEntityChange("marks", "update", { examId, subjectId });
 }
 
 export type ResultFilter = {
   classId?: number;
   subjectId?: number;
+  examId?: string;
   examType?: string;
   search?: string;
   page?: number;
@@ -151,21 +151,17 @@ export type ResultFilter = {
 };
 
 export async function getTeacherResults(teacherId: number, filter: ResultFilter = {}) {
-  const { page = 1, pageSize = 15, search, classId, subjectId, examType } = filter;
+  const { page = 1, pageSize = 15, search, classId, subjectId, examId, examType } = filter;
   const offset = (page - 1) * pageSize;
 
   // Get teacher's assigned classes and subjects
-  const classRows = await db
-    .select({ classId: teacherClassAssignments.classId })
-    .from(teacherClassAssignments)
-    .where(eq(teacherClassAssignments.teacherId, teacherId));
-  const assignedClassIds = classRows.map((r) => r.classId);
+  const classSubjRows = await db
+    .select({ classId: classSubjects.classId, subjectId: classSubjects.subjectId })
+    .from(classSubjects)
+    .where(eq(classSubjects.teacherId, teacherId));
 
-  const subjectRows = await db
-    .select({ subjectId: teacherSubjectAssignments.subjectId })
-    .from(teacherSubjectAssignments)
-    .where(eq(teacherSubjectAssignments.teacherId, teacherId));
-  const assignedSubjectIds = subjectRows.map((r) => r.subjectId);
+  const assignedClassIds = Array.from(new Set(classSubjRows.map((r) => r.classId).filter(Boolean))) as number[];
+  const assignedSubjectIds = Array.from(new Set(classSubjRows.map((r) => r.subjectId).filter(Boolean))) as number[];
 
   if (assignedClassIds.length === 0 || assignedSubjectIds.length === 0) {
     return { items: [], total: 0, pages: 0 };
@@ -209,6 +205,12 @@ export async function getTeacherResults(teacherId: number, filter: ResultFilter 
 
   if (classId) filtered = filtered.filter((r) => r.classId === classId);
   if (subjectId) filtered = filtered.filter((r) => r.subjectId === subjectId);
+  if (examId) {
+    const ids = String(examId).split(",").map(Number).filter(Boolean);
+    if (ids.length > 0) {
+      filtered = filtered.filter((r) => r.examId !== null && ids.includes(r.examId));
+    }
+  }
   if (examType) filtered = filtered.filter((r) => r.examType === examType);
   if (search) {
     const q = search.toLowerCase();
@@ -250,17 +252,13 @@ export async function getEditableMarks(teacherId: number, page = 1, pageSize = 1
 
 export async function getMarksAnalytics(teacherId: number) {
   // Get teacher's assigned classes and subjects
-  const classRows = await db
-    .select({ classId: teacherClassAssignments.classId })
-    .from(teacherClassAssignments)
-    .where(eq(teacherClassAssignments.teacherId, teacherId));
-  const assignedClassIds = classRows.map((r) => r.classId);
+  const classSubjRows = await db
+    .select({ classId: classSubjects.classId, subjectId: classSubjects.subjectId })
+    .from(classSubjects)
+    .where(eq(classSubjects.teacherId, teacherId));
 
-  const subjectRows = await db
-    .select({ subjectId: teacherSubjectAssignments.subjectId })
-    .from(teacherSubjectAssignments)
-    .where(eq(teacherSubjectAssignments.teacherId, teacherId));
-  const assignedSubjectIds = subjectRows.map((r) => r.subjectId);
+  const assignedClassIds = Array.from(new Set(classSubjRows.map((r) => r.classId).filter(Boolean))) as number[];
+  const assignedSubjectIds = Array.from(new Set(classSubjRows.map((r) => r.subjectId).filter(Boolean))) as number[];
 
   if (assignedClassIds.length === 0 || assignedSubjectIds.length === 0) {
     return {
@@ -333,22 +331,23 @@ export async function getMarksAnalytics(teacherId: number) {
   }));
 
   // Class comparison with sorting
-  const classMap: Record<string, { total: number; count: number }> = {};
+  const classMap: Record<string, { totalPct: number; count: number }> = {};
   allResults.forEach(r => {
     const className = r.className 
       ? `${r.className}${r.classSection ? ` ${r.classSection}` : ""}` 
       : "Unknown";
     if (!classMap[className]) {
-      classMap[className] = { total: 0, count: 0 };
+      classMap[className] = { totalPct: 0, count: 0 };
     }
-    classMap[className].total += Number(r.marks || 0);
+    const maxM = Number(r.maxMarks || 100);
+    classMap[className].totalPct += maxM > 0 ? (Number(r.marks || 0) / maxM) * 100 : Number(r.marks || 0);
     classMap[className].count += 1;
   });
 
   const classComparison = Object.entries(classMap)
     .map(([className, data]) => ({
       className,
-      avgScore: Math.round(data.total / data.count),
+      avgScore: Math.round(data.totalPct / data.count),
     }))
     .sort((a, b) => {
       const gradeA = parseInt(a.className) || 0;
@@ -358,19 +357,20 @@ export async function getMarksAnalytics(teacherId: number) {
     });
 
   // Top performers (top 5 students)
-  const studentScoreMap: Record<number, { total: number; count: number; name: string }> = {};
+  const studentScoreMap: Record<number, { totalPct: number; count: number; name: string }> = {};
   allResults.forEach(r => {
     if (!studentScoreMap[r.studentId]) {
-      studentScoreMap[r.studentId] = { total: 0, count: 0, name: r.studentName ?? "Unknown" };
+      studentScoreMap[r.studentId] = { totalPct: 0, count: 0, name: r.studentName ?? "Unknown" };
     }
-    studentScoreMap[r.studentId].total += Number(r.marks || 0);
+    const maxM = Number(r.maxMarks || 100);
+    studentScoreMap[r.studentId].totalPct += maxM > 0 ? (Number(r.marks || 0) / maxM) * 100 : Number(r.marks || 0);
     studentScoreMap[r.studentId].count += 1;
   });
 
   const topPerformers = Object.values(studentScoreMap)
     .map(s => ({
       name: s.name,
-      score: Math.round((s.total / s.count / 100) * 100),
+      score: Math.round(s.totalPct / s.count),
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 5);
@@ -391,7 +391,10 @@ export async function getMarksAnalytics(teacherId: number) {
     });
     
     const dayAvg = dayResults.length > 0 
-      ? Math.round(dayResults.reduce((sum, r) => sum + Number(r.marks || 0), 0) / dayResults.length / 100 * 100)
+      ? Math.round(dayResults.reduce((sum, r) => {
+          const maxM = Number(r.maxMarks || 100);
+          return sum + (maxM > 0 ? (Number(r.marks || 0) / maxM) * 100 : Number(r.marks || 0));
+        }, 0) / dayResults.length)
       : 0;
     
     trendData.push({ date: dateStr.slice(5), score: dayAvg });

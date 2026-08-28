@@ -10,7 +10,8 @@ export type DiceBearStyle =
   | 'avataaars'
   | 'adventurer'
   | 'open-peeps'
-  | 'notionists';
+  | 'notionists'
+  | 'lorelei';
 
 const DICEBEAR_BASE = 'https://api.dicebear.com/9.x';
 
@@ -23,13 +24,17 @@ export interface DiceBearOptions {
 }
 
 export function buildDiceBearUrl(options: DiceBearOptions): string {
-  const { seed, style, size = 256 } = options;
+  const { seed, style, size = 256, backgroundColor = [] } = options;
   const params = new URLSearchParams({
     seed,
     size: size.toString(),
     backgroundType: 'solid',
-    backgroundRotation: '0,45,90,135,180,225,270,315',
+    backgroundRotation: '0',
   });
+
+  if (backgroundColor.length > 0) {
+    params.set('backgroundColor', backgroundColor.join(','));
+  }
 
   return `${DICEBEAR_BASE}/${style}/svg?${params.toString()}`;
 }

@@ -1,26 +1,31 @@
-import { Button } from '@/components/ui/button';
+import LandingHeader from "@/components/landing/LandingHeader";
+import HeroSection from "@/components/landing/HeroSection";
+import BuiltForSchoolSection from "@/components/landing/BuiltForSchoolSection";
+import StudentExperienceSection from "@/components/landing/StudentExperienceSection";
+import TeacherExperienceSection from "@/components/landing/TeacherExperienceSection";
+import SchoolIntelligenceSection from "@/components/landing/SchoolIntelligenceSection";
+import AboutSection from "@/components/landing/AboutSection";
+import LandingFooter from "@/components/landing/LandingFooter";
+
+export const metadata = {
+  title: "EduPredict — Smarter Learning. Better Futures.",
+  description:
+    "EduPredict is a smart school platform that helps students learn, teachers teach, and schools understand progress.",
+};
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-base text-primary px-6 py-10 flex items-center justify-center">
-      <div className="mx-auto max-w-5xl rounded-3xl border border-theme bg-surface/80 p-10 shadow-2xl">
-        <div className="space-y-6">
-          <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-cyan-400">EduPredict</p>
-            <h1 className="mt-4 text-4xl font-semibold tracking-tight text-primary md:text-5xl">
-              AI-powered school management with a production-ready foundation.
-            </h1>
-            <p className="mt-4 max-w-2xl text-secondary">
-              Built with Next.js App Router, TypeScript, Tailwind CSS, Better Auth, Drizzle ORM, MySQL, Zustand, and Recharts.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Button>Launch App</Button>
-            <Button variant="secondary">View Docs</Button>
-          </div>
-        </div>
-      </div>
-    </main>
+    <div className="landing-page public-page min-h-screen bg-white text-slate-900 selection:bg-cyan-500 selection:text-slate-950">
+      <LandingHeader />
+      <main>
+        <HeroSection />
+        <BuiltForSchoolSection />
+        <StudentExperienceSection />
+        <TeacherExperienceSection />
+        <SchoolIntelligenceSection />
+        <AboutSection />
+      </main>
+      <LandingFooter />
+    </div>
   );
 }

@@ -3,28 +3,52 @@ import bcrypt from 'bcryptjs';
 import { db } from '@/lib/db';
 import { users } from '@/lib/schema';
 import { eq } from 'drizzle-orm';
-import { createSession, deleteSessionByToken } from '@/lib/session';
+import { createSession } from '@/lib/session';
 import { SESSION_COOKIE_NAME } from '@/lib/env';
+import { verifyPassword } from '@better-auth/utils/password';
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function POST(req: Request) {
-  const { email, password } = await req.json();
-  if (!email || !password) return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+  const body = await req.json().catch(() => null);
+  const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
+  const password = typeof body?.password === 'string' ? body.password : '';
+  if (!EMAIL_RE.test(email) || password.length === 0 || password.length > 256) {
+    return NextResponse.json({ error: 'Invalid credentials' }, { status: 400 });
+  }
 
   const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  if (!user) return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+  if (!user || !user.isActive) return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
 
-  const valid = await bcrypt.compare(password, user.password);
+  let valid = false;
+  if (user.password.startsWith('$2a$') || user.password.startsWith('$2b$') || user.password.startsWith('$2y$')) {
+    valid = await bcrypt.compare(password, user.password);
+  } else {
+    try {
+      valid = await verifyPassword(user.password, password);
+    } catch {
+      valid = false;
+    }
+  }
+
   if (!valid) return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
 
   const { token, expiresAt } = await createSession(user.id);
 
   const role = user.role ?? 'student';
+  const userId = user.id;
 
-  const res = NextResponse.json({ ok: true, user: { id: user.id, name: user.name, email: user.email, role } });
-  const cookieOpts = { path: '/', expires: expiresAt, secure: process.env.NODE_ENV === 'production' } as const;
+  // Per-user session cookie: edupredict_session_{role}_{userId}
+  // This ensures two students (or two teachers etc.) logged in different tabs
+  // never share or overwrite each other's session cookies.
+  const sessionCookieName = `${SESSION_COOKIE_NAME}_${role}_${userId}`;
 
-  res.cookies.set({ name: `${SESSION_COOKIE_NAME}_${role}`, value: token, httpOnly: true, ...cookieOpts });
-  res.cookies.set({ name: `ep-role_${role}`, value: role, httpOnly: false, ...cookieOpts });
+  const res = NextResponse.json({ ok: true, user: { id: userId, name: user.name, email: user.email, role }, cookieUserId: userId });
+  const cookieOpts = { path: '/', expires: expiresAt, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' as const };
+
+  res.cookies.set({ name: sessionCookieName, value: token, httpOnly: true, ...cookieOpts });
+  // Non-httpOnly hint: "role:userId" — lets the browser / middleware know which session cookie to look up
+  res.cookies.set({ name: `ep-active-user`, value: `${role}:${userId}`, httpOnly: false, ...cookieOpts });
 
   return res;
 }

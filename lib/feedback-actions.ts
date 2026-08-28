@@ -2,21 +2,23 @@
 
 import { db } from './db';
 import { feedback, users } from './schema';
-import { eq, sql, desc } from 'drizzle-orm';
+import { eq, sql, desc, and } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
-import { createNotification } from './notification-actions';
+import { createNotification, createNotificationForUser } from './notification-actions';
 import { parseDbError } from './db-errors';
 import { logAudit } from './audit-utils';
 import { getCurrentUser } from './auth';
 
 // ==================== FEEDBACK ACTIONS ====================
 
-const VALID_CATEGORIES = ['Academic', 'Facilities', 'Transport', 'Administration', 'Other'];
+const VALID_CATEGORIES = ['Academic', 'Facilities', 'Transport', 'Administration', 'Other', 'Monthly Survey', 'School Survey'];
 
 export async function submitFeedback(data: {
   title: string;
   message: string;
   category: string;
+  priority?: string;
+  attachmentUrl?: string;
 }) {
   if (!data.title || data.title.trim().length < 3) throw new Error('Title must be at least 3 characters.');
   if (!data.message || data.message.trim().length < 10) throw new Error('Message must be at least 10 characters.');
@@ -36,6 +38,10 @@ export async function submitFeedback(data: {
       title: data.title.trim(),
       message: data.message.trim(),
       category: data.category,
+      priority: data.priority || 'medium',
+      attachmentUrl: data.attachmentUrl || null,
+      status: 'pending',
+      replies: JSON.stringify([]),
     });
     insertedId = Number(result[0].insertId);
   } catch (err) {
@@ -49,12 +55,46 @@ export async function submitFeedback(data: {
     'medium'
   );
 
+  // Notify Admin users in database + real-time SSE
+  try {
+    const admins = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.role, 'admin'));
+
+    for (const admin of admins) {
+      await createNotificationForUser(
+        admin.id,
+        'New Feedback Submitted',
+        `A user submitted new ${data.category} feedback: "${data.title}".`,
+        'info',
+        'medium'
+      );
+    }
+  } catch (notifErr) {
+    console.error("Failed to notify admins of feedback:", notifErr);
+  }
+
   await logAudit('CREATE_FEEDBACK', 'feedback', insertedId, `Feedback submitted: "${data.title}" (${data.category})`, schoolId);
 
   revalidatePath('/admin/feedback');
   revalidatePath('/parent/feedback');
   revalidatePath('/student/feedback');
   revalidatePath('/admin');
+
+  return {
+    id: insertedId,
+    userId: user.id,
+    schoolId,
+    title: data.title.trim(),
+    message: data.message.trim(),
+    category: data.category,
+    priority: data.priority || 'medium',
+    attachmentUrl: data.attachmentUrl || null,
+    status: 'pending',
+    replies: JSON.stringify([]),
+    createdAt: new Date(),
+  };
 }
 
 export async function getAllFeedback() {
@@ -100,4 +140,56 @@ export async function deleteFeedback(id: number) {
 
   revalidatePath('/admin/feedback');
   revalidatePath('/admin');
+}
+
+export async function submitTeacherFeedbackAction(data: {
+  teacherId: number;
+  rating: number;
+  comment: string;
+  category: string;
+}) {
+  const { students, teacherFeedback } = await import('./schema');
+  
+  if (data.rating < 1 || data.rating > 5) throw new Error('Rating must be between 1 and 5 stars.');
+  if (!data.comment || data.comment.trim().length < 5) throw new Error('Comment must be at least 5 characters.');
+
+  const user = await getCurrentUser();
+  if (!user) throw new Error('You must be logged in.');
+
+  const [studentRow] = await db
+    .select({ id: students.id, classId: students.classId })
+    .from(students)
+    .where(eq(students.userId, user.id))
+    .limit(1);
+
+  if (!studentRow) throw new Error('Student record not found.');
+
+  try {
+    await db.insert(teacherFeedback).values({
+      teacherId: data.teacherId,
+      studentId: studentRow.id,
+      classId: studentRow.classId,
+      rating: data.rating,
+      comment: data.comment.trim(),
+      category: data.category || 'overall',
+      academicYear: '2026-2027',
+    });
+  } catch (err) {
+    throw new Error(parseDbError(err));
+  }
+
+  revalidatePath('/student/feedback');
+}
+
+export async function getAllHelpTickets() {
+  const { helpTickets } = await import('./schema');
+  try {
+    const list = await db.select().from(helpTickets).orderBy(desc(helpTickets.createdAt));
+    return list.map((t) => ({
+      ...t,
+      replies: t.replies ? JSON.parse(t.replies) : [],
+    }));
+  } catch {
+    return [];
+  }
 }

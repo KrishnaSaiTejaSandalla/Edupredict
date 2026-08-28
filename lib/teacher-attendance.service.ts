@@ -1,10 +1,11 @@
 import { db } from './db';
+import { broadcastNotification } from './realtime';
 import {
   teachers,
   students,
   attendance,
   classes,
-  teacherClassAssignments,
+  classSubjects,
 } from './schema';
 import { eq, and, gte, lte, desc, sql, inArray } from 'drizzle-orm';
 import { users } from './schema';
@@ -14,13 +15,14 @@ import { users } from './schema';
 export async function getTeacherClasses(teacherId: number) {
   const rows = await db
     .select({
-      classId: teacherClassAssignments.classId,
+      classId: classSubjects.classId,
       className: classes.name,
       classSection: classes.section,
     })
-    .from(teacherClassAssignments)
-    .leftJoin(classes, eq(teacherClassAssignments.classId, classes.id))
-    .where(eq(teacherClassAssignments.teacherId, teacherId));
+    .from(classSubjects)
+    .leftJoin(classes, eq(classSubjects.classId, classes.id))
+    .where(eq(classSubjects.teacherId, teacherId))
+    .groupBy(classSubjects.classId, classes.name, classes.section);
 
   return rows
     .map((r) => ({
@@ -63,27 +65,30 @@ export async function getStudentsByClass(classId: number) {
 }
 
 export async function getAttendanceForDate(classId: number, date: string) {
-  const dateObj = new Date(date + 'T00:00:00');
+  // Normalize to YYYY-MM-DD string
+  const dateStr = /^\d{4}-\d{2}-\d{2}$/.test(date.trim())
+    ? date.trim()
+    : new Date(date).toISOString().split('T')[0];
   return db
     .select()
     .from(attendance)
     .where(
       and(
         eq(attendance.classId, classId),
-        eq(attendance.attendanceDate, dateObj)
+        eq(attendance.attendanceDate, dateStr as any)
       )
     );
 }
 
 export type AttendanceRecord = {
   studentId: number;
-  status: 'present' | 'absent' | 'leave';
+  status: 'present' | 'absent' | 'half_day' | 'leave';
   remarks?: string;
 };
 
 export async function markBulkAttendance(
   classId: number,
-  subjectId: number,
+  subjectId: number | null,
   topicTaught: string,
   date: string,
   records: AttendanceRecord[],
@@ -91,14 +96,28 @@ export async function markBulkAttendance(
 ) {
   if (records.length === 0) return;
 
-  const dateObj = new Date(date + 'T00:00:00');
+  // Normalize date to YYYY-MM-DD string (avoid JS Date locale serialization issues with MySQL)
+  const normalizeDate = (d: string): string => {
+    // Strip time zone artifacts if any — ensure we get a clean YYYY-MM-DD
+    const raw = d.trim();
+    // If already YYYY-MM-DD, return as-is
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    // Otherwise parse and reformat
+    const parsed = new Date(raw);
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const day = String(parsed.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const dateStr = normalizeDate(date);
 
   await db
     .delete(attendance)
     .where(
       and(
         eq(attendance.classId, classId),
-        eq(attendance.attendanceDate, dateObj)
+        eq(attendance.attendanceDate, dateStr as any)
       )
     );
 
@@ -106,20 +125,141 @@ export async function markBulkAttendance(
     records.map((r) => ({
       studentId: r.studentId,
       classId,
-      subjectId,
+      subjectId: subjectId || null,
       topicTaught,
-      attendanceDate: dateObj,
+      attendanceDate: dateStr as any,
       status: r.status,
       remarks: r.remarks || null,
       markedBy,
       updatedAt: new Date(),
     }))
   );
+
+  // Generate isolated notifications for parents and students
+  try {
+    const { inArray } = await import('drizzle-orm');
+    const { students, studentParents, parents, notifications, users } = await import('./schema');
+
+    const studentIds = records.map((r) => r.studentId);
+    if (studentIds.length > 0) {
+      const studentUsers = await db
+        .select({ id: students.id, userId: students.userId, name: users.name })
+        .from(students)
+        .leftJoin(users, eq(students.userId, users.id))
+        .where(inArray(students.id, studentIds));
+
+      const parentUsers = await db
+        .select({ studentId: studentParents.studentId, parentUserId: parents.userId })
+        .from(studentParents)
+        .leftJoin(parents, eq(studentParents.parentId, parents.id))
+        .where(inArray(studentParents.studentId, studentIds));
+
+      const studentUserMap: Record<number, { userId: number; name: string }> = {};
+      studentUsers.forEach((su) => {
+        if (su.userId) {
+          studentUserMap[su.id] = { userId: su.userId, name: su.name ?? "Student" };
+        }
+      });
+
+      const parentUserMap: Record<number, number[]> = {};
+      parentUsers.forEach((pu) => {
+        if (pu.parentUserId && pu.studentId) {
+          if (!parentUserMap[pu.studentId]) parentUserMap[pu.studentId] = [];
+          parentUserMap[pu.studentId].push(pu.parentUserId);
+        }
+      });
+
+      // Get preferences of all these users to respect user configuration
+      const allUserIds = [
+        ...studentUsers.map((su) => su.userId).filter((id): id is number => id !== null),
+        ...parentUsers.map((pu) => pu.parentUserId).filter((id): id is number => id !== null),
+      ];
+
+      const userPrefsMap: Record<number, any> = {};
+      if (allUserIds.length > 0) {
+        const userPrefsRows = await db
+          .select({ id: users.id, notificationPreferences: users.notificationPreferences })
+          .from(users)
+          .where(inArray(users.id, allUserIds));
+
+        userPrefsRows.forEach((row) => {
+          try {
+            userPrefsMap[row.id] = row.notificationPreferences ? JSON.parse(row.notificationPreferences) : {};
+          } catch {
+            userPrefsMap[row.id] = {};
+          }
+        });
+      }
+
+      const notifValues: any[] = [];
+
+      records.forEach((r) => {
+        const studentInfo = studentUserMap[r.studentId];
+        const statusStr = r.status === "present"
+          ? "Present"
+          : r.status === "half_day"
+          ? "Half Day"
+          : r.status === "leave"
+          ? "on Leave"
+          : "Absent";
+
+        if (studentInfo) {
+          // Check student preferences
+          const studentPrefs = userPrefsMap[studentInfo.userId] ?? {};
+          if (studentPrefs.attendance !== false) {
+            // Student Notification
+            notifValues.push({
+              userId: studentInfo.userId,
+              title: "Attendance Marked",
+              message: `You have been marked ${statusStr} on ${dateStr}.`,
+              type: "attendance",
+              priority: (r.status === "absent" || r.status === "leave") ? "high" : "low",
+              isRead: false,
+            });
+          }
+
+          // Parent Notification
+          const parentsList = parentUserMap[r.studentId] || [];
+          parentsList.forEach((parentUserId) => {
+            const parentPrefs = userPrefsMap[parentUserId] ?? {};
+            if (parentPrefs.attendance !== false) {
+              notifValues.push({
+                userId: parentUserId,
+                title: "Attendance Marked",
+                message: `Your child ${studentInfo.name} has been marked ${statusStr} on ${dateStr}.`,
+                type: "attendance",
+                priority: r.status === "absent" ? "high" : "low",
+                isRead: false,
+              });
+            }
+          });
+        }
+      });
+
+      if (notifValues.length > 0) {
+        const chunkSize = 200;
+        for (let i = 0; i < notifValues.length; i += chunkSize) {
+          await db.insert(notifications).values(notifValues.slice(i, i + chunkSize));
+        }
+        // Broadcast in real-time
+        for (const val of notifValues) {
+          broadcastNotification(val.userId, {
+            title: val.title,
+            message: val.message,
+            type: val.type,
+            priority: val.priority,
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Failed to generate attendance notifications:", err);
+  }
 }
 
 export async function getAttendanceHistory(
   teacherId: number,
-  classId?: number,
+  classId?: number | number[],
   startDate?: string,
   endDate?: string
 ) {
@@ -130,7 +270,17 @@ export async function getAttendanceHistory(
 
   const conditions: any[] = [inArray(attendance.classId, teacherClassIds)];
 
-  if (classId) conditions.push(eq(attendance.classId, classId));
+  if (classId) {
+    if (Array.isArray(classId)) {
+      if (classId.length > 0) {
+        conditions.push(inArray(attendance.classId, classId));
+      } else {
+        return [];
+      }
+    } else {
+      conditions.push(eq(attendance.classId, classId));
+    }
+  }
   if (startDate) {
     const startObj = new Date(startDate + 'T00:00:00');
     conditions.push(gte(attendance.attendanceDate, startObj));

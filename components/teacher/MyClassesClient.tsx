@@ -16,6 +16,8 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
+import FormattedText from "@/components/shared/FormattedText";
+
 
 type ClassInfo = { id: number; name: string; section: string };
 
@@ -119,16 +121,26 @@ function StarRating({ rating }: { rating: number }) {
   return (
     <div className="flex items-center gap-0.5">
       {Array(full).fill(null).map((_, i) => (
-        <span key={`f${i}`} className="text-amber-400 text-xs">★</span>
+        <svg key={`f${i}`} className="w-3 h-3 text-amber-400 fill-current" viewBox="0 0 20 20">
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+        </svg>
       ))}
       {half && (
-        <span className="text-xs relative inline-block w-[12px]">
-          <span className="absolute inset-0 overflow-hidden w-1/2 text-amber-400">★</span>
-          <span className="text-muted">★</span>
+        <span className="relative inline-block w-3 h-3">
+          <svg className="w-3 h-3 text-muted fill-current" viewBox="0 0 20 20">
+            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+          </svg>
+          <span className="absolute inset-0 overflow-hidden w-1/2">
+            <svg className="w-3 h-3 text-amber-400 fill-current" viewBox="0 0 20 20">
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+            </svg>
+          </span>
         </span>
       )}
       {Array(empty).fill(null).map((_, i) => (
-        <span key={`e${i}`} className="text-muted text-xs">★</span>
+        <svg key={`e${i}`} className="w-3 h-3 text-muted/40 fill-current" viewBox="0 0 20 20">
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+        </svg>
       ))}
     </div>
   );
@@ -220,9 +232,45 @@ export default function MyClassesClient({
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [search, setSearch] = useState("");
 
+  // Student AI Diagnostic Insights
+  const [studentAIData, setStudentAIData] = useState<{
+    overview?: string;
+    whyThisMatters?: string;
+    recommendedActions?: string[];
+    strongSubjects?: string[];
+    weakSubjects?: string[];
+    trend?: string;
+    insufficientData?: boolean;
+    message?: string;
+  } | null>(null);
+  const [generatingStudentAI, setGeneratingStudentAI] = useState(false);
+
+  const handleGenerateStudentAI = async (studentId: number) => {
+    setGeneratingStudentAI(true);
+    try {
+      const res = await fetch("/api/teacher/ai/student-insights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to generate AI insights");
+      setStudentAIData(data);
+      if (data.insufficientData) {
+        toast.info("Insufficient data recorded for this student.");
+      } else {
+        toast.success("AI Insights generated successfully!");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate AI insights");
+    } finally {
+      setGeneratingStudentAI(false);
+    }
+  };
+
   const sortedClasses = useMemo(() => sortClasses(myClasses), [myClasses]);
 
-  // ── Exam filter & pagination state ──────────────────────────────────────────
+  // â”€â”€ Exam filter & pagination state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [selectedSubject, setSelectedSubject] = useState("All");
   const [examPage, setExamPage] = useState(0);
   const EXAMS_PER_PAGE = 5;
@@ -275,6 +323,7 @@ export default function MyClassesClient({
   const fetchStudentProfile = async (student: Student) => {
     setLoadingProfile(true);
     setProfileDetails(null);
+    setStudentAIData(null);
     // Reset exam filter state when opening a new student
     setSelectedSubject("All");
     setExamPage(0);
@@ -310,6 +359,12 @@ export default function MyClassesClient({
       fetchStudentProfile(selectedStudent);
     }
   }, [selectedStudent]);
+
+  useEffect(() => {
+    if (profileTab === "performance" && selectedStudent && !studentAIData && !generatingStudentAI) {
+      handleGenerateStudentAI(selectedStudent.id);
+    }
+  }, [profileTab, selectedStudent]);
 
   const filtered = students.filter((s) =>
     s.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -394,7 +449,7 @@ export default function MyClassesClient({
         </div>
       )}
 
-      {/* ── Unified Filter Bar ─────────────────────────────────────────────── */}
+      {/* â”€â”€ Unified Filter Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {selectedClass && (
         <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           {/* Search */}
@@ -443,7 +498,7 @@ export default function MyClassesClient({
         </div>
       )}
 
-      {/* ── Student Cards Grid ─────────────────────────────────────────────── */}
+      {/* â”€â”€ Student Cards Grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {
         loading ? (
           <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -526,7 +581,7 @@ export default function MyClassesClient({
         )
       }
 
-      {/* ── Student Detail Modal ───────────────────────────────────────────── */}
+      {/* â”€â”€ Student Detail Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {
         selectedStudent && (
           <div
@@ -631,7 +686,7 @@ export default function MyClassesClient({
                     {[1, 2, 3, 4].map((i) => <div key={i} className="skeleton h-20 rounded-xl" />)}
                   </div>
                 ) : profileTab === "personal" && profileDetails?.personal ? (
-                  /* ── Personal Tab ── */
+                  /* â”€â”€ Personal Tab â”€â”€ */
                   <div className="grid gap-6 lg:grid-cols-2">
                     {/* Left: Personal Information */}
                     <div className="rounded-2xl border border-border bg-background p-5">
@@ -713,7 +768,7 @@ export default function MyClassesClient({
                   profileDetails?.academic && profileDetails.academic.examHistory.length > 0 ? (
                     <div className="space-y-5">
 
-                      {/* ── Header: title + subject dropdown + pagination ── */}
+                      {/* â”€â”€ Header: title + subject dropdown + pagination â”€â”€ */}
                       <div className="flex items-center justify-between gap-4 flex-wrap">
                         <h3 className="text-xs font-bold uppercase tracking-widest text-accent">
                           Recent Exam Results
@@ -764,7 +819,7 @@ export default function MyClassesClient({
                         </div>
                       </div>
 
-                      {/* ── Exam Results Table or Empty State ── */}
+                      {/* â”€â”€ Exam Results Table or Empty State â”€â”€ */}
                       {filteredExams.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-10 text-center rounded-2xl border border-dashed border-border bg-background">
                           <svg className="mx-auto h-8 w-8 text-muted-foreground/30 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -825,7 +880,7 @@ export default function MyClassesClient({
                         </div>
                       )}
 
-                      {/* ── Performance Trend Chart ── */}
+                      {/* â”€â”€ Performance Trend Chart â”€â”€ */}
                       <div className="rounded-2xl border border-border bg-background p-5">
                         <h3 className="text-xs font-bold uppercase tracking-widest text-accent mb-4">Performance Trend</h3>
                         <div className="h-[200px]">
@@ -893,28 +948,146 @@ export default function MyClassesClient({
                           </div>
                         </div>
                       </div>
-                      {profileDetails.performance.aiInsights && profileDetails.performance.aiInsights.length > 0 ? (
-                        <div className="rounded-2xl border border-border bg-background p-5">
-                          <h3 className="text-xs font-bold uppercase tracking-widest text-accent mb-4">AI Insights</h3>
+                      {/* â”€â”€ AI Insights Section â”€â”€ */}
+                      <div className="rounded-2xl border border-border bg-background p-5 space-y-4">
+                        <div className="flex items-center justify-between gap-3 border-b border-border pb-3 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-500/15 text-cyan-400">
+                              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 21m0 0l-.813-5.096L3 15.094l5.096-.813L9 9.125l.813 5.156L15 15.094l-5.188.81Z" />
+                              </svg>
+                            </span>
+                            <div>
+                              <h3 className="text-xs font-bold uppercase tracking-widest text-foreground">AI Performance Insights</h3>
+                              <p className="text-[10px] text-muted-foreground">Evidence-grounded learning diagnosis & recommendations</p>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => selectedStudent && handleGenerateStudentAI(selectedStudent.id)}
+                            disabled={generatingStudentAI || !selectedStudent}
+                            className="btn-cyan rounded-xl px-3.5 py-1.5 text-xs font-bold disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
+                          >
+                            {generatingStudentAI ? (
+                              <>
+                                <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                Analyzing Student Data...
+                              </>
+                            ) : studentAIData ? (
+                              <>
+                                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                </svg>
+                                Regenerate Insights
+                              </>
+                            ) : (
+                              <>
+                                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 21m0 0l-.813-5.096L3 15.094l5.096-.813L9 9.125l.813 5.156L15 15.094l-5.188.81Z" />
+                                </svg>
+                                Generate AI Insights
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {studentAIData ? (
+                          studentAIData.insufficientData ? (
+                            <div className="rounded-xl border border-dashed border-border bg-card p-6 text-center">
+                              <p className="text-xs font-semibold text-muted-foreground">{studentAIData.message || "Insufficient data to generate AI insights."}</p>
+                              <p className="text-[10px] text-muted-foreground mt-1">Record more assessment marks and attendance to unlock detailed student diagnostics.</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-4 animate-fadeIn">
+                              {/* Performance Overview */}
+                              <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4 space-y-2.5">
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-400">Performance Overview</span>
+                                  {studentAIData.trend && (
+                                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                                      studentAIData.trend === "improving"
+                                        ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                                        : studentAIData.trend === "declining"
+                                        ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                                        : "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                                    }`}>
+                                      Trend: {studentAIData.trend}
+                                    </span>
+                                  )}
+                                </div>
+                                <FormattedText text={studentAIData.overview || ""} className="text-xs" />
+
+                                {(studentAIData.strongSubjects?.length || studentAIData.weakSubjects?.length) ? (
+                                  <div className="flex flex-wrap gap-2 pt-1">
+                                    {studentAIData.strongSubjects?.map((sub) => (
+                                      <span key={sub} className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 text-emerald-400 px-2 py-0.5 text-[10px] font-semibold border border-emerald-500/20">
+                                        ✓ Strong: {sub}
+                                      </span>
+                                    ))}
+                                    {studentAIData.weakSubjects?.map((sub) => (
+                                      <span key={sub} className="inline-flex items-center gap-1 rounded-md bg-rose-500/10 text-rose-400 px-2 py-0.5 text-[10px] font-semibold border border-rose-500/20">
+                                        ⚠  Needs Focus: {sub}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : null}
+                              </div>
+
+                              {/* Why this matters */}
+                              {studentAIData.whyThisMatters && (
+                                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-1.5">
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">Why This Matters (Contributing Factors)</span>
+                                  <FormattedText text={studentAIData.whyThisMatters} className="text-xs" />
+                                </div>
+                              )}
+
+                              {/* Recommended Teacher Action */}
+                              {studentAIData.recommendedActions && studentAIData.recommendedActions.length > 0 && (
+                                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-2">
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Recommended Teacher Actions</span>
+                                  <ul className="space-y-1.5">
+                                    {studentAIData.recommendedActions.map((action, idx) => (
+                                      <li key={idx} className="flex items-start gap-2 text-xs text-foreground leading-relaxed">
+                                        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold mt-0.5">
+                                          {idx + 1}
+                                        </span>
+                                        <FormattedText text={action} className="text-xs" />
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        ) : profileDetails.performance.aiInsights && profileDetails.performance.aiInsights.length > 0 ? (
                           <div className="space-y-2.5">
                             {profileDetails.performance.aiInsights.map((insight, i) => (
                               <div key={i} className="flex gap-3 rounded-xl bg-amber-500/5 border border-amber-500/15 p-3">
                                 <span className="text-amber-500 shrink-0 mt-0.5">💡</span>
-                                <p className="text-xs text-amber-600 dark:text-amber-400 leading-relaxed">{insight}</p>
+                                <FormattedText text={insight} className="text-xs" />
                               </div>
                             ))}
+                            <div className="pt-2 text-center">
+                              <p className="text-[11px] text-muted-foreground">Click "Generate AI Insights" above for a detailed multi-factor pedagogical breakdown.</p>
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <EmptyState title="Insufficient Data For Insights" message="Not enough data available to generate AI insights." />
-                      )}
+
+                        ) : (
+                          <div className="rounded-xl border border-dashed border-border bg-card p-6 text-center">
+                            <p className="text-xs font-semibold text-foreground">No baseline insights computed yet.</p>
+                            <p className="text-[11px] text-muted-foreground mt-1">Click the button above to generate on-demand AI analysis.</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <EmptyState title="No Performance Data Available" message="No performance records have been entered yet." />
                   )
+
                 ) : profileTab === "guardian" ? (
                   profileDetails?.guardian && (profileDetails.guardian.parentName || profileDetails.guardian.phone || profileDetails.guardian.email) ? (
-                    /* ── Guardian Tab ── */
+                    /* â”€â”€ Guardian Tab â”€â”€ */
                     <div className="grid gap-5 lg:grid-cols-2">
                       {/* Left: Contact Details */}
                       <div className="rounded-2xl border border-border bg-background p-5">

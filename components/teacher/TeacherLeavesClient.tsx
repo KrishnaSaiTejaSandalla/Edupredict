@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import DeleteConfirmModal from "@/components/ui/DeleteConfirmModal";
 import { submitLeaveRequest, deleteLeaveRequest } from "@/lib/leave-actions";
@@ -34,6 +35,8 @@ type StudentLeaveRequest = {
   reason: string;
   status: "pending" | "approved" | "rejected";
   submittedAt: string;
+  studentPhoto?: string | null;
+  section?: string | null;
 };
 
 type Props = {
@@ -69,6 +72,7 @@ function getDayName(): string {
 }
 
 export default function TeacherLeavesClient({ initialTeacherHistory, initialStudentLeaves }: Props) {
+  const router = useRouter();
   const [teacherHistory, setTeacherHistory] = useState<LeaveHistory[]>(initialTeacherHistory);
   const [studentLeaves, setStudentLeaves] = useState<StudentLeaveRequest[]>(initialStudentLeaves);
   const [showForm, setShowForm] = useState(false);
@@ -95,6 +99,13 @@ export default function TeacherLeavesClient({ initialTeacherHistory, initialStud
 
   // Action state for student leaves
   const [actioningLeaveId, setActioningLeaveId] = useState<number | null>(null);
+
+  // Custom modals for student leaves actions
+  const [approveStudentLeave, setApproveStudentLeave] = useState<StudentLeaveRequest | null>(null);
+  const [rejectStudentLeave, setRejectStudentLeave] = useState<StudentLeaveRequest | null>(null);
+  const [studentLeaveRemarks, setStudentLeaveRemarks] = useState("");
+  const [deleteStudentLeave, setDeleteStudentLeave] = useState<StudentLeaveRequest | null>(null);
+  const [viewStudentLeave, setViewStudentLeave] = useState<StudentLeaveRequest | null>(null);
 
   // Search and Pagination states
   const [searchQuery, setSearchQuery] = useState("");
@@ -193,12 +204,10 @@ export default function TeacherLeavesClient({ initialTeacherHistory, initialStud
   //       console.error("Failed to refresh student leaves:", err);
   //     }
   //   }
-  // };
-
   const reloadData = async () => {
     if (activeTab === "teacher") {
       try {
-        const res = await fetch("/api/leaves/my-requests", {
+        const res = await fetch("/api/leaves/my-requests?t=" + Date.now(), {
           cache: "no-store",
         });
 
@@ -211,7 +220,7 @@ export default function TeacherLeavesClient({ initialTeacherHistory, initialStud
       }
     } else {
       try {
-        const res = await fetch("/api/teacher/student-leaves", {
+        const res = await fetch("/api/teacher/student-leaves?t=" + Date.now(), {
           cache: "no-store",
         });
 
@@ -257,6 +266,7 @@ export default function TeacherLeavesClient({ initialTeacherHistory, initialStud
         setCurrentPage(1);
         toast.success("Leave request submitted successfully.");
         closeForm();
+        router.refresh();
       } catch (err: any) {
         toast.error(err.message || "Failed to submit request.");
       }
@@ -283,6 +293,7 @@ export default function TeacherLeavesClient({ initialTeacherHistory, initialStud
         );
 
         toast.success("Leave request deleted successfully.");
+        router.refresh();
       } catch (err: any) {
         toast.error(err.message || "Failed to delete request.");
       } finally {
@@ -293,19 +304,50 @@ export default function TeacherLeavesClient({ initialTeacherHistory, initialStud
 
   const handleStudentLeaveAction = async (leaveId: number, action: "approve" | "reject", remarks?: string) => {
     setActioningLeaveId(leaveId);
+
+    // Optimistic UI update:
+    const status = action === "approve" ? "approved" : "rejected";
+    setStudentLeaves(prev =>
+      prev.map(item => item.id === leaveId ? { ...item, status } : item)
+    );
+
     try {
       const res = await fetch(`/api/teacher/student-leaves?id=${leaveId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, remarks }),
+        body: JSON.stringify({ leaveId, action, remarks }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "Failed");
       toast.success(`Leave ${action}ed successfully.`);
+      router.refresh();
       await reloadData();
     } catch (err: any) {
       toast.error(err.message || `Failed to ${action} leave.`);
+      await reloadData();
     } finally {
       setActioningLeaveId(null);
+    }
+  };
+
+  const confirmDeleteStudentLeave = async () => {
+    if (!deleteStudentLeave) return;
+    const leaveId = deleteStudentLeave.id;
+    setDeleteStudentLeave(null);
+
+    // Optimistic UI update:
+    setStudentLeaves(prev => prev.filter(item => item.id !== leaveId));
+
+    try {
+      const res = await fetch(`/api/teacher/student-leaves?id=${leaveId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed to delete");
+      toast.success("Student leave request deleted successfully.");
+      router.refresh();
+      await reloadData();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete student leave request.");
+      await reloadData();
     }
   };
 
@@ -428,74 +470,112 @@ export default function TeacherLeavesClient({ initialTeacherHistory, initialStud
             </div>
           ) : (
             <>
-              <div className="grid gap-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {paginatedStudentLeaves.map((leave) => {
                   const days = DAYS_DIFFERENCE(leave.startDate, leave.endDate);
+                  const initials = leave.studentName?.split(" ").map((p: string) => p[0]).join("").slice(0, 2).toUpperCase() || "??";
                   return (
-                    <div key={leave.id} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="h-10 w-10 rounded-full bg-cyan-300 flex items-center justify-center text-sm font-bold text-slate-950">
-                              {leave.studentName?.split(" ").map((p: string) => p[0]).join("").slice(0, 2).toUpperCase() || "??"}
+                    <div key={leave.id} className="rounded-2xl border border-theme bg-surface/60 p-4 shadow-sm hover:border-secondary hover:shadow-lg transition-all duration-200 flex flex-col justify-between">
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="relative h-10 w-10 overflow-hidden rounded-xl border border-theme bg-white/[0.04] shrink-0">
+                              {leave.studentPhoto ? (
+                                <img src={leave.studentPhoto} alt={leave.studentName} className="h-full w-full object-cover" />
+                              ) : (
+                                <span className="flex h-full w-full items-center justify-center bg-cyan-300 text-xs font-bold text-slate-950">
+                                  {initials}
+                                </span>
+                              )}
                             </div>
-                            <div>
-                              <p className="text-sm font-bold text-foreground">{leave.studentName}</p>
-                              <p className="text-xs text-muted-foreground">{leave.className} · Parent: {leave.parentName}</p>
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 text-xs">
-                            <div>
-                              <span className="text-muted-foreground">Type:</span>
-                              <span className="ml-1 font-medium text-foreground">{leave.leaveType}</span>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Duration:</span>
-                              <span className="ml-1 font-medium text-foreground">{days} {days === 1 ? "day" : "days"}</span>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Start:</span>
-                              <span className="ml-1 font-medium text-foreground">{formatDate(leave.startDate)}</span>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">End:</span>
-                              <span className="ml-1 font-medium text-foreground">{formatDate(leave.endDate)}</span>
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-primary truncate">{leave.studentName}</p>
+                              <p className="text-[10px] text-secondary mt-0.5 font-medium truncate">
+                                Class: <span className="text-cyan-400 font-semibold">{leave.className}</span>
+                              </p>
+                              <p className="text-[10px] text-muted mt-0.5 truncate">Parent: {leave.parentName}</p>
                             </div>
                           </div>
-                          <p className="mt-2 text-xs text-secondary line-clamp-2">{leave.reason}</p>
+
+                          <span className={`inline-flex items-center rounded-lg px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider border shrink-0 ${leave.status === "approved"
+                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                            : leave.status === "rejected"
+                              ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                              : "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                            }`}>
+                            {leave.status}
+                          </span>
                         </div>
-                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${leave.status === "approved"
-                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                          : leave.status === "rejected"
-                            ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
-                            : "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                          }`}>
-                          {leave.status}
-                        </span>
+
+                        <div className="grid grid-cols-2 gap-2 text-[10px] text-secondary border-t border-b border-theme/40 py-2">
+                          <div>
+                            <span className="text-muted block text-[9px] uppercase tracking-wider">Leave Type:</span>
+                            <span className="font-semibold text-primary">{leave.leaveType}</span>
+                          </div>
+                          <div>
+                            <span className="text-muted block text-[9px] uppercase tracking-wider">Duration:</span>
+                            <span className="font-semibold text-primary">{days} {days === 1 ? "day" : "days"}</span>
+                          </div>
+                          <div>
+                            <span className="text-muted block text-[9px] uppercase tracking-wider">Start Date:</span>
+                            <span className="font-semibold text-primary">{formatDate(leave.startDate)}</span>
+                          </div>
+                          <div>
+                            <span className="text-muted block text-[9px] uppercase tracking-wider">End Date:</span>
+                            <span className="font-semibold text-primary">{formatDate(leave.endDate)}</span>
+                          </div>
+                        </div>
+
+                        <div className="text-[10px] text-secondary">
+                          <span className="text-muted font-bold block mb-1">Reason:</span>
+                          <p className="bg-hover/20 rounded-lg p-2 border border-theme/40 text-secondary line-clamp-2 leading-relaxed">
+                            {leave.reason}
+                          </p>
+                        </div>
                       </div>
-                      {leave.status === "pending" && (
-                        <div className="mt-4 flex gap-2 justify-end">
-                          <button
-                            onClick={() => handleStudentLeaveAction(leave.id, "approve")}
-                            disabled={actioningLeaveId === leave.id}
-                            className="rounded-lg bg-emerald-500/15 hover:bg-emerald-500/20 px-3 py-1.5 text-xs font-semibold text-emerald-400 transition disabled:opacity-50"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => {
-                              const remarks = window.prompt("Optional remarks for rejection:");
-                              if (confirm("Reject this leave request?")) {
-                                handleStudentLeaveAction(leave.id, "reject", remarks || undefined);
-                              }
-                            }}
-                            disabled={actioningLeaveId === leave.id}
-                            className="rounded-lg bg-rose-500/15 hover:bg-rose-500/20 px-3 py-1.5 text-xs font-semibold text-rose-400 transition disabled:opacity-50"
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      )}
+
+                      <div className="mt-4 pt-3 border-t border-theme/30 flex gap-2 justify-end items-center">
+                        <button
+                          onClick={() => setViewStudentLeave(leave)}
+                          title="View Details"
+                          className="rounded-xl border border-theme bg-surface hover:bg-hover px-3 py-1 text-xs font-semibold text-secondary hover:text-primary transition"
+                        >
+                          View
+                        </button>
+
+                        {leave.status === "pending" && (
+                          <>
+                            <button
+                              onClick={() => {
+                                setApproveStudentLeave(leave);
+                                setStudentLeaveRemarks("");
+                              }}
+                              disabled={actioningLeaveId === leave.id}
+                              className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-400 transition disabled:opacity-50"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => {
+                                setRejectStudentLeave(leave);
+                                setStudentLeaveRemarks("");
+                              }}
+                              disabled={actioningLeaveId === leave.id}
+                              className="rounded-xl border border-rose-500/20 bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1 text-xs font-semibold text-rose-400 transition disabled:opacity-50"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
+
+                        <button
+                          onClick={() => setDeleteStudentLeave(leave)}
+                          title="Delete Request"
+                          className="rounded-xl border border-rose-500/15 bg-rose-500/5 hover:bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-500 transition"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -754,7 +834,7 @@ export default function TeacherLeavesClient({ initialTeacherHistory, initialStud
 
           {/* View Details Modal */}
           {viewRequest && (
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background/80 backdrop-blur-sm">
               <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl animate-in zoom-in-95 duration-150">
                 <div className="flex items-center justify-between border-b border-border pb-3 mb-4">
                   <h3 className="text-lg font-bold text-foreground">Leave Request Details</h3>
@@ -820,6 +900,186 @@ export default function TeacherLeavesClient({ initialTeacherHistory, initialStud
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Custom Modals for Student Leave Actions */}
+
+      {/* Approve Student Leave Modal */}
+      {approveStudentLeave && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-border pb-3 mb-4">
+              <h3 className="text-lg font-bold text-foreground">Approve Student Leave</h3>
+              <button onClick={() => setApproveStudentLeave(null)} className="text-muted-foreground hover:text-foreground">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="space-y-4">
+              <p className="text-xs text-secondary leading-relaxed">
+                You are about to approve the leave request for <span className="font-bold text-primary">{approveStudentLeave.studentName}</span> ({approveStudentLeave.leaveType}, {DAYS_DIFFERENCE(approveStudentLeave.startDate, approveStudentLeave.endDate)} days).
+              </p>
+              <div>
+                <label className={labelCls}>Remarks (Optional)</label>
+                <textarea
+                  value={studentLeaveRemarks}
+                  onChange={(e) => setStudentLeaveRemarks(e.target.value)}
+                  placeholder="Add approval comments or instructions..."
+                  className="w-full min-h-[80px] p-2.5 rounded-xl border border-theme bg-background text-xs text-primary outline-none focus:border-cyan-500 transition placeholder:text-muted"
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                onClick={() => setApproveStudentLeave(null)}
+                className="rounded-xl border border-border bg-muted/20 px-4 py-2 text-xs font-semibold hover:bg-muted/40 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  handleStudentLeaveAction(approveStudentLeave.id, "approve", studentLeaveRemarks || undefined);
+                  setApproveStudentLeave(null);
+                }}
+                className="rounded-xl btn-emerald px-4 py-2 text-xs font-semibold"
+              >
+                Confirm Approve
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Student Leave Modal */}
+      {rejectStudentLeave && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-border pb-3 mb-4">
+              <h3 className="text-lg font-bold text-foreground">Reject Student Leave</h3>
+              <button onClick={() => setRejectStudentLeave(null)} className="text-muted-foreground hover:text-foreground">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="space-y-4">
+              <p className="text-xs text-secondary leading-relaxed">
+                Are you sure you want to reject the leave request for <span className="font-bold text-primary">{rejectStudentLeave.studentName}</span> ({rejectStudentLeave.leaveType}, {DAYS_DIFFERENCE(rejectStudentLeave.startDate, rejectStudentLeave.endDate)} days)?
+              </p>
+              <div>
+                <label className={labelCls}>Remarks (Optional)</label>
+                <textarea
+                  value={studentLeaveRemarks}
+                  onChange={(e) => setStudentLeaveRemarks(e.target.value)}
+                  placeholder="Add reason for rejection..."
+                  className="w-full min-h-[80px] p-2.5 rounded-xl border border-theme bg-background text-xs text-primary outline-none focus:border-cyan-500 transition placeholder:text-muted"
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                onClick={() => setRejectStudentLeave(null)}
+                className="rounded-xl border border-border bg-muted/20 px-4 py-2 text-xs font-semibold hover:bg-muted/40 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  handleStudentLeaveAction(rejectStudentLeave.id, "reject", studentLeaveRemarks || undefined);
+                  setRejectStudentLeave(null);
+                }}
+                className="rounded-xl bg-rose-500 text-white hover:bg-rose-600 px-4 py-2 text-xs font-semibold transition"
+              >
+                Confirm Reject
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Student Leave Request Modal */}
+      <DeleteConfirmModal
+        isOpen={!!deleteStudentLeave}
+        title="Delete Student Leave Request?"
+        message={`Are you sure you want to delete the leave request for ${deleteStudentLeave?.studentName}? This action cannot be undone.`}
+        onConfirm={confirmDeleteStudentLeave}
+        onCancel={() => setDeleteStudentLeave(null)}
+      />
+
+      {/* View Student Leave Details Modal */}
+      {viewStudentLeave && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-border pb-3 mb-4">
+              <h3 className="text-lg font-bold text-foreground">Student Leave Request</h3>
+              <button onClick={() => setViewStudentLeave(null)} className="text-muted-foreground hover:text-foreground">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Student:</span>
+                <span className="font-semibold text-foreground">{viewStudentLeave.studentName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Class/Section:</span>
+                <span className="font-semibold text-foreground">{viewStudentLeave.className}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Parent:</span>
+                <span className="font-semibold text-foreground">{viewStudentLeave.parentName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Leave Type:</span>
+                <span className="font-semibold text-foreground">{viewStudentLeave.leaveType}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Start Date:</span>
+                <span className="font-medium text-foreground">{formatDate(viewStudentLeave.startDate)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">End Date:</span>
+                <span className="font-medium text-foreground">{formatDate(viewStudentLeave.endDate)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Duration:</span>
+                <span className="font-semibold text-foreground">
+                  {DAYS_DIFFERENCE(viewStudentLeave.startDate, viewStudentLeave.endDate)} {DAYS_DIFFERENCE(viewStudentLeave.startDate, viewStudentLeave.endDate) === 1 ? "day" : "days"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Submitted At:</span>
+                <span className="text-foreground">{viewStudentLeave.submittedAt ? new Date(viewStudentLeave.submittedAt).toLocaleString() : "—"}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Status:</span>
+                <span className={`inline-flex items-center rounded-lg px-2.5 py-0.5 text-[10px] font-semibold capitalize border ${viewStudentLeave.status === "approved"
+                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                    : viewStudentLeave.status === "rejected"
+                      ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                      : "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                  }`}>
+                  {viewStudentLeave.status}
+                </span>
+              </div>
+              <div className="pt-2 border-t border-border">
+                <span className="text-muted-foreground block mb-1">Reason:</span>
+                <p className="text-foreground bg-muted/30 p-2.5 rounded-lg border border-border text-xs break-words whitespace-pre-wrap">{viewStudentLeave.reason}</p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setViewStudentLeave(null)}
+                className="rounded-xl border border-border bg-muted/20 px-4 py-2 text-xs font-semibold hover:bg-muted/40 transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

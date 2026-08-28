@@ -1,4 +1,5 @@
 import { db } from './db';
+import { broadcastNotification } from './realtime';
 import {
   teachers,
   assignments,
@@ -6,8 +7,7 @@ import {
   students,
   classes,
   subjects,
-  teacherClassAssignments,
-  teacherSubjectAssignments,
+  classSubjects,
 } from './schema';
 import { eq, and, desc, sql, isNull, isNotNull, inArray } from 'drizzle-orm';
 import { users } from './schema';
@@ -24,19 +24,14 @@ export async function getTeacherAssignments(teacherId: number, filter: Assignmen
   const { page = 1, pageSize = 12, search } = filter;
   const offset = (page - 1) * pageSize;
 
-  // Get assigned classes for the teacher
-  const classRows = await db
-    .select({ classId: teacherClassAssignments.classId })
-    .from(teacherClassAssignments)
-    .where(eq(teacherClassAssignments.teacherId, teacherId));
-  const assignedClassIds = classRows.map((r) => r.classId);
+  // Get assigned classes and subjects for the teacher directly from classSubjects
+  const classSubjRows = await db
+    .select({ classId: classSubjects.classId, subjectId: classSubjects.subjectId })
+    .from(classSubjects)
+    .where(eq(classSubjects.teacherId, teacherId));
 
-  // Get assigned subjects for the teacher
-  const subjectRows = await db
-    .select({ subjectId: teacherSubjectAssignments.subjectId })
-    .from(teacherSubjectAssignments)
-    .where(eq(teacherSubjectAssignments.teacherId, teacherId));
-  const assignedSubjectIds = subjectRows.map((r) => r.subjectId);
+  const assignedClassIds = Array.from(new Set(classSubjRows.map((r) => r.classId).filter(Boolean))) as number[];
+  const assignedSubjectIds = Array.from(new Set(classSubjRows.map((r) => r.subjectId).filter(Boolean))) as number[];
 
   if (assignedClassIds.length === 0 || assignedSubjectIds.length === 0) {
     return { items: [], total: 0, pages: 0 };
@@ -142,6 +137,110 @@ export async function createAssignment(
     maxMarks: data.maxMarks?.toString() || null,
     updatedAt: new Date(),
   });
+
+  // Generate isolated notifications for students and parents
+  try {
+    const { studentParents, parents, notifications } = await import('./schema');
+    const studentsInClass = await db
+      .select({ id: students.id, userId: students.userId, name: users.name })
+      .from(students)
+      .leftJoin(users, eq(students.userId, users.id))
+      .where(eq(students.classId, data.classId));
+
+    const studentIds = studentsInClass.map(s => s.id);
+    
+    let parentUsers: { studentId: number; parentUserId: number | null }[] = [];
+    if (studentIds.length > 0) {
+      parentUsers = await db
+        .select({ studentId: studentParents.studentId, parentUserId: parents.userId })
+        .from(studentParents)
+        .leftJoin(parents, eq(studentParents.parentId, parents.id))
+        .where(inArray(studentParents.studentId, studentIds));
+    }
+
+    const parentUserMap: Record<number, number[]> = {};
+    parentUsers.forEach((pu) => {
+      if (pu.parentUserId && pu.studentId) {
+        if (!parentUserMap[pu.studentId]) parentUserMap[pu.studentId] = [];
+        parentUserMap[pu.studentId].push(pu.parentUserId);
+      }
+    });
+
+    // Query user notification preferences to respect preference configurations
+    const allUserIds = [
+      ...studentsInClass.map((s) => s.userId).filter((id): id is number => id !== null),
+      ...Object.values(parentUserMap).flat(),
+    ];
+
+    const userPrefsMap: Record<number, any> = {};
+    if (allUserIds.length > 0) {
+      const userPrefsRows = await db
+        .select({ id: users.id, notificationPreferences: users.notificationPreferences })
+        .from(users)
+        .where(inArray(users.id, allUserIds));
+
+      userPrefsRows.forEach((row) => {
+        try {
+          userPrefsMap[row.id] = row.notificationPreferences ? JSON.parse(row.notificationPreferences) : {};
+        } catch {
+          userPrefsMap[row.id] = {};
+        }
+      });
+    }
+
+    const notifValues: any[] = [];
+    studentsInClass.forEach((s) => {
+      if (s.userId) {
+        // Check student preference
+        const studentPrefs = userPrefsMap[s.userId] ?? {};
+        if (studentPrefs.assignments !== false) {
+          // Student Notification
+          notifValues.push({
+            userId: s.userId,
+            title: "New Assignment",
+            message: `A new assignment has been published: "${data.title}"`,
+            type: "assignment",
+            priority: "medium",
+            isRead: false,
+          });
+        }
+      }
+
+      const parentsList = parentUserMap[s.id] || [];
+      parentsList.forEach((parentUserId) => {
+        // Check parent preference
+        const parentPrefs = userPrefsMap[parentUserId] ?? {};
+        if (parentPrefs.assignments !== false) {
+          notifValues.push({
+            userId: parentUserId,
+            title: "New Assignment Published",
+            message: `A new assignment "${data.title}" has been published for ${s.name}.`,
+            type: "assignment",
+            priority: "medium",
+            isRead: false,
+          });
+        }
+      });
+    });
+
+    if (notifValues.length > 0) {
+      const chunkSize = 200;
+      for (let i = 0; i < notifValues.length; i += chunkSize) {
+        await db.insert(notifications).values(notifValues.slice(i, i + chunkSize));
+      }
+      // Broadcast alerts in real-time
+      for (const val of notifValues) {
+        broadcastNotification(val.userId, {
+          title: val.title,
+          message: val.message,
+          type: val.type,
+          priority: val.priority,
+        });
+      }
+    }
+  } catch (err) {
+    console.error("Failed to generate assignment notifications:", err);
+  }
 }
 
 export async function deleteAssignment(id: number, teacherId: number) {
@@ -252,33 +351,23 @@ export async function getAssignmentAnalytics(assignmentId: number) {
 }
 
 export async function getTeacherClassSubjects(teacherId: number) {
-  // Get assigned classes
-  const classRows = await db
-    .select({ classId: teacherClassAssignments.classId, className: classes.name, classSection: classes.section })
-    .from(teacherClassAssignments)
-    .leftJoin(classes, eq(teacherClassAssignments.classId, classes.id))
-    .where(eq(teacherClassAssignments.teacherId, teacherId));
+  const rows = await db
+    .select({
+      classId: classSubjects.classId,
+      subjectId: classSubjects.subjectId,
+      className: classes.name,
+      classSection: classes.section,
+      subjectName: subjects.name,
+    })
+    .from(classSubjects)
+    .leftJoin(classes, eq(classSubjects.classId, classes.id))
+    .leftJoin(subjects, eq(classSubjects.subjectId, subjects.id))
+    .where(eq(classSubjects.teacherId, teacherId));
 
-  // Get assigned subjects
-  const subjectRows = await db
-    .select({ subjectId: teacherSubjectAssignments.subjectId, subjectName: subjects.name })
-    .from(teacherSubjectAssignments)
-    .leftJoin(subjects, eq(teacherSubjectAssignments.subjectId, subjects.id))
-    .where(eq(teacherSubjectAssignments.teacherId, teacherId));
-
-  const classSubjects: { classId: number; subjectId: number; className: string; subjectName: string }[] = [];
-  for (const c of classRows) {
-    for (const s of subjectRows) {
-      if (c.classId && s.subjectId) {
-        classSubjects.push({
-          classId: c.classId,
-          subjectId: s.subjectId,
-          className: `${c.className ?? ''}${c.classSection ? ` ${c.classSection}` : ''}`,
-          subjectName: s.subjectName ?? 'N/A',
-        });
-      }
-    }
-  }
-
-  return classSubjects;
+  return rows.map(r => ({
+    classId: r.classId!,
+    subjectId: r.subjectId!,
+    className: `${r.className ?? ''}${r.classSection ? ` ${r.classSection}` : ''}`,
+    subjectName: r.subjectName ?? 'N/A',
+  }));
 }

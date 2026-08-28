@@ -16,13 +16,15 @@ export default async function AttendancePage() {
 
   const summary = summaryRows.reduce((acc, row) => {
     const classId = row.a.classId;
-    const existing = acc.get(classId) ?? { className: row.c.name, present: 0, absent: 0, total: 0 };
+    const existing = acc.get(classId) ?? { className: row.c.name, present: 0, absent: 0, halfDay: 0, leave: 0, total: 0 };
     if (row.a.status === 'present') existing.present += 1;
-    else existing.absent += 1;
+    else if (row.a.status === 'absent') existing.absent += 1;
+    else if (row.a.status === 'half_day') existing.halfDay += 1;
+    else if (row.a.status === 'leave') existing.leave += 1;
     existing.total += 1;
     acc.set(classId, existing);
     return acc;
-  }, new Map<number, { className: string; present: number; absent: number; total: number }>());
+  }, new Map<number, { className: string; present: number; absent: number; halfDay: number; leave: number; total: number }>());
 
   // KPI calculations
   const [studentCountRow] = await db.select({ count: sql<number>`count(*)` }).from(students);
@@ -30,8 +32,8 @@ export default async function AttendancePage() {
 
   const [attendanceStats] = await db
     .select({
-      total: sql<number>`count(*)`,
-      present: sql<number>`sum(case when ${attendance.status} = 'present' then 1 else 0 end)`,
+      total: sql<number>`sum(case when ${attendance.status} != 'leave' then 1 else 0 end)`,
+      present: sql<number>`sum(case when ${attendance.status} = 'present' then 1 when ${attendance.status} = 'half_day' then 0.5 else 0 end)`,
       absent: sql<number>`sum(case when ${attendance.status} = 'absent' then 1 else 0 end)`,
     })
     .from(attendance);
@@ -47,8 +49,8 @@ export default async function AttendancePage() {
   const studentStats = await db
     .select({
       studentId: attendance.studentId,
-      total: sql<number>`count(*)`,
-      present: sql<number>`sum(case when ${attendance.status} = 'present' then 1 else 0 end)`,
+      total: sql<number>`sum(case when ${attendance.status} != 'leave' then 1 else 0 end)`,
+      present: sql<number>`sum(case when ${attendance.status} = 'present' then 1 when ${attendance.status} = 'half_day' then 0.5 else 0 end)`,
     })
     .from(attendance)
     .groupBy(attendance.studentId);
@@ -139,7 +141,9 @@ export default async function AttendancePage() {
               </tr>
             ) : (
               [...summary.values()].map((row) => {
-                const percentage = row.total ? Math.round((row.present / row.total) * 100) : 0;
+                const workingDays = row.total - row.leave;
+                const presentWeight = row.present + row.halfDay * 0.5;
+                const percentage = workingDays > 0 ? Math.round((presentWeight / workingDays) * 100) : 0;
                 const isHigh = percentage >= 75;
 
                 return (
@@ -150,9 +154,8 @@ export default async function AttendancePage() {
                     <td className="p-4 px-6 text-muted-foreground font-medium">{row.total}</td>
                     <td className="p-4 px-6">
                       <div className="flex items-center gap-3">
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-lg border ${
-                          isHigh ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-                        }`}>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-lg border ${isHigh ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                          }`}>
                           {percentage}%
                         </span>
                         <div className="w-24 h-2 rounded-full bg-hover overflow-hidden hidden sm:block">

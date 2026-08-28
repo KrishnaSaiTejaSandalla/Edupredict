@@ -13,7 +13,6 @@ export default function RegisterForm() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('student');
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -22,7 +21,7 @@ export default function RegisterForm() {
     if (pv) return toast.error(pv);
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, email, password, role }) });
+      const res = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, email, password }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Registration failed');
       // Registration returns user info; redirect to their role dashboard
@@ -52,15 +51,6 @@ export default function RegisterForm() {
       <div className="mt-3">
         <label className="block mb-1">Password</label>
         <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" required className="border p-2 w-full" />
-      </div>
-      <div className="mt-3">
-        <label className="block mb-1">Role</label>
-        <select value={role} onChange={(e) => setRole(e.target.value)} className="border p-2 w-full">
-          <option value="student">Student</option>
-          <option value="parent">Parent</option>
-          <option value="teacher">Teacher</option>
-          <option value="admin">Admin</option>
-        </select>
       </div>
       <button disabled={loading} type="submit" className="mt-4 px-4 py-2 bg-green-600 text-white">{loading ? 'Registering...' : 'Register'}</button>
     </form>

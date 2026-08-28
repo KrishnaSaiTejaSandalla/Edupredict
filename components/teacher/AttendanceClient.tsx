@@ -19,7 +19,7 @@ type StudentRecord = {
   rollNumber: string;
   gender: string;
   profileImageUrl: string | null;
-  status: "present" | "absent" | "half_day";
+  status: "present" | "absent" | "half_day" | "leave";
 };
 
 type HistoryRecord = {
@@ -40,6 +40,7 @@ type ReportRecord = {
   presentDays: number;
   absentDays: number;
   halfDays: number;
+  leaveDays: number;
   attendancePct: number;
 };
 
@@ -49,6 +50,7 @@ type Props = {
   classes: ClassInfo[];
   subjects: { id: number; name: string }[];
   kpis: KPIs;
+  classTeacherClassIds?: number[];
 };
 
 function KpiCard({
@@ -116,6 +118,7 @@ const statusBadge = (status: string) => {
   if (status === "present") return "bg-emerald-500/10 text-emerald-500 border-emerald-500/20";
   if (status === "absent") return "bg-rose-500/10 text-rose-500 border-rose-500/20";
   if (status === "half_day") return "bg-amber-500/10 text-amber-500 border-amber-500/20";
+  if (status === "leave") return "bg-blue-500/10 text-blue-500 border-blue-500/20";
   return "bg-blue-500/10 text-blue-500 border-blue-500/20";
 };
 
@@ -123,27 +126,43 @@ const statusLabel = (status: string) => {
   if (status === "present") return "Present";
   if (status === "absent") return "Absent";
   if (status === "half_day") return "Half Day";
+  if (status === "leave") return "Leave";
   return status;
 };
 
-export default function AttendanceClient({ teacherId, teacherUserId, classes, subjects, kpis }: Props) {
+export default function AttendanceClient({
+  teacherId,
+  teacherUserId,
+  classes,
+  subjects,
+  kpis,
+  classTeacherClassIds = [],
+}: Props) {
+  const classTeacherClasses = classes.filter(c => classTeacherClassIds.includes(c.classId));
+
   const [activeTab, setActiveTab] = useState<"mark" | "history" | "reports">("mark");
-  const [selectedSubject, setSelectedSubject] = useState<number | "">("");
-  const [topicTaught, setTopicTaught] = useState<string>("");
-  const [selectedClass, setSelectedClass] = useState<number | "">(classes.length === 1 ? classes[0].classId : "");
+  const [topicTaught, setTopicTaught] = useState<string>("General Class Attendance");
+  const [selectedClass, setSelectedClass] = useState<number | "">(classTeacherClasses.length === 1 ? classTeacherClasses[0].classId : "");
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [historyRecords, setHistoryRecords] = useState<HistoryRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const [historyClass, setHistoryClass] = useState<number | "">(classes.length === 1 ? classes[0].classId : "");
+  const [historyClass, setHistoryClass] = useState<number | "">(classTeacherClasses.length === 1 ? classTeacherClasses[0].classId : "");
   const [historyPage, setHistoryPage] = useState<number>(1);
 
   const [reportRecords, setReportRecords] = useState<ReportRecord[]>([]);
   const [loadingReport, setLoadingReport] = useState(false);
-  const [reportClass, setReportClass] = useState<number | "">(classes.length === 1 ? classes[0].classId : "");
+  const [reportClass, setReportClass] = useState<number | "">(classTeacherClasses.length === 1 ? classTeacherClasses[0].classId : "");
   const [reportPage, setReportPage] = useState<number>(1);
+
+  // Holiday management state
+  const [holidayInfo, setHolidayInfo] = useState<{ isHoliday: boolean; reason?: string; id?: number; isSunday: boolean } | null>(null);
+  const [showHolidayModal, setShowHolidayModal] = useState(false);
+  const [showRevertModal, setShowRevertModal] = useState(false);
+  const [holidayReasonInput, setHolidayReasonInput] = useState("");
+  const [holidaySubmitting, setHolidaySubmitting] = useState(false);
 
   // Reset pages on filters/tabs change
   useEffect(() => {
@@ -154,16 +173,82 @@ export default function AttendanceClient({ teacherId, teacherUserId, classes, su
     setReportPage(1);
   }, [reportClass, activeTab]);
 
-  // Load students when class or date changes
+  // Load students and holiday info when class or date changes
   useEffect(() => {
+    // Check holiday status
+    fetch(`/api/teacher/attendance/holidays?date=${selectedDate}`)
+      .then((r) => r.json())
+      .then((data) => setHolidayInfo(data))
+      .catch(() => setHolidayInfo(null));
+
     if (!selectedClass) { setStudents([]); return; }
+    if (!classTeacherClassIds.includes(Number(selectedClass))) {
+      setStudents([]);
+      return;
+    }
     setLoadingStudents(true);
     fetch(`/api/teacher/attendance?classId=${selectedClass}&date=${selectedDate}`)
       .then((r) => r.json())
-      .then((data) => { setStudents(data.students || []); })
+      .then((data) => {
+        setStudents(data.students || []);
+        if (data.holidayInfo) setHolidayInfo(data.holidayInfo);
+      })
       .catch(() => toast.error("Failed to load students"))
       .finally(() => setLoadingStudents(false));
-  }, [selectedClass, selectedDate]);
+  }, [selectedClass, selectedDate, classTeacherClassIds]);
+
+  const handleDeclareHoliday = async () => {
+    if (!holidayReasonInput.trim()) {
+      toast.error("Please enter a holiday reason / name.");
+      return;
+    }
+    setHolidaySubmitting(true);
+    try {
+      const res = await fetch("/api/teacher/attendance/holidays", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: selectedDate,
+          reason: holidayReasonInput.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to declare holiday");
+      toast.success("Date marked as Holiday!");
+      setShowHolidayModal(false);
+      setHolidayReasonInput("");
+      // Refresh holiday state
+      const checkRes = await fetch(`/api/teacher/attendance/holidays?date=${selectedDate}`);
+      const checkData = await checkRes.json();
+      setHolidayInfo(checkData);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to declare holiday");
+    } finally {
+      setHolidaySubmitting(false);
+    }
+  };
+
+  const confirmRevertHoliday = async () => {
+    setHolidaySubmitting(true);
+    try {
+      const res = await fetch(`/api/teacher/attendance/holidays?date=${selectedDate}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to revert holiday");
+      toast.success("Date changed back to Working Day!");
+      setShowRevertModal(false);
+      // Refresh holiday state
+      const checkRes = await fetch(`/api/teacher/attendance/holidays?date=${selectedDate}`);
+      const checkData = await checkRes.json();
+      setHolidayInfo(checkData);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to revert holiday");
+    } finally {
+      setHolidaySubmitting(false);
+    }
+  };
+
 
   // Load history
   useEffect(() => {
@@ -202,30 +287,37 @@ export default function AttendanceClient({ teacherId, teacherUserId, classes, su
         const byStudent: Record<string, {
           studentName: string;
           rollNumber: string;
-          total: number; present: number; absent: number; halfDay: number;
+          total: number; present: number; absent: number; halfDay: number; leave: number;
         }> = {};
 
         records.forEach((r) => {
           const k = r.studentName;
           if (!byStudent[k]) {
-            byStudent[k] = { studentName: r.studentName, rollNumber: r.rollNumber, total: 0, present: 0, absent: 0, halfDay: 0 };
+            byStudent[k] = { studentName: r.studentName, rollNumber: r.rollNumber, total: 0, present: 0, absent: 0, halfDay: 0, leave: 0 };
           }
           byStudent[k].total++;
           if (r.status === "present") byStudent[k].present++;
           else if (r.status === "absent") byStudent[k].absent++;
           else if (r.status === "half_day") byStudent[k].halfDay++;
+          else if (r.status === "leave") byStudent[k].leave++;
         });
 
-        const reportData: ReportRecord[] = Object.values(byStudent).map((s, idx) => ({
-          studentId: idx,
-          studentName: s.studentName,
-          rollNumber: s.rollNumber,
-          totalDays: s.total,
-          presentDays: s.present,
-          absentDays: s.absent,
-          halfDays: s.halfDay,
-          attendancePct: s.total > 0 ? Math.round((s.present + s.halfDay * 0.5) / s.total * 100) : 0,
-        }));
+        const reportData: ReportRecord[] = Object.values(byStudent).map((s, idx) => {
+          const presentCount = s.present + s.halfDay * 0.5;
+          const workingDays = s.total - s.leave;
+          const attendancePct = workingDays > 0 ? Math.round(presentCount / workingDays * 100) : 0;
+          return {
+            studentId: idx,
+            studentName: s.studentName,
+            rollNumber: s.rollNumber,
+            totalDays: s.total,
+            presentDays: s.present,
+            absentDays: s.absent,
+            halfDays: s.halfDay,
+            leaveDays: s.leave,
+            attendancePct,
+          };
+        });
 
         setReportRecords(reportData.sort((a, b) => b.attendancePct - a.attendancePct));
       })
@@ -233,19 +325,17 @@ export default function AttendanceClient({ teacherId, teacherUserId, classes, su
       .finally(() => setLoadingReport(false));
   }, [activeTab, reportClass]);
 
-  const handleStatusChange = (studentId: number, status: "present" | "absent" | "half_day") => {
+  const handleStatusChange = (studentId: number, status: "present" | "absent" | "half_day" | "leave") => {
     setStudents((prev) => prev.map((s) => (s.id === studentId ? { ...s, status } : s)));
   };
 
-  const handleMarkAll = (status: "present" | "absent" | "half_day") => {
-    if (!selectedSubject) { toast.error("Please select a subject first."); return; }
+  const handleMarkAll = (status: "present" | "absent" | "half_day" | "leave") => {
     if (!topicTaught.trim()) { toast.error("Please enter the topic taught first."); return; }
     setStudents((prev) => prev.map((s) => ({ ...s, status })));
   };
 
   const handleSubmit = async () => {
     if (!selectedClass || students.length === 0) return;
-    if (!selectedSubject) { toast.error("Please select a subject first."); return; }
     if (!topicTaught.trim()) { toast.error("Please enter the topic taught first."); return; }
     setSubmitting(true);
     try {
@@ -254,7 +344,6 @@ export default function AttendanceClient({ teacherId, teacherUserId, classes, su
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           classId: selectedClass,
-          subjectId: selectedSubject,
           topicTaught: topicTaught.trim(),
           date: selectedDate,
           records: students.map((s) => ({ studentId: s.id, status: s.status })),
@@ -274,7 +363,8 @@ export default function AttendanceClient({ teacherId, teacherUserId, classes, su
     if (!isSelected) return "border border-theme bg-surface text-secondary hover:bg-hover hover:text-primary";
     if (option === "present") return "bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border border-emerald-500/30";
     if (option === "absent") return "bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/30";
-    return "bg-amber-500/10 text-amber-500 dark:text-amber-400 border border-amber-500/30"; // half_day
+    if (option === "half_day") return "bg-amber-500/10 text-amber-500 dark:text-amber-400 border border-amber-500/30";
+    return "bg-blue-500/10 text-blue-500 dark:text-blue-400 border border-blue-500/30";
   };
 
   const TABS = [
@@ -361,11 +451,10 @@ export default function AttendanceClient({ teacherId, teacherUserId, classes, su
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`rounded-lg px-5 py-2.5 text-xs font-semibold transition ${
-              activeTab === tab.id
+            className={`rounded-lg px-5 py-2.5 text-xs font-semibold transition ${activeTab === tab.id
                 ? "bg-accent-bg text-accent shadow-sm ring-1 ring-accent/30"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             {tab.label}
           </button>
@@ -376,7 +465,7 @@ export default function AttendanceClient({ teacherId, teacherUserId, classes, su
       {activeTab === "mark" && (
         <div className="space-y-6 rounded-2xl border border-border bg-card p-6 shadow-md">
           {/* Filters */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 items-end">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 items-end">
             <label className="block space-y-1.5">
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Select Class</span>
               <select
@@ -385,35 +474,10 @@ export default function AttendanceClient({ teacherId, teacherUserId, classes, su
                 onChange={(e) => setSelectedClass(e.target.value ? Number(e.target.value) : "")}
               >
                 <option value="">Choose a class...</option>
-                {classes.map((c) => (
+                {classTeacherClasses.map((c) => (
                   <option key={c.classId} value={c.classId}>{c.className}</option>
                 ))}
               </select>
-            </label>
-
-            <label className="block space-y-1.5">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Select Subject</span>
-              <select
-                className="select-theme w-full"
-                value={selectedSubject}
-                onChange={(e) => setSelectedSubject(e.target.value ? Number(e.target.value) : "")}
-              >
-                <option value="">Choose a subject...</option>
-                {subjects.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            </label>
-
-            <label className="block space-y-1.5">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Topic Taught</span>
-              <input
-                type="text"
-                placeholder="e.g. Chapter 3: Quadratic Equations"
-                className="input-theme w-full"
-                value={topicTaught}
-                onChange={(e) => setTopicTaught(e.target.value)}
-              />
             </label>
 
             <label className="block space-y-1.5">
@@ -426,22 +490,106 @@ export default function AttendanceClient({ teacherId, teacherUserId, classes, su
                 onChange={(e) => setSelectedDate(e.target.value)}
               />
             </label>
+
+            {/* Holiday Toggle / Status Bar */}
+            <div className="flex items-center gap-2">
+              {holidayInfo?.isHoliday ? (
+                <div className="flex flex-1 items-center justify-between gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="flex h-2.5 w-2.5 shrink-0 rounded-full bg-amber-400 animate-pulse" />
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-bold text-amber-500 truncate">
+                        {holidayInfo.isSunday ? "Sunday (Weekly Holiday)" : `Holiday: ${holidayInfo.reason || 'School Holiday'}`}
+                      </p>
+                      <p className="text-[9px] text-amber-500/70">Excluded from attendance calculations</p>
+                    </div>
+                  </div>
+                  {!holidayInfo.isSunday && (
+                    <button
+                      type="button"
+                      onClick={() => setShowRevertModal(true)}
+                      disabled={holidaySubmitting}
+                      className="shrink-0 rounded-lg bg-amber-500/20 px-2 py-1 text-[10px] font-semibold text-amber-300 hover:bg-amber-500/30 transition disabled:opacity-50"
+                    >
+                      Make Working Day
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowHolidayModal(true)}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-hover transition"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 text-cyan-400" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                  Mark Date as Holiday
+                </button>
+              )}
+            </div>
           </div>
 
-          {classes.length === 0 && (
+          {/* Holiday Active Banner */}
+          {holidayInfo?.isHoliday && (
+            <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent p-6 text-foreground shadow-sm">
+              <div className="flex items-start gap-4">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400">
+                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                  </svg>
+                </span>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-bold text-amber-500">
+                    {holidayInfo.isSunday ? "Sunday — Automatic Weekly Holiday" : `Holiday Declared: ${holidayInfo.reason || 'School Holiday'}`}
+                  </h3>
+                  <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                    Attendance marking is disabled for this date. This day is automatically excluded from total working days and will not count as absent or negatively affect student attendance percentages.
+                  </p>
+                  {!holidayInfo.isSunday && (
+                    <div className="mt-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowRevertModal(true)}
+                        disabled={holidaySubmitting}
+                        className="rounded-lg border border-amber-500/30 bg-amber-500/15 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/25 transition disabled:opacity-50"
+                      >
+                        Revert to Working Day (Enable Attendance)
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {selectedClass && !classTeacherClassIds.includes(Number(selectedClass)) && (
+            <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-6 text-center text-rose-400">
+              <svg className="mx-auto h-10 w-10 text-rose-500/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <p className="mt-4 text-sm font-bold">Access Denied</p>
+              <p className="mt-1 text-xs">Only the assigned Class Teacher for this class is permitted to mark or view attendance logs.</p>
+            </div>
+          )}
+
+          {classTeacherClasses.length === 0 && (
             <div className="rounded-xl border-2 border-dashed border-border bg-background p-12 text-center">
               <svg className="mx-auto h-10 w-10 text-muted-foreground/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
               </svg>
-              <p className="mt-4 text-sm font-semibold text-foreground">No classes assigned</p>
-              <p className="mt-1 text-xs text-muted-foreground">Contact admin to assign classes.</p>
+              <p className="mt-4 text-sm font-semibold text-foreground">No classes assigned as Class Teacher</p>
+              <p className="mt-1 text-xs text-muted-foreground">Only assigned Class Teachers can mark or review student attendance.</p>
             </div>
           )}
 
-          {!selectedClass && classes.length > 0 && (
+          {!selectedClass && classTeacherClasses.length > 0 && (
             <div className="rounded-xl border-2 border-dashed border-border bg-background p-12 text-center">
               <p className="text-sm font-semibold text-foreground">Select a class to begin</p>
-              <p className="mt-1 text-xs text-muted-foreground">Choose class, subject, and topic above to load the student list.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Choose class, subject, and date above to load the student list.</p>
             </div>
           )}
 
@@ -459,7 +607,7 @@ export default function AttendanceClient({ teacherId, teacherUserId, classes, su
             </div>
           )}
 
-          {students.length > 0 && (
+          {!holidayInfo?.isHoliday && students.length > 0 && (
             <>
               {/* Bulk actions header */}
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-5">
@@ -468,11 +616,11 @@ export default function AttendanceClient({ teacherId, teacherUserId, classes, su
                   <p className="text-xs text-muted-foreground mt-1">{students.length} students · {selectedDate}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {(["present", "absent", "half_day"] as const).map((s) => (
+                  {(["present", "absent", "half_day", "leave"] as const).map((s) => (
                     <button
                       key={s}
                       onClick={() => handleMarkAll(s)}
-                      disabled={!selectedSubject || !topicTaught.trim()}
+                      disabled={!topicTaught.trim()}
                       className={`rounded-xl px-4 py-2 text-xs font-bold border transition disabled:opacity-40 disabled:cursor-not-allowed ${statusBadge(s)}`}
                     >
                       Mark All {statusLabel(s)}
@@ -509,7 +657,7 @@ export default function AttendanceClient({ teacherId, teacherUserId, classes, su
                           <td className="p-4 px-6 font-medium text-muted-foreground">{student.rollNumber || "—"}</td>
                           <td className="p-4 px-6 text-right">
                             <div className="flex items-center justify-end gap-1.5">
-                              {(["present", "absent", "half_day"] as const).map((opt) => (
+                              {(["present", "absent", "half_day", "leave"] as const).map((opt) => (
                                 <button
                                   key={opt}
                                   type="button"
@@ -532,7 +680,7 @@ export default function AttendanceClient({ teacherId, teacherUserId, classes, su
               <div className="flex justify-end pt-2 border-t border-border">
                 <button
                   onClick={handleSubmit}
-                  disabled={submitting || !selectedSubject || !topicTaught.trim()}
+                  disabled={submitting || !topicTaught.trim()}
                   className="rounded-xl btn-cyan px-6 py-3 text-sm font-semibold disabled:opacity-50"
                 >
                   {submitting ? "Saving..." : "Save Attendance Logs"}
@@ -557,7 +705,7 @@ export default function AttendanceClient({ teacherId, teacherUserId, classes, su
               onChange={(e) => setHistoryClass(e.target.value ? Number(e.target.value) : "")}
             >
               <option value="">All Classes</option>
-              {classes.map((c) => (
+              {classTeacherClasses.map((c) => (
                 <option key={c.classId} value={c.classId}>{c.className}</option>
               ))}
             </select>
@@ -651,7 +799,7 @@ export default function AttendanceClient({ teacherId, teacherUserId, classes, su
               onChange={(e) => setReportClass(e.target.value ? Number(e.target.value) : "")}
             >
               <option value="">All Classes</option>
-              {classes.map((c) => (
+              {classTeacherClasses.map((c) => (
                 <option key={c.classId} value={c.classId}>{c.className}</option>
               ))}
             </select>
@@ -681,6 +829,7 @@ export default function AttendanceClient({ teacherId, teacherUserId, classes, su
                       <th className="p-4 px-6 text-center">Present</th>
                       <th className="p-4 px-6 text-center">Absent</th>
                       <th className="p-4 px-6 text-center">Half Days</th>
+                      <th className="p-4 px-6 text-center">Leave</th>
                       <th className="p-4 px-6">Attendance %</th>
                     </tr>
                   </thead>
@@ -693,6 +842,7 @@ export default function AttendanceClient({ teacherId, teacherUserId, classes, su
                         <td className="p-4 px-6 text-center font-semibold text-emerald-500">{r.presentDays}</td>
                         <td className="p-4 px-6 text-center font-semibold text-rose-500">{r.absentDays}</td>
                         <td className="p-4 px-6 text-center font-semibold text-amber-500">{r.halfDays}</td>
+                        <td className="p-4 px-6 text-center font-semibold text-blue-500">{r.leaveDays}</td>
                         <td className="p-4 px-6">
                           <div className="flex items-center gap-3">
                             <span className={`text-sm font-bold ${r.attendancePct >= 85 ? "text-emerald-500" : r.attendancePct >= 70 ? "text-amber-500" : "text-rose-500"}`}>
@@ -740,6 +890,119 @@ export default function AttendanceClient({ teacherId, teacherUserId, classes, su
               )}
             </>
           )}
+        </div>
+      )}
+
+      {/* ── Declare Holiday Modal ─────────────────────────────────────────── */}
+      {showHolidayModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-border pb-4">
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400">
+                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                </span>
+                <div>
+                  <h3 className="text-base font-bold text-foreground">Mark Date as Holiday</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">Date: {selectedDate}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowHolidayModal(false)}
+                className="text-muted-foreground hover:text-foreground transition p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-400 leading-relaxed">
+                Marking this date as a holiday will disable attendance requirement and exclude this date from the total working days in performance calculations.
+              </div>
+
+              <label className="block space-y-1.5">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Holiday Name / Reason *
+                </span>
+                <input
+                  type="text"
+                  placeholder="e.g. Annual Sports Day, Republic Day, School Festival"
+                  className="input-theme w-full"
+                  value={holidayReasonInput}
+                  onChange={(e) => setHolidayReasonInput(e.target.value)}
+                  autoFocus
+                />
+              </label>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-border">
+              <button
+                type="button"
+                onClick={() => setShowHolidayModal(false)}
+                className="rounded-xl border border-border bg-hover/40 px-4 py-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeclareHoliday}
+                disabled={holidaySubmitting || !holidayReasonInput.trim()}
+                className="rounded-xl btn-cyan px-5 py-2.5 text-xs font-semibold disabled:opacity-50"
+              >
+                {holidaySubmitting ? "Saving..." : "Confirm Holiday"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Revert Holiday Confirmation Modal */}
+      {showRevertModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-background/80 backdrop-blur-md"
+            onClick={() => setShowRevertModal(false)}
+          />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/15 text-amber-400 text-xl shrink-0">
+                📅
+              </span>
+              <div>
+                <h3 className="text-base font-bold text-foreground">Revert to Working Day?</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{selectedDate}</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              This will remove the holiday declaration and re-enable attendance marking for this date. Students will be included in attendance counts again.
+            </p>
+
+            <div className="flex justify-end gap-3 pt-2 border-t border-border">
+              <button
+                type="button"
+                onClick={() => setShowRevertModal(false)}
+                disabled={holidaySubmitting}
+                className="rounded-xl border border-border bg-hover/40 px-4 py-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmRevertHoliday}
+                disabled={holidaySubmitting}
+                className="rounded-xl bg-amber-500 hover:bg-amber-400 px-5 py-2.5 text-xs font-bold text-white transition disabled:opacity-50"
+              >
+                {holidaySubmitting ? "Reverting..." : "Yes, Revert to Working Day"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

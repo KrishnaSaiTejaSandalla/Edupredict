@@ -14,6 +14,7 @@ type Exam = {
   subjectId: number;
   className: string;
   subjectName: string;
+  academicYear: string | null;
 };
 
 type ClassSubject = {
@@ -87,16 +88,29 @@ export default function MarksClient({ teacherId, teacherUserId, exams, classSubj
   const [marksInput, setMarksInput] = useState<Record<number, { marks: string; remarks: string }>>({});
   const [submitting, setSubmitting] = useState(false);
 
-  // Results tab
+  const exam = safeExams.find((e) => e.id === selectedExam);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const examDateVal = exam?.examDate ? new Date(exam.examDate + "T00:00:00") : null;
+  const isExamInFuture = examDateVal ? today < examDateVal : false;
+
+  // Results tab cascading filters
+  const [resultsYearFilter, setResultsYearFilter] = useState<string>("");
+  const [resultsExamFilter, setResultsExamFilter] = useState<string>("");
+  const [resultsMonthFilter, setResultsMonthFilter] = useState<string>("");
+  const [resultsSubjectFilter, setResultsSubjectFilter] = useState<number | "">("");
+
   const [resultsData, setResultsData] = useState<{ items: ResultItem[]; total: number; pages: number }>({ items: [], total: 0, pages: 0 });
   const [loadingResults, setLoadingResults] = useState(false);
   const [resultsPage, setResultsPage] = useState(1);
   const [resultsSearch, setResultsSearch] = useState("");
   const [resultsClassFilter, setResultsClassFilter] = useState<number | "">("");
-  const [resultsSubjectFilter, setResultsSubjectFilter] = useState<number | "">("");
   const [editingResultId, setEditingResultId] = useState<number | null>(null);
   const [editMarksInput, setEditMarksInput] = useState<string>("");
   const [editRemarksInput, setEditRemarksInput] = useState<string>("");
+
+  const [hasFetchedResults, setHasFetchedResults] = useState(false);
+  const [triggerFetchCount, setTriggerFetchCount] = useState(0);
 
   // Analytics
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
@@ -109,10 +123,16 @@ export default function MarksClient({ teacherId, teacherUserId, exams, classSubj
   // Load students when exam changes
   useEffect(() => {
     if (!selectedExam) { setStudents([]); setMarksInput({}); return; }
+    if (isExamInFuture) { setStudents([]); setMarksInput({}); return; }
     setLoadingStudents(true);
     fetch(`/api/teacher/marks?action=students&examId=${selectedExam}`)
       .then((r) => r.json())
       .then((data) => {
+        if (data.error) {
+          toast.error(data.error);
+          setStudents([]);
+          return;
+        }
         const studentList = Array.isArray(data?.students) ? data.students : [];
         setStudents(studentList);
         const initial: Record<number, { marks: string; remarks: string }> = {};
@@ -126,17 +146,42 @@ export default function MarksClient({ teacherId, teacherUserId, exams, classSubj
       })
       .catch(() => toast.error("Failed to load students"))
       .finally(() => setLoadingStudents(false));
-  }, [selectedExam]);
+  }, [selectedExam, isExamInFuture]);
 
   // Load results
   useEffect(() => {
     if (activeTab !== "edit" && activeTab !== "analytics") return;
+    if (!hasFetchedResults) return;
     setLoadingResults(true);
+
     const params = new URLSearchParams();
     params.set("page", String(resultsPage));
     params.set("search", encodeURIComponent(resultsSearch));
     if (resultsClassFilter) params.set("classId", String(resultsClassFilter));
-    if (resultsSubjectFilter) params.set("subjectId", String(resultsSubjectFilter));
+
+    const MONTH_NAMES = [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"
+    ];
+    const getMonthName = (dateStr: string | null) => {
+      if (!dateStr) return "";
+      const d = new Date(dateStr);
+      return isNaN(d.getTime()) ? "" : MONTH_NAMES[d.getMonth()];
+    };
+
+    const matchingExams = safeExams.filter((e) =>
+      e.academicYear === resultsYearFilter &&
+      e.name === resultsExamFilter &&
+      getMonthName(e.examDate) === resultsMonthFilter &&
+      e.subjectId === Number(resultsSubjectFilter)
+    );
+    const examIdsStr = matchingExams.map((e) => e.id).join(",");
+    if (examIdsStr) {
+      params.set("examId", examIdsStr);
+    } else {
+      params.set("examId", "-1");
+    }
+
     fetch(`/api/teacher/marks?action=results&${params}`)
       .then((r) => r.json())
       .then((data) => setResultsData({
@@ -146,7 +191,7 @@ export default function MarksClient({ teacherId, teacherUserId, exams, classSubj
       }))
       .catch(() => toast.error("Failed to load results"))
       .finally(() => setLoadingResults(false));
-  }, [activeTab, resultsPage, resultsSearch, resultsClassFilter, resultsSubjectFilter]);
+  }, [activeTab, resultsPage, resultsSearch, resultsClassFilter, triggerFetchCount, hasFetchedResults]);
 
   // Load analytics
   useEffect(() => {
@@ -339,7 +384,21 @@ export default function MarksClient({ teacherId, teacherUserId, exams, classSubj
             </div>
           )}
 
-          {selectedExam && !loadingStudents && students.length === 0 && (
+          {selectedExam && isExamInFuture && (
+            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-12 text-center shadow-sm max-w-lg mx-auto">
+              <div className="flex items-center justify-center h-14 w-14 rounded-2xl bg-amber-500/10 mx-auto mb-4">
+                <svg viewBox="0 0 24 24" className="h-7 w-7 text-amber-500" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <p className="text-sm font-bold text-foreground">Marks Entry Restricted</p>
+              <p className="text-xs text-muted-foreground mt-1.5 max-w-xs mx-auto leading-relaxed">
+                Marks can only be entered after the examination date.
+              </p>
+            </div>
+          )}
+
+          {selectedExam && !loadingStudents && !isExamInFuture && students.length === 0 && (
             <div className="rounded-2xl border-2 border-dashed border-border bg-card p-10 text-center shadow-sm max-w-lg mx-auto">
               <p className="text-xs font-semibold text-muted-foreground">No students found associated with this class and exam.</p>
             </div>
@@ -404,65 +463,209 @@ export default function MarksClient({ teacherId, teacherUserId, exams, classSubj
         </div>
       )}
 
-      {/* Edit Marks Tab */}
       {activeTab === "edit" && (
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-6">
-          {/* Controls bar */}
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-border bg-card p-4 shadow-sm bg-hover/10">
-            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-              <div className="relative w-full sm:w-60">
-                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50">
-                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
-                    <path d="M10 4a6 6 0 1 0 3.7 10.7l3.6 3.6 1.4-1.4-3.6-3.6A6 6 0 0 0 10 4Zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z" />
-                  </svg>
-                </span>
-                <input
-                  type="text"
-                  placeholder="Search by name or roll..."
-                  value={resultsSearch}
-                  onChange={(e) => { setResultsSearch(e.target.value); setResultsPage(1); }}
-                  className="h-11 w-full rounded-xl border border-border bg-background pl-10 pr-4 text-sm focus-visible:outline-none focus:ring-accent focus:border-transparent"
-                />
-              </div>
-              <select
-                className="select-theme w-full sm:w-40"
-                value={resultsClassFilter}
-                onChange={(e) => { setResultsClassFilter(e.target.value ? Number(e.target.value) : ""); setResultsPage(1); }}
-              >
-                <option value="">All Classes</option>
-                {[...new Map(safeClassSubjects.map(cs => [cs.classId, cs])).values()]
-                  .sort((a, b) => Number(a.className) - Number(b.className))
-                  .map(cs => (
-                    <option key={cs.classId} value={cs.classId}>
-                      Class {cs.className}
+        <div className="space-y-6">
+          {/* Cascading Filter Controls */}
+          <div className="bg-hover/10 p-5 rounded-2xl border border-border space-y-4">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Cascading Marks Filter</h3>
+            
+            <div className="grid gap-4 sm:grid-cols-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Academic Year</label>
+                <select
+                  value={resultsYearFilter}
+                  onChange={(e) => {
+                    setResultsYearFilter(e.target.value);
+                    setResultsExamFilter("");
+                    setResultsMonthFilter("");
+                    setResultsSubjectFilter("");
+                    setHasFetchedResults(false);
+                  }}
+                  className="select-theme w-full"
+                >
+                  <option value="">Select Year</option>
+                  {Array.from(new Set(safeExams.map((e) => e.academicYear).filter((yr): yr is string => !!yr))).map((yr) => (
+                    <option key={yr} value={yr}>
+                      {yr}
                     </option>
                   ))}
-              </select>
-              <select
-                className="select-theme w-full sm:w-40"
-                value={resultsSubjectFilter}
-                onChange={(e) => { setResultsSubjectFilter(e.target.value ? Number(e.target.value) : ""); setResultsPage(1); }}
-              >
-                <option value="">All Subjects</option>
-                {[...new Map(safeClassSubjects.map(cs => [cs.subjectId, cs])).values()].map(cs => (
-                  <option key={cs.subjectId} value={cs.subjectId}>{cs.subjectName}</option>
-                ))}
-              </select>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Exam</label>
+                <select
+                  disabled={!resultsYearFilter}
+                  value={resultsExamFilter}
+                  onChange={(e) => {
+                    setResultsExamFilter(e.target.value);
+                    setResultsMonthFilter("");
+                    setResultsSubjectFilter("");
+                    setHasFetchedResults(false);
+                  }}
+                  className="select-theme w-full disabled:opacity-50"
+                >
+                  <option value="">Select Exam</option>
+                  {Array.from(
+                    new Set(safeExams.filter((e) => e.academicYear === resultsYearFilter).map((e) => e.name))
+                  ).map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Month</label>
+                <select
+                  disabled={!resultsExamFilter}
+                  value={resultsMonthFilter}
+                  onChange={(e) => {
+                    setResultsMonthFilter(e.target.value);
+                    setResultsSubjectFilter("");
+                    setHasFetchedResults(false);
+                  }}
+                  className="select-theme w-full disabled:opacity-50"
+                >
+                  <option value="">Select Month</option>
+                  {Array.from(
+                    new Set(
+                      safeExams
+                        .filter((e) => e.academicYear === resultsYearFilter && e.name === resultsExamFilter)
+                        .map((e) => {
+                          const MONTH_NAMES = [
+                            "January", "February", "March", "April", "May", "June",
+                            "July", "August", "September", "October", "November", "December"
+                          ];
+                          if (!e.examDate) return "";
+                          const d = new Date(e.examDate);
+                          return isNaN(d.getTime()) ? "" : MONTH_NAMES[d.getMonth()];
+                        })
+                        .filter(Boolean)
+                    )
+                  ).map((mName) => (
+                    <option key={mName} value={mName}>
+                      {mName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Subject</label>
+                <select
+                  disabled={!resultsMonthFilter}
+                  value={resultsSubjectFilter}
+                  onChange={(e) => {
+                    setResultsSubjectFilter(e.target.value ? Number(e.target.value) : "");
+                    setHasFetchedResults(false);
+                  }}
+                  className="select-theme w-full disabled:opacity-50"
+                >
+                  <option value="">Select Subject</option>
+                  {Array.from(
+                    new Map(
+                      safeExams
+                        .filter((e) => {
+                          const MONTH_NAMES = [
+                            "January", "February", "March", "April", "May", "June",
+                            "July", "August", "September", "October", "November", "December"
+                          ];
+                          if (!e.examDate) return false;
+                          const d = new Date(e.examDate);
+                          const mName = isNaN(d.getTime()) ? "" : MONTH_NAMES[d.getMonth()];
+                          return (
+                            e.academicYear === resultsYearFilter &&
+                            e.name === resultsExamFilter &&
+                            mName === resultsMonthFilter
+                          );
+                        })
+                        .map((e) => [e.subjectId, { id: e.subjectId, name: e.subjectName }])
+                    ).values()
+                  ).map((subj) => (
+                    <option key={subj.id} value={subj.id}>
+                      {subj.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <span className="text-xs font-semibold text-muted-foreground self-center shrink-0">
-              {safeResultsTotal} {safeResultsTotal === 1 ? "result" : "results"} found
-            </span>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setHasFetchedResults(true);
+                  setTriggerFetchCount((prev) => prev + 1);
+                  setResultsPage(1);
+                }}
+                disabled={!resultsYearFilter || !resultsExamFilter || !resultsMonthFilter || !resultsSubjectFilter}
+                className="h-10 px-5 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-white font-bold text-xs disabled:opacity-50 transition"
+              >
+                Fetch Marks
+              </button>
+            </div>
           </div>
 
-          {loadingResults ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => <div key={i} className="skeleton h-14 rounded-xl" />)}
-            </div>
-          ) : safeResultsItems.length === 0 ? (
-            <div className="rounded-2xl border-2 border-dashed border-border bg-card p-12 text-center shadow-sm max-w-lg mx-auto">
-              <p className="text-xs font-semibold text-muted-foreground">No results recorded. Enter marks first.</p>
-            </div>
-          ) : (
+          {/* Inline filters and results container (only shown after Fetching is clicked) */}
+          {hasFetchedResults && (
+            <>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-border bg-card p-4 shadow-sm bg-hover/10">
+                <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                  <div className="relative w-full sm:w-60">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50">
+                      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
+                        <path d="M10 4a6 6 0 1 0 3.7 10.7l3.6 3.6 1.4-1.4-3.6-3.6A6 6 0 0 0 10 4Zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z" />
+                      </svg>
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="Search by name or roll..."
+                      value={resultsSearch}
+                      onChange={(e) => {
+                        setResultsSearch(e.target.value);
+                        setResultsPage(1);
+                      }}
+                      className="h-11 w-full rounded-xl border border-border bg-background pl-10 pr-4 text-sm focus-visible:outline-none focus:ring-accent focus:border-transparent"
+                    />
+                  </div>
+                  <select
+                    className="select-theme w-full sm:w-40"
+                    value={resultsClassFilter}
+                    onChange={(e) => {
+                      setResultsClassFilter(e.target.value ? Number(e.target.value) : "");
+                      setResultsPage(1);
+                    }}
+                  >
+                    <option value="">All Classes</option>
+                    {[...new Map(safeClassSubjects.map((cs) => [cs.classId, cs])).values()]
+                      .sort((a, b) => Number(a.className) - Number(b.className))
+                      .map((cs) => (
+                        <option key={cs.classId} value={cs.classId}>
+                          Class {cs.className}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                <span className="text-xs font-semibold text-muted-foreground self-center shrink-0">
+                  {safeResultsTotal} {safeResultsTotal === 1 ? "result" : "results"} found
+                </span>
+              </div>
+
+              {loadingResults ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="skeleton h-14 rounded-xl" />
+                  ))}
+                </div>
+              ) : safeResultsItems.length === 0 ? (
+                <div className="rounded-2xl border-2 border-dashed border-border bg-card p-12 text-center shadow-sm max-w-lg mx-auto">
+                  <p className="text-xs font-semibold text-muted-foreground">
+                    No results recorded for this selection.
+                  </p>
+                </div>
+              ) : (
             <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-md">
               <table className="w-full text-left text-sm text-foreground">
                 <thead className="border-b border-border bg-background/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -593,6 +796,8 @@ export default function MarksClient({ teacherId, teacherUserId, exams, classSubj
                 )}
               </div>
             </div>
+          )}
+          </>
           )}
         </div>
       )}

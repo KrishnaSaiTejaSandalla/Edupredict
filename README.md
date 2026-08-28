@@ -5,7 +5,7 @@
 
 ---
 
-## ⚡ Overview in 60 Seconds
+## ⚡ Overview
 
 **EduPredict** is an end-to-end institutional intelligence platform that unifies students, teachers, parents, administrators, and transport operators into a single data-driven ecosystem. 
 

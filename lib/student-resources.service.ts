@@ -11,9 +11,9 @@ import {
   resourceBookmarks,
   studentLearningProgress,
   classSubjects,
-  teacherClassAssignments,
 } from './schema';
 import { eq, desc, sql, and, inArray } from 'drizzle-orm';
+
 
 export async function getStudentResources(userId: number) {
   const [studentRow] = await db
@@ -32,14 +32,29 @@ export async function getStudentResources(userId: number) {
     };
   }
 
-  // 1. Get class name
+  // 1. Get class name AND section to build the label exactly as the teacher stores it
   const [classRow] = await db
-    .select({ name: classes.name })
+    .select({ name: classes.name, section: classes.section })
     .from(classes)
     .where(eq(classes.id, studentRow.classId))
     .limit(1);
 
-  const className = classRow?.name || "";
+  if (!classRow) {
+    return {
+      availableResources: [],
+      bookmarkedIds: [],
+      progressList: [],
+      weakSubjects: [],
+      recentTopics: [],
+    };
+  }
+
+  // Build classLevel label the same way the teacher UI does:
+  // TeacherResourcesPage produces: section ? `${name} - ${section}` : name
+  const classLabel = classRow.section
+    ? `${classRow.name} - ${classRow.section}`
+    : classRow.name;
+  const className = classRow.name;
 
   // Fetch subject names assigned to this student's class
   const classSubjectRows = await db
@@ -49,16 +64,10 @@ export async function getStudentResources(userId: number) {
     .where(eq(classSubjects.classId, studentRow.classId));
   const classSubjectNames = classSubjectRows.map(r => r.name).filter(Boolean) as string[];
 
-  // Fetch teacher IDs assigned to this student's class
-  const classTeacherRows = await db
-    .select({ teacherId: teacherClassAssignments.teacherId })
-    .from(teacherClassAssignments)
-    .where(eq(teacherClassAssignments.classId, studentRow.classId));
-  const classTeacherIds = classTeacherRows.map(r => r.teacherId).filter(Boolean) as number[];
-
-  // 2. Fetch resources matching class name, subjects, and assigned teachers
+  // 2. Fetch resources: strictly match this student's exact class level (e.g. "10 - A" or "10")
+  //    Filtered to subjects in this student's class.
   let availableResources: any[] = [];
-  if (className && classSubjectNames.length > 0 && classTeacherIds.length > 0) {
+  if (classLabel) {
     availableResources = await db
       .select({
         id: teacherResources.id,
@@ -68,6 +77,8 @@ export async function getStudentResources(userId: number) {
         classLevel: teacherResources.classLevel,
         resourceType: teacherResources.resourceType,
         fileUrl: teacherResources.fileUrl,
+        isAIGenerated: teacherResources.isAIGenerated,
+        aiContent: teacherResources.aiContent,
         downloadCount: teacherResources.downloadCount,
         viewCount: teacherResources.viewCount,
         createdAt: teacherResources.createdAt,
@@ -78,9 +89,10 @@ export async function getStudentResources(userId: number) {
       .leftJoin(users, eq(users.id, teachers.userId))
       .where(
         and(
-          eq(teacherResources.classLevel, className),
-          inArray(teacherResources.subject, classSubjectNames),
-          inArray(teacherResources.teacherId, classTeacherIds)
+          eq(teacherResources.classLevel, classLabel),
+          classSubjectNames.length > 0
+            ? sql`(${teacherResources.subject} IS NULL OR ${teacherResources.subject} IN (${sql.join(classSubjectNames.map(s => sql`${s}`), sql`, `)}))`
+            : sql`1=1`
         )
       )
       .orderBy(desc(teacherResources.createdAt));

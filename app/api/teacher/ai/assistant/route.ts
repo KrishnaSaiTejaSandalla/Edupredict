@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import {
   teachers, classes, students, users, attendance,
   assignments, assignmentSubmissions, results, subjects,
-  predictions, classSubjects,
+  predictions, classSubjects, exams,
 } from "@/lib/schema";
 import { eq, and, inArray, desc, gte, sql, isNull, lt } from "drizzle-orm";
 
@@ -71,10 +71,17 @@ export async function GET(request: Request) {
     const recentAttMap = new Map(recentAttRows.map(r => [r.studentId, calcPct(r as any)]));
     const priorAttMap = new Map(priorAttRows.map(r => [r.studentId, calcPct(r as any)]));
 
-    // Marks: recent vs prior
+    // Marks: recent vs prior (computed as true percentages)
     const resultRows = await db
-      .select({ studentId: results.studentId, marks: results.marks, recordedDate: results.recordedDate, subjectName: subjects.name })
+      .select({
+        studentId: results.studentId,
+        marks: results.marks,
+        maxMarks: exams.maxMarks,
+        recordedDate: results.recordedDate,
+        subjectName: subjects.name,
+      })
       .from(results)
+      .leftJoin(exams, eq(results.examId, exams.id))
       .leftJoin(subjects, eq(results.subjectId, subjects.id))
       .where(inArray(results.studentId, studentIds))
       .orderBy(desc(results.recordedDate));
@@ -82,7 +89,9 @@ export async function GET(request: Request) {
     const marksMap = new Map<number, number[]>();
     resultRows.forEach(r => {
       if (!marksMap.has(r.studentId)) marksMap.set(r.studentId, []);
-      marksMap.get(r.studentId)!.push(Number(r.marks || 0));
+      const maxM = Number(r.maxMarks || 100);
+      const pct = maxM > 0 ? (Number(r.marks || 0) / maxM) * 100 : Number(r.marks || 0);
+      marksMap.get(r.studentId)!.push(pct);
     });
 
     // ML predictions
@@ -310,19 +319,31 @@ export async function POST(request: Request) {
     attRows.forEach(r => { const t = Number(r.total || 0); const p = Number(r.present || 0) + Number(r.halfDay || 0) * 0.5; attMap.set(r.studentId, t > 0 ? Math.round((p / t) * 100) : 100); });
 
     const resultRows = studentIds.length > 0
-      ? await db.select({ studentId: results.studentId, subjectId: results.subjectId, subjectName: subjects.name, marks: results.marks })
-          .from(results).leftJoin(subjects, eq(results.subjectId, subjects.id)).where(inArray(results.studentId, studentIds)).orderBy(desc(results.recordedDate))
+      ? await db
+          .select({
+            studentId: results.studentId,
+            subjectId: results.subjectId,
+            subjectName: subjects.name,
+            marks: results.marks,
+            maxMarks: exams.maxMarks,
+          })
+          .from(results)
+          .leftJoin(exams, eq(results.examId, exams.id))
+          .leftJoin(subjects, eq(results.subjectId, subjects.id))
+          .where(inArray(results.studentId, studentIds))
+          .orderBy(desc(results.recordedDate))
       : [];
 
     const marksMap = new Map<number, { scores: number[]; bySubject: Record<string, number[]> }>();
     resultRows.forEach(r => {
       if (!marksMap.has(r.studentId)) marksMap.set(r.studentId, { scores: [], bySubject: {} });
       const data = marksMap.get(r.studentId)!;
-      const num = Number(r.marks || 0);
-      data.scores.push(num);
+      const maxM = Number(r.maxMarks || 100);
+      const pct = maxM > 0 ? (Number(r.marks || 0) / maxM) * 100 : Number(r.marks || 0);
+      data.scores.push(pct);
       const sn = r.subjectName || "Subject";
       if (!data.bySubject[sn]) data.bySubject[sn] = [];
-      data.bySubject[sn].push(num);
+      data.bySubject[sn].push(pct);
     });
 
     const predRows = studentIds.length > 0

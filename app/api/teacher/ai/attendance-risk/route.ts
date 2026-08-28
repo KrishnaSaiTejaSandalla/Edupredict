@@ -11,10 +11,10 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   try {
     const user = await requireRole("teacher");
-    const body = await request.json();
-    const { classId } = body;
+    const body = await request.json().catch(() => null);
+    const classId = body?.classId;
 
-    if (!classId) {
+    if (!Number.isInteger(Number(classId)) || Number(classId) < 1) {
       return NextResponse.json({ error: "classId is required" }, { status: 400 });
     }
 
@@ -23,6 +23,13 @@ export async function POST(request: Request) {
     // Verify teacher assignment to this class
     const [teacher] = await db.select().from(teachers).where(eq(teachers.userId, user.id)).limit(1);
     if (!teacher) return NextResponse.json({ error: "Teacher record not found" }, { status: 403 });
+
+    const [assignment] = await db
+      .select({ id: classTeacherAssignments.id })
+      .from(classTeacherAssignments)
+      .where(and(eq(classTeacherAssignments.teacherId, teacher.id), eq(classTeacherAssignments.classId, cId)))
+      .limit(1);
+    if (!assignment) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     // Fetch students in this class
     const studentRows = await db
@@ -211,7 +218,8 @@ Return JSON with 2 keys:
     );
 
     return NextResponse.json({ students: studentRiskList });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || "Attendance risk analysis failed" }, { status: 500 });
+  } catch (error) {
+    console.error("Attendance risk analysis failed:", error);
+    return NextResponse.json({ error: "Attendance risk analysis could not be completed" }, { status: 500 });
   }
 }

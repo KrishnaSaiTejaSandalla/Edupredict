@@ -33,6 +33,7 @@ export default async function ParentSettingsPage() {
     phoneNumber: parentRecord?.phoneNumber || dbUser.phoneNumber || "",
     address: parentRecord?.address || "",
     notificationPreferences: dbUser.notificationPreferences,
+    appearancePreferences: dbUser.appearancePreferences,
   } : {
     id: authUser.id,
     name: authUser.name,
@@ -41,6 +42,7 @@ export default async function ParentSettingsPage() {
     phoneNumber: "",
     address: "",
     notificationPreferences: null,
+    appearancePreferences: null,
   };
 
   return (

@@ -242,6 +242,8 @@ export async function updateStudentNotificationPrefs(
     .where(eq(users.id, userId));
 
   revalidatePath('/student/settings');
+  revalidatePath('/student/notifications');
+  revalidatePath('/student');
   return { success: true };
 }
 

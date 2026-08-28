@@ -23,10 +23,20 @@ export default function LogoutButton({
     else if (pathname.startsWith("/student")) role = "student";
     else if (pathname.startsWith("/parent")) role = "parent";
 
+    // Read userId from the ep-active-user hint cookie so the correct per-user session cookie is cleared
+    let userId: string | null = null;
+    if (typeof document !== "undefined") {
+      const match = document.cookie.match(/ep-active-user=([^;]+)/);
+      if (match) {
+        const parts = match[1].split(":");
+        if (parts.length === 2) userId = parts[1];
+      }
+    }
+
     await fetch("/api/auth/logout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role }),
+      body: JSON.stringify({ role, ...(userId ? { userId } : {}) }),
     });
 
     toast.success("Signed out successfully");

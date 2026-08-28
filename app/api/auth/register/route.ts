@@ -6,12 +6,16 @@ import { eq } from 'drizzle-orm';
 import { createSession } from '@/lib/session';
 import { SESSION_COOKIE_NAME } from '@/lib/env';
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { name, email, password, role } = body;
+    const name = typeof body?.name === 'string' ? body.name.trim() : '';
+    const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
+    const password = typeof body?.password === 'string' ? body.password : '';
 
-    if (!email || !password || !name) {
+    if (!EMAIL_RE.test(email) || name.length < 2 || name.length > 128 || password.length < 8 || password.length > 256) {
       return NextResponse.json(
         { error: 'Missing fields' },
         { status: 400 }
@@ -37,7 +41,9 @@ export async function POST(req: Request) {
       name,
       email,
       password: hashed,
-      role: role || 'student',
+      // Public signup must never create a privileged account. Staff and parent
+      // accounts are provisioned through the authenticated administration flow.
+      role: 'student',
     });
 
     const [newUser] = await db
@@ -71,6 +77,7 @@ export async function POST(req: Request) {
       value: token,
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
       path: '/',
       expires: expiresAt,
     });
@@ -80,6 +87,7 @@ export async function POST(req: Request) {
       value: userRole,
       httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
       path: '/',
       expires: expiresAt,
     });

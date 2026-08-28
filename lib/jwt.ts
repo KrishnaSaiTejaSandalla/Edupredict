@@ -1,6 +1,12 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 
-const JWT_SECRET = process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET || 'edupredict-dev-secret';
+const configuredSecret = process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET;
+if (!configuredSecret && process.env.NODE_ENV === 'production') {
+  throw new Error('JWT signing secret is not configured');
+}
+// The fallback is restricted to local development only. Production starts fail
+// closed when a signing secret is absent.
+const JWT_SECRET = configuredSecret || 'edupredict-development-only-secret';
 
 interface JwtPayload {
   sub: number;

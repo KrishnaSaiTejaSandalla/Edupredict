@@ -63,7 +63,7 @@ export default function DevResetForm() {
   };
 
   return (
-    <div className="w-full max-w-md p-8 rounded-3xl border border-white/10 bg-black/40 backdrop-blur-xl shadow-2xl relative overflow-hidden group">
+    <div className="w-full max-w-md p-8 rounded-3xl border border-white/10  backdrop-blur-xl shadow-2xl relative overflow-hidden group">
       {/* Decorative background glow */}
       <div className="absolute -top-24 -left-24 w-48 h-48 bg-cyan-500/20 rounded-full blur-3xl pointer-events-none group-hover:bg-cyan-500/30 transition-all duration-700" />
       <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-purple-500/20 rounded-full blur-3xl pointer-events-none group-hover:bg-purple-500/30 transition-all duration-700" />
@@ -129,11 +129,10 @@ export default function DevResetForm() {
 
           {status && (
             <div
-              className={`p-3.5 rounded-xl border text-xs leading-relaxed transition-all duration-300 ${
-                status.type === 'success'
+              className={`p-3.5 rounded-xl border text-xs leading-relaxed transition-all duration-300 ${status.type === 'success'
                   ? 'bg-emerald-950/30 border-emerald-800/40 text-emerald-300'
                   : 'bg-rose-950/30 border-rose-800/40 text-rose-300'
-              }`}
+                }`}
             >
               {status.message}
             </div>

@@ -393,9 +393,11 @@ export async function getParentDashboardData(parentUserId: number, studentId: nu
   const trendRows = await db
     .select({
       month: sql<string>`DATE_FORMAT(${results.recordedDate}, '%Y-%m')`,
-      avg: sql<number>`AVG(CAST(${results.marks} AS DECIMAL(5,2)))`,
+      obtained: sql<number>`SUM(CAST(${results.marks} AS DECIMAL(10,2)))`,
+      maximum: sql<number>`SUM(CAST(${exams.maxMarks} AS DECIMAL(10,2)))`,
     })
     .from(results)
+    .leftJoin(exams, eq(exams.id, results.examId))
     .where(and(eq(results.studentId, studentId), gte(results.recordedDate, sixMonthsAgo)))
     .groupBy(sql`DATE_FORMAT(${results.recordedDate}, '%Y-%m')`)
     .orderBy(sql`DATE_FORMAT(${results.recordedDate}, '%Y-%m')`);
@@ -405,7 +407,11 @@ export async function getParentDashboardData(parentUserId: number, studentId: nu
     const monthName = new Date(Number(year), Number(month) - 1, 1).toLocaleString("default", {
       month: "short",
     });
-    return { month: `${monthName}`, score: Math.round(Number(r.avg || 0)) };
+    const maximum = Number(r.maximum || 0);
+    return {
+      month: `${monthName}`,
+      score: maximum > 0 ? Math.round((Number(r.obtained || 0) / maximum) * 100) : 0,
+    };
   });
 
   // 10. Active Bus
@@ -431,16 +437,35 @@ export async function getParentDashboardData(parentUserId: number, studentId: nu
       }
     : null;
 
-  // 11. AI Study Tips
+  // 11. Parent-friendly, data-based academic insights
+  const focusSubjects = subjectPerformance
+    .filter((subject) => subject.riskLevel !== "low" || subject.studentAvg < subject.classAvg)
+    .sort((a, b) => a.studentAvg - b.studentAvg)
+    .slice(0, 2);
+  const trendDelta = performanceTrend.length >= 2
+    ? performanceTrend[performanceTrend.length - 1].score - performanceTrend[0].score
+    : 0;
+  const trendInsight = performanceTrend.length < 2
+    ? "More assessment results will reveal a clear learning trend."
+    : trendDelta >= 5
+    ? `Scores have improved by ${trendDelta} points across the recorded months—notice the habits that are helping.`
+    : trendDelta <= -5
+    ? `Scores have changed by ${trendDelta} points recently—this is a good time for calm check-ins and smaller revision goals.`
+    : "Scores are steady. A consistent home routine can help turn stability into gradual growth.";
+  const focusInsight = focusSubjects.length > 0
+    ? `Focus gently on ${focusSubjects.map((subject) => subject.subjectName).join(" and ")}. Ask your child to explain one idea aloud, then practise one example together.`
+    : "There are no clear academic risk areas right now. Keep nurturing curiosity with short conversations about what was learned each day.";
   const aiInsights = [
     overallAvg >= 85
-      ? `Student is performing excellently in class. Encourage them to keep up the momentum.`
+      ? `Academic picture: strong overall progress at ${Math.round(overallAvg)}%. Celebrate effort as much as achievement so confidence stays healthy.`
       : overallAvg >= 70
-      ? `Student is on track. Working on weak subjects can push scores higher.`
-      : `Student needs help in some areas. Reviewing assignments daily will build confidence.`,
+      ? `Academic picture: ${Math.round(overallAvg)}% overall shows a solid foundation with room to grow through focused support.`
+      : `Academic picture: ${Math.round(overallAvg)}% overall calls for patient structure, not pressure. Small wins will rebuild confidence.`,
+    trendInsight,
+    focusInsight,
     attendancePercent < 75
-      ? "Attendance is below 75%. Regular class attendance is vital for academic progress."
-      : "Attendance is solid. Keep attending classes regularly.",
+      ? `Attendance is ${attendancePercent}%. Regular attendance is the first step: help remove practical barriers and check in warmly each morning.`
+      : "Home connection: spend 15 device-free minutes asking 'What did you discover today?' Listening without immediately correcting builds trust and curiosity.",
   ];
 
   // 12. Today's Classes from Timetable

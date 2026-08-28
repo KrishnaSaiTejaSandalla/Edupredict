@@ -211,7 +211,7 @@ export default function TeacherDashboardClient({ userName, dashboard, teacherDep
           Welcome back, {userName}
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-          {teacherDept ? `${teacherDept} Department Â· ` : ""}
+          {teacherDept ? `${teacherDept} Department · ` : ""}
           Your personal command center for today's classes, attendance, and grading.
         </p>
       </div>
@@ -227,13 +227,13 @@ export default function TeacherDashboardClient({ userName, dashboard, teacherDep
           <div className="flex-1 min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-widest text-cyan-500">Now Teaching</p>
             <p className="text-sm font-bold text-foreground mt-0.5">
-              {currentPeriod.subjectName} Â· {currentPeriod.className}
+              {currentPeriod.subjectName} · {currentPeriod.className}
             </p>
           </div>
           <div className="text-right shrink-0">
             <p className="text-xs font-semibold text-muted-foreground">Room {currentPeriod.roomNumber}</p>
             <p className="text-xs text-cyan-400 font-semibold mt-0.5">
-              {currentPeriod.startTime.slice(0, 5)} â€“ {currentPeriod.endTime.slice(0, 5)}
+              {currentPeriod.startTime.slice(0, 5)} – {currentPeriod.endTime.slice(0, 5)}
             </p>
           </div>
         </div>
@@ -293,7 +293,7 @@ export default function TeacherDashboardClient({ userName, dashboard, teacherDep
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400">
-              ðŸ“Š
+              📊
             </span>
             <div>
               <h2 className="text-sm font-semibold text-foreground">Monthly AI Teaching Summary</h2>
@@ -307,9 +307,9 @@ export default function TeacherDashboardClient({ userName, dashboard, teacherDep
             {isLoadingMonthly ? (
               <span className="h-3 w-3 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin" />
             ) : showMonthly ? (
-              "Hide Summary â–²"
+              "Hide Summary ▲"
             ) : (
-              "View Monthly Summary â–¼"
+              "View Monthly Summary ▼"
             )}
           </button>
         </div>
@@ -434,14 +434,14 @@ export default function TeacherDashboardClient({ userName, dashboard, teacherDep
 
       {/* Row 3: Interactive Assistant + Proactive AI Insights & Announcements */}
       <section className="grid gap-6 lg:grid-cols-12 items-stretch">
-        {/* Interactive Co-Pilot Q&A â€” wider left column */}
+        {/* Interactive Co-Pilot Q&A — wider left column */}
         <div className="lg:col-span-7 flex flex-col">
           {/* AI Faculty Co-Pilot Interactive Q&A */}
           <div className="rounded-2xl border border-border bg-card p-5 shadow-md flex flex-col h-full transition-colors duration-200">
             <div className="shrink-0 mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
-                  ðŸ’¬
+                  💬
                 </span>
                 <div>
                   <h2 className="text-base font-semibold text-foreground tracking-tight">Ask Co-Pilot</h2>
@@ -465,7 +465,7 @@ export default function TeacherDashboardClient({ userName, dashboard, teacherDep
                   disabled={isAskingAI}
                   className="rounded-lg border border-subtle bg-hover/30 px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:text-cyan-400 hover:border-cyan-500/30 transition disabled:opacity-50 text-left"
                 >
-                  âš¡ {chip}
+                  ⚡ {chip}
                 </button>
               ))}
             </div>
@@ -535,14 +535,14 @@ export default function TeacherDashboardClient({ userName, dashboard, teacherDep
           </div>
         </div>
 
-        {/* Proactive AI Insights + Announcements â€” right column */}
+        {/* Proactive AI Insights + Announcements — right column */}
         <div className="lg:col-span-5 space-y-6 flex flex-col">
           {/* Proactive Class Insights */}
           <div className="rounded-2xl border border-border bg-card p-5 shadow-md flex flex-col transition-colors duration-200">
             <div className="shrink-0 mb-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400 text-sm">
-                  ðŸ§ 
+                  🧠
                 </span>
                 <div>
                   <h2 className="text-base font-semibold text-foreground tracking-tight">Proactive Class Insights</h2>
@@ -563,7 +563,7 @@ export default function TeacherDashboardClient({ userName, dashboard, teacherDep
                 </div>
               ) : allClearMessage && proactiveInsights.length === 0 ? (
                 <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-center">
-                  <span className="text-2xl mb-1 block">âœ…</span>
+                  <span className="text-2xl mb-1 block">✅</span>
                   <p className="text-xs font-semibold text-emerald-400">All Clear!</p>
                   <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">{allClearMessage}</p>
                 </div>
@@ -609,7 +609,7 @@ export default function TeacherDashboardClient({ userName, dashboard, teacherDep
                           </p>
                         </div>
                         <span className="text-xs text-muted-foreground shrink-0 mt-0.5">
-                          {isExpanded ? "â–²" : "â–¼"}
+                          {isExpanded ? "▲" : "▼"}
                         </span>
                       </div>
 
@@ -617,12 +617,12 @@ export default function TeacherDashboardClient({ userName, dashboard, teacherDep
                         <div className="mt-3 pt-3 border-t border-subtle space-y-2">
                           <div>
                             <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-400 mb-1">
-                              ðŸ“Š Database Evidence:
+                              📊 Database Evidence:
                             </p>
                             <ul className="space-y-1">
                               {insight.evidence.map((ev, eIdx) => (
                                 <li key={eIdx} className="text-[11px] text-foreground flex items-start gap-1.5">
-                                  <span className="text-cyan-400 text-xs shrink-0">â€¢</span>
+                                  <span className="text-cyan-400 text-xs shrink-0">•</span>
                                   <span>{ev}</span>
                                 </li>
                               ))}
@@ -651,7 +651,7 @@ export default function TeacherDashboardClient({ userName, dashboard, teacherDep
             </div>
           </div>
 
-          {/* Recent Announcements â€” placed below PCI */}
+          {/* Recent Announcements — placed below PCI */}
           <div className="rounded-2xl border border-border bg-card p-5 shadow-md flex flex-col transition-colors duration-200">
             <div className="shrink-0 mb-3 flex items-center justify-between">
               <div>

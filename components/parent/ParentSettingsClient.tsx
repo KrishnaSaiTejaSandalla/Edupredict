@@ -1,10 +1,16 @@
 "use client";
 
-import React, { useState, useEffect, useTransition, useRef } from "react";
+import React, { useState, useEffect, useTransition, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useTheme } from "@/components/ui/ThemeProvider";
-import { updateUserPassword, uploadUserProfileImage, deleteUserProfileImage } from "@/lib/settings-actions";
+import { useNotificationStore } from "@/store/useNotificationStore";
+import {
+  updateUserPassword,
+  uploadUserProfileImage,
+  deleteUserProfileImage,
+  updateUserAppearancePreferences,
+} from "@/lib/settings-actions";
 import {
   updateParentProfile,
   updateParentNotificationPreferences,
@@ -121,9 +127,10 @@ export default function ParentSettingsClient({
 }: SettingsClientProps) {
   const router = useRouter();
   const { theme: currentTheme, colorPreset: currentPreset, setTheme, setColorPreset } = useTheme();
+  const setStorePreferences = useNotificationStore((s) => s.setPreferences);
+
   const [activeTab, setActiveTab] = useState<string>("profile");
   const [isPending, startTransition] = useTransition();
-  const [selectedPreset, setSelectedPreset] = useState<string>(currentPreset || "ocean-blue");
 
   // Avatar states
   const [avatars, setAvatars] = useState<UserAvatarProps[]>(initialAvatars);
@@ -132,7 +139,6 @@ export default function ParentSettingsClient({
   const [isDeletingProfile, setIsDeletingProfile] = useState<boolean>(false);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   const [showUploadMenu, setShowUploadMenu] = useState<boolean>(false);
-  const [hoveredPreset, setHoveredPreset] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Kids Profile Modal States
@@ -142,13 +148,116 @@ export default function ParentSettingsClient({
   const [editKidEmail, setEditKidEmail] = useState("");
   const [isSavingKid, setIsSavingKid] = useState(false);
 
-  // Form states and dirty checks
-  const [isDirty, setIsDirty] = useState<boolean>(false);
+  // -------------------------------------------------------------
+  // DRAFT STATES FOR ALL TABS
+  // -------------------------------------------------------------
+
+  // 1. Profile Draft
+  const [profileDraft, setProfileDraft] = useState({
+    name: user.name,
+    email: user.email,
+    phoneNumber: user.phoneNumber || "",
+    address: user.address || "",
+  });
+
+  useEffect(() => {
+    setProfileDraft({
+      name: user.name,
+      email: user.email,
+      phoneNumber: user.phoneNumber || "",
+      address: user.address || "",
+    });
+  }, [user.name, user.email, user.phoneNumber, user.address]);
+
+  // 2. Appearance Draft
+  const [themeDraft, setThemeDraft] = useState<"dark" | "light" | "system">(currentTheme || "dark");
+  const [presetDraft, setPresetDraft] = useState<string>(currentPreset || "ocean-blue");
+
+  useEffect(() => {
+    setThemeDraft(currentTheme);
+  }, [currentTheme]);
+
+  useEffect(() => {
+    setPresetDraft(currentPreset || "ocean-blue");
+  }, [currentPreset]);
+
+  // 3. Password & Security Draft
+  const [securityDraft, setSecurityDraft] = useState({
+    currentPassword: "",
+    newPassword: "",
+  });
+
+  // 4. Notifications Draft
+  const parsedNotifs = useMemo(() => {
+    if (!user.notificationPreferences) {
+      return {
+        attendance: true,
+        assignments: true,
+        messages: true,
+        diary: true,
+        feedback: true,
+        leaves: true,
+        announcements: true,
+        transport: true,
+        general: true,
+      };
+    }
+    try {
+      return JSON.parse(user.notificationPreferences);
+    } catch {
+      return {
+        attendance: true,
+        assignments: true,
+        messages: true,
+        diary: true,
+        feedback: true,
+        leaves: true,
+        announcements: true,
+        transport: true,
+        general: true,
+      };
+    }
+  }, [user.notificationPreferences]);
+
+  const [notifDraft, setNotifDraft] = useState<Record<string, boolean>>(parsedNotifs);
+
+  useEffect(() => {
+    setNotifDraft(parsedNotifs);
+  }, [parsedNotifs]);
+
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
 
-  const parsedNotifs = user.notificationPreferences
-    ? JSON.parse(user.notificationPreferences)
-    : { attendance: true, assignments: true, messages: true, diary: true, feedback: true, leaves: true, announcements: true, transport: true, general: true };
+  useEffect(() => {
+    setAvatars(initialAvatars);
+  }, [initialAvatars]);
+
+  // -------------------------------------------------------------
+  // TAB-AWARE DIRTY COMPUTATIONS
+  // -------------------------------------------------------------
+  const isProfileDirty =
+    profileDraft.name.trim() !== user.name.trim() ||
+    profileDraft.email.trim() !== user.email.trim() ||
+    profileDraft.phoneNumber.trim() !== (user.phoneNumber || "").trim() ||
+    profileDraft.address.trim() !== (user.address || "").trim();
+
+  const isAppearanceDirty = themeDraft !== currentTheme || presetDraft !== currentPreset;
+
+  const isSecurityDirty =
+    securityDraft.currentPassword.trim().length > 0 ||
+    securityDraft.newPassword.trim().length > 0;
+
+  const isNotifDirty = JSON.stringify(notifDraft) !== JSON.stringify(parsedNotifs);
+
+  const isCurrentTabDirty =
+    activeTab === "profile"
+      ? isProfileDirty
+      : activeTab === "appearance"
+      ? isAppearanceDirty
+      : activeTab === "security"
+      ? isSecurityDirty
+      : activeTab === "notifications"
+      ? isNotifDirty
+      : false;
 
   // Calculate Profile Completion Meter (5 fields)
   const profileFields = [
@@ -163,7 +272,6 @@ export default function ParentSettingsClient({
   ).length;
   const profileCompletionPercent = Math.round((completedFields / profileFields.length) * 100);
 
-  // Generate Initials fallback
   const initials = user.name
     .split(" ")
     .filter(Boolean)
@@ -172,85 +280,103 @@ export default function ParentSettingsClient({
     .slice(0, 2)
     .toUpperCase();
 
-  // Reset dirty flag if we switch tabs
-  useEffect(() => {
-    setIsDirty(false);
-  }, [activeTab]);
-
-  useEffect(() => {
-    setAvatars(initialAvatars);
-  }, [initialAvatars]);
-
-  const handleFieldChange = () => {
-    if (!isDirty) {
-      setIsDirty(true);
-    }
-  };
-
+  // -------------------------------------------------------------
+  // DISCARD & SAVE HANDLERS
+  // -------------------------------------------------------------
   const handleDiscard = () => {
-    startTransition(() => {
-      router.refresh();
-      setIsDirty(false);
-      toast.info("Changes discarded");
-    });
+    if (activeTab === "profile") {
+      setProfileDraft({
+        name: user.name,
+        email: user.email,
+        phoneNumber: user.phoneNumber || "",
+        address: user.address || "",
+      });
+    } else if (activeTab === "appearance") {
+      setThemeDraft(currentTheme);
+      setPresetDraft(currentPreset || "ocean-blue");
+    } else if (activeTab === "security") {
+      setSecurityDraft({ currentPassword: "", newPassword: "" });
+    } else if (activeTab === "notifications") {
+      setNotifDraft(parsedNotifs);
+    }
+    toast.info("Unsaved changes discarded");
   };
 
   const executeSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaveStatus("saving");
-    const formData = new FormData(e.currentTarget);
 
     try {
       if (activeTab === "profile") {
-        const name = formData.get("name") as string;
-        const email = formData.get("email") as string;
-        const phoneNumber = formData.get("phoneNumber") as string;
-        const address = formData.get("address") as string;
+        if (!profileDraft.name.trim() || !profileDraft.email.trim()) {
+          toast.error("Name and email address are required.");
+          setSaveStatus("idle");
+          return;
+        }
 
-        await updateParentProfile(user.id, { name, email, phoneNumber, address });
-        toast.success("Profile saved successfully!");
-      } else if (activeTab === "security") {
-        const currentPassword = formData.get("currentPassword") as string;
-        const newPassword = formData.get("newPassword") as string;
-
-        await updateUserPassword(user.id, { currentPassword, newPassword });
-        toast.success("Password changed successfully!");
-        (e.target as HTMLFormElement).reset();
-      } else if (activeTab === "notifications") {
-        const attendance = formData.get("attendance") === "on";
-        const assignments = formData.get("assignments") === "on";
-        const messages = formData.get("messages") === "on";
-        const diary = formData.get("diary") === "on";
-        const feedback = formData.get("feedback") === "on";
-        const leaves = formData.get("leaves") === "on";
-        const announcements = formData.get("announcements") === "on";
-        const transport = formData.get("transport") === "on";
-        const general = formData.get("general") === "on";
-
-        await updateParentNotificationPreferences(user.id, {
-          attendance,
-          assignments,
-          messages,
-          diary,
-          feedback,
-          leaves,
-          announcements,
-          transport,
-          general,
+        await updateParentProfile(user.id, {
+          name: profileDraft.name.trim(),
+          email: profileDraft.email.trim(),
+          phoneNumber: profileDraft.phoneNumber.trim(),
+          address: profileDraft.address.trim(),
         });
+
+        toast.success("Profile details saved successfully!");
+      } else if (activeTab === "security") {
+        if (!securityDraft.currentPassword || !securityDraft.newPassword) {
+          toast.error("Please provide both current and new password.");
+          setSaveStatus("idle");
+          return;
+        }
+        if (securityDraft.newPassword.length < 6) {
+          toast.error("New password must be at least 6 characters long.");
+          setSaveStatus("idle");
+          return;
+        }
+
+        await updateUserPassword(user.id, {
+          currentPassword: securityDraft.currentPassword,
+          newPassword: securityDraft.newPassword,
+        });
+
+        toast.success("Password changed successfully!");
+        setSecurityDraft({ currentPassword: "", newPassword: "" });
+      } else if (activeTab === "notifications") {
+        const payload = {
+          attendance: notifDraft.attendance !== false,
+          assignments: notifDraft.assignments !== false,
+          messages: notifDraft.messages !== false,
+          diary: notifDraft.diary !== false,
+          feedback: notifDraft.feedback !== false,
+          leaves: notifDraft.leaves !== false,
+          announcements: notifDraft.announcements !== false,
+          transport: notifDraft.transport !== false,
+          general: notifDraft.general !== false,
+        };
+
+        await updateParentNotificationPreferences(user.id, payload);
+        setStorePreferences(payload as any);
         toast.success("Notification preferences saved successfully!");
       } else if (activeTab === "appearance") {
-        setColorPreset(selectedPreset, true);
-        toast.success("Appearance updated.");
+        setTheme(themeDraft);
+        setColorPreset(presetDraft, true);
+        await updateUserAppearancePreferences(user.id, {
+          theme: themeDraft,
+          density: "comfortable",
+        });
+        toast.success("Appearance settings updated successfully!");
       }
 
-      setIsDirty(false);
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus("idle"), 1500);
-      router.refresh();
+
+      startTransition(() => {
+        router.refresh();
+      });
     } catch (err: any) {
-      toast.error(err.message || "Failed to save settings");
+      toast.error(err.message || "Failed to save settings. Please try again.");
       setSaveStatus("idle");
+      // Note: Draft states are deliberately kept intact so user work is NOT lost on error!
     }
   };
 
@@ -265,7 +391,7 @@ export default function ParentSettingsClient({
 
     const reader = new FileReader();
     reader.onload = () => {
-      if (typeof reader.result === 'string') {
+      if (typeof reader.result === "string") {
         setCropImageSrc(reader.result);
       }
     };
@@ -331,11 +457,16 @@ export default function ParentSettingsClient({
     e.preventDefault();
     if (!editKid) return;
 
+    if (!editKidName.trim() || !editKidEmail.trim()) {
+      toast.error("Name and email are required for student.");
+      return;
+    }
+
     setIsSavingKid(true);
     try {
       await updateStudentBasicInfo(editKid.studentId, {
-        name: editKidName,
-        email: editKidEmail,
+        name: editKidName.trim(),
+        email: editKidEmail.trim(),
       });
       toast.success("Student details updated successfully!");
       setEditKid(null);
@@ -363,7 +494,7 @@ export default function ParentSettingsClient({
           </p>
         </div>
 
-        {/* Dynamic Profile Completion Meter in Header */}
+        {/* Dynamic Profile Completion Meter */}
         <div className="flex items-center gap-3 rounded-2xl border border-theme bg-surface/50 p-3 backdrop-blur-md shadow-sm shrink-0">
           <div className="relative flex h-12 w-12 shrink-0 items-center justify-center">
             <svg className="h-full w-full transform -rotate-90">
@@ -427,10 +558,11 @@ export default function ParentSettingsClient({
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold tracking-wide uppercase transition duration-150 border border-transparent ${isActive
-                    ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/20 shadow-sm"
-                    : "text-secondary hover:bg-hover hover:text-primary"
-                    }`}
+                  className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold tracking-wide uppercase transition duration-150 border border-transparent ${
+                    isActive
+                      ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/20 shadow-sm"
+                      : "text-secondary hover:bg-hover hover:text-primary"
+                  }`}
                 >
                   <span className="flex items-center gap-3">
                     <span className="text-sm">{tab.icon}</span>
@@ -450,7 +582,6 @@ export default function ParentSettingsClient({
             <form
               id="profile-form"
               onSubmit={executeSave}
-              onChange={handleFieldChange}
               className="rounded-2xl border border-theme bg-surface/60 p-6 shadow-sm space-y-6 animate-in fade-in duration-200"
             >
               <div className="border-b border-subtle pb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -560,7 +691,8 @@ export default function ParentSettingsClient({
                   <input
                     type="text"
                     name="name"
-                    defaultValue={user.name}
+                    value={profileDraft.name}
+                    onChange={(e) => setProfileDraft({ ...profileDraft, name: e.target.value })}
                     required
                     className="input-theme"
                   />
@@ -573,7 +705,8 @@ export default function ParentSettingsClient({
                   <input
                     type="email"
                     name="email"
-                    defaultValue={user.email}
+                    value={profileDraft.email}
+                    onChange={(e) => setProfileDraft({ ...profileDraft, email: e.target.value })}
                     required
                     className="input-theme"
                   />
@@ -586,7 +719,8 @@ export default function ParentSettingsClient({
                   <input
                     type="text"
                     name="phoneNumber"
-                    defaultValue={user.phoneNumber || ""}
+                    value={profileDraft.phoneNumber}
+                    onChange={(e) => setProfileDraft({ ...profileDraft, phoneNumber: e.target.value })}
                     placeholder="+1 (555) 000-0000"
                     className="input-theme"
                   />
@@ -599,7 +733,8 @@ export default function ParentSettingsClient({
                   <input
                     type="text"
                     name="address"
-                    defaultValue={user.address || ""}
+                    value={profileDraft.address}
+                    onChange={(e) => setProfileDraft({ ...profileDraft, address: e.target.value })}
                     placeholder="Enter your residence address"
                     className="input-theme"
                   />
@@ -649,10 +784,13 @@ export default function ParentSettingsClient({
                         <div className="min-w-0 flex-1 space-y-1">
                           <div className="flex items-center justify-between gap-2">
                             <h3 className="text-sm font-bold text-primary truncate">{kid.name}</h3>
-                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase ${kid.isActive
-                              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                              : "bg-slate-500/10 text-slate-400 border-slate-500/20"
-                              }`}>
+                            <span
+                              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase ${
+                                kid.isActive
+                                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                  : "bg-slate-500/10 text-slate-400 border-slate-500/20"
+                              }`}
+                            >
                               {kid.isActive ? "Active" : "Inactive"}
                             </span>
                           </div>
@@ -712,7 +850,6 @@ export default function ParentSettingsClient({
             <form
               id="appearance-form"
               onSubmit={executeSave}
-              onChange={handleFieldChange}
               className="rounded-2xl border border-theme bg-surface/60 p-6 shadow-sm space-y-6 animate-in fade-in duration-200"
             >
               <div className="border-b border-subtle pb-4">
@@ -720,7 +857,7 @@ export default function ParentSettingsClient({
                   Layout &amp; Theme Appearance
                 </h2>
                 <p className="text-xs text-secondary mt-1">
-                  Adjust standard parameters for theme mode, accent tints, and layout spacing.
+                  Select your preferred theme mode and accent highlight. Click Save Changes to apply.
                 </p>
               </div>
 
@@ -734,11 +871,12 @@ export default function ParentSettingsClient({
                     {/* Dark */}
                     <button
                       type="button"
-                      onClick={() => { setTheme("dark"); handleFieldChange(); }}
-                      className={`flex flex-col items-start rounded-xl border p-4 text-left transition-all ${currentTheme === "dark"
-                        ? "border-cyan-400 bg-cyan-400/5 ring-1 ring-cyan-400"
-                        : "border-theme bg-hover/20 hover:bg-hover hover:border-secondary"
-                        }`}
+                      onClick={() => setThemeDraft("dark")}
+                      className={`flex flex-col items-start rounded-xl border p-4 text-left transition-all ${
+                        themeDraft === "dark"
+                          ? "border-cyan-400 bg-cyan-400/5 ring-1 ring-cyan-400"
+                          : "border-theme bg-hover/20 hover:bg-hover hover:border-secondary"
+                      }`}
                     >
                       <div className="h-2 w-full rounded bg-slate-900 mb-2 border border-white/5 flex items-center justify-between px-2">
                         <span className="h-1 w-2 rounded bg-slate-700" />
@@ -751,11 +889,12 @@ export default function ParentSettingsClient({
                     {/* Light */}
                     <button
                       type="button"
-                      onClick={() => { setTheme("light"); handleFieldChange(); }}
-                      className={`flex flex-col items-start rounded-xl border p-4 text-left transition-all ${currentTheme === "light"
-                        ? "border-cyan-400 bg-cyan-400/5 ring-1 ring-cyan-400"
-                        : "border-theme bg-hover/20 hover:bg-hover hover:border-secondary"
-                        }`}
+                      onClick={() => setThemeDraft("light")}
+                      className={`flex flex-col items-start rounded-xl border p-4 text-left transition-all ${
+                        themeDraft === "light"
+                          ? "border-cyan-400 bg-cyan-400/5 ring-1 ring-cyan-400"
+                          : "border-theme bg-hover/20 hover:bg-hover hover:border-secondary"
+                      }`}
                     >
                       <div className="h-2 w-full rounded bg-slate-100 mb-2 border border-black/5 flex items-center justify-between px-2">
                         <span className="h-1 w-2 rounded bg-slate-300" />
@@ -768,11 +907,12 @@ export default function ParentSettingsClient({
                     {/* System */}
                     <button
                       type="button"
-                      onClick={() => { setTheme("system"); handleFieldChange(); }}
-                      className={`flex flex-col items-start rounded-xl border p-4 text-left transition-all ${currentTheme === "system"
-                        ? "border-cyan-400 bg-cyan-400/5 ring-1 ring-cyan-400"
-                        : "border-theme bg-hover/20 hover:bg-hover hover:border-secondary"
-                        }`}
+                      onClick={() => setThemeDraft("system")}
+                      className={`flex flex-col items-start rounded-xl border p-4 text-left transition-all ${
+                        themeDraft === "system"
+                          ? "border-cyan-400 bg-cyan-400/5 ring-1 ring-cyan-400"
+                          : "border-theme bg-hover/20 hover:bg-hover hover:border-secondary"
+                      }`}
                     >
                       <div className="h-2 w-full rounded bg-gradient-to-r from-slate-900 to-slate-100 mb-2 border border-theme flex items-center justify-between px-2">
                         <span className="h-1 w-2 rounded bg-slate-500" />
@@ -791,28 +931,17 @@ export default function ParentSettingsClient({
                   </span>
                   <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
                     {THEME_PRESETS.map((preset) => {
-                      const isActivePreset = selectedPreset === preset.id;
+                      const isActivePreset = presetDraft === preset.id;
                       return (
                         <button
                           key={preset.id}
                           type="button"
-                          onClick={() => {
-                            setSelectedPreset(preset.id);
-                            setColorPreset(preset.id, false);
-                            handleFieldChange();
-                          }}
-                          onMouseEnter={() => {
-                            setHoveredPreset(preset.id);
-                            setColorPreset(preset.id, false);
-                          }}
-                          onMouseLeave={() => {
-                            setHoveredPreset(null);
-                            setColorPreset(selectedPreset, false);
-                          }}
-                          className={`flex flex-col items-start rounded-xl border p-3.5 text-left transition-all duration-150 relative ${isActivePreset
-                            ? "border-cyan-400 bg-cyan-400/5 ring-2 ring-cyan-400/40"
-                            : "border-theme bg-hover/10 hover:bg-hover hover:border-secondary"
-                            }`}
+                          onClick={() => setPresetDraft(preset.id)}
+                          className={`flex flex-col items-start rounded-xl border p-3.5 text-left transition-all duration-150 relative ${
+                            isActivePreset
+                              ? "border-cyan-400 bg-cyan-400/5 ring-2 ring-cyan-400/40"
+                              : "border-theme bg-hover/10 hover:bg-hover hover:border-secondary"
+                          }`}
                         >
                           <div className="flex w-full items-center justify-between">
                             <span className="text-base">{preset.emoji}</span>
@@ -838,7 +967,6 @@ export default function ParentSettingsClient({
             <form
               id="security-form"
               onSubmit={executeSave}
-              onChange={handleFieldChange}
               className="rounded-2xl border border-theme bg-surface/60 p-6 shadow-sm space-y-6 animate-in fade-in duration-200"
             >
               <div className="border-b border-subtle pb-4">
@@ -858,6 +986,8 @@ export default function ParentSettingsClient({
                   <input
                     type="password"
                     name="currentPassword"
+                    value={securityDraft.currentPassword}
+                    onChange={(e) => setSecurityDraft({ ...securityDraft, currentPassword: e.target.value })}
                     required
                     placeholder="••••••••"
                     className="input-theme"
@@ -871,6 +1001,8 @@ export default function ParentSettingsClient({
                   <input
                     type="password"
                     name="newPassword"
+                    value={securityDraft.newPassword}
+                    onChange={(e) => setSecurityDraft({ ...securityDraft, newPassword: e.target.value })}
                     required
                     placeholder="••••••••"
                     className="input-theme"
@@ -934,10 +1066,11 @@ export default function ParentSettingsClient({
                             key={`avatar-${av.id}`}
                             type="button"
                             onClick={() => handleSelectAvatar(av.id, av.imageUrl)}
-                            className={`flex flex-col items-center p-3 rounded-xl border bg-hover/20 hover:bg-hover hover:scale-[1.03] transition-all duration-200 group relative ${isCurrentSelection
-                              ? "border-cyan-400 ring-2 ring-cyan-400/50 bg-cyan-400/5"
-                              : "border-theme"
-                              }`}
+                            className={`flex flex-col items-center p-3 rounded-xl border bg-hover/20 hover:bg-hover hover:scale-[1.03] transition-all duration-200 group relative ${
+                              isCurrentSelection
+                                ? "border-cyan-400 ring-2 ring-cyan-400/50 bg-cyan-400/5"
+                                : "border-theme"
+                            }`}
                           >
                             <div className="relative h-16 w-16 rounded-full overflow-hidden border border-theme bg-surface shrink-0">
                               <img
@@ -969,7 +1102,6 @@ export default function ParentSettingsClient({
             <form
               id="notifications-form"
               onSubmit={executeSave}
-              onChange={handleFieldChange}
               className="rounded-2xl border border-theme bg-surface/60 p-6 shadow-sm space-y-6 animate-in fade-in duration-200"
             >
               <div className="border-b border-subtle pb-4">
@@ -977,7 +1109,7 @@ export default function ParentSettingsClient({
                   Notification Channel Preferences
                 </h2>
                 <p className="text-xs text-secondary mt-1">
-                  Control which notification feeds triggers emails and dashboard alerts.
+                  Control which notification feeds trigger emails and dashboard alerts.
                 </p>
               </div>
 
@@ -997,7 +1129,13 @@ export default function ParentSettingsClient({
                     <input
                       type="checkbox"
                       name={item.name}
-                      defaultChecked={parsedNotifs[item.name as keyof typeof parsedNotifs] !== false}
+                      checked={notifDraft[item.name] !== false}
+                      onChange={(e) =>
+                        setNotifDraft({
+                          ...notifDraft,
+                          [item.name]: e.target.checked,
+                        })
+                      }
                       className="mt-1 h-4.5 w-4.5 rounded border-theme bg-surface text-cyan-400 focus:ring-cyan-500/20"
                     />
                     <div className="min-w-0">
@@ -1013,14 +1151,14 @@ export default function ParentSettingsClient({
       </div>
 
       {/* STICKY BOTTOM SAVE BAR */}
-      {isDirty && (
+      {isCurrentTabDirty && (
         <div className="fixed bottom-6 left-6 right-6 md:left-[304px] z-40 bg-surface backdrop-blur-sm border border-cyan-400/20 rounded-2xl px-6 py-4 shadow-2xl flex items-center justify-between animate-in slide-in-from-bottom-5 duration-300">
           <div className="flex items-center gap-3">
             <span className="flex h-2.5 w-2.5 rounded-full bg-cyan-400 animate-pulse" />
             <div className="min-w-0">
               <p className="text-xs font-bold text-primary">Unsaved changes in this tab</p>
               <p className="text-[10px] text-secondary">
-                You have modified fields. Save to apply changes.
+                You have modified fields. Click Save Changes to persist.
               </p>
             </div>
           </div>
@@ -1028,17 +1166,25 @@ export default function ParentSettingsClient({
             <button
               type="button"
               onClick={handleDiscard}
-              disabled={isPending}
-              className="rounded-xl border border-theme bg-hover hover:bg-surface px-4 py-2 text-xs font-semibold text-secondary hover:text-primary transition"
+              disabled={saveStatus === "saving"}
+              className="rounded-xl border border-theme bg-hover hover:bg-surface px-4 py-2 text-xs font-semibold text-secondary hover:text-primary transition disabled:opacity-50"
             >
               Discard
             </button>
             <button
               type="submit"
               form={`${activeTab}-form`}
-              className="rounded-xl bg-cyan-400 px-5 py-2 text-xs font-semibold text-slate-950 shadow-md shadow-cyan-400/10 hover:bg-cyan-300 hover:scale-[1.02] transition"
+              disabled={saveStatus === "saving"}
+              className="rounded-xl bg-cyan-400 px-5 py-2 text-xs font-semibold text-slate-950 shadow-md shadow-cyan-400/10 hover:bg-cyan-300 hover:scale-[1.02] transition disabled:opacity-50 flex items-center gap-2"
             >
-              Save Changes
+              {saveStatus === "saving" ? (
+                <>
+                  <span className="h-3.5 w-3.5 animate-spin border-2 border-slate-950 border-t-transparent rounded-full" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
             </button>
           </div>
         </div>

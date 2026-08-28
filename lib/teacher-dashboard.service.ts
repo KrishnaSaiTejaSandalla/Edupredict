@@ -212,9 +212,13 @@ export async function getTeacherDashboardData(userId: number): Promise<TeacherDa
       .where(inArray(classes.id, activeClassIds));
 
     const avgMarksRows = await db
-      .select({ classId: students.classId, avg: sql<number>`AVG(CAST(${results.marks} AS DECIMAL(5,2)))` })
+      .select({
+        classId: students.classId,
+        avg: sql<number>`AVG((CAST(${results.marks} AS DECIMAL(5,2)) / NULLIF(CAST(${exams.maxMarks} AS DECIMAL(5,2)), 0)) * 100)`,
+      })
       .from(results)
       .leftJoin(students, eq(results.studentId, students.id))
+      .leftJoin(exams, eq(results.examId, exams.id))
       .where(inArray(students.classId, activeClassIds))
       .groupBy(students.classId);
 

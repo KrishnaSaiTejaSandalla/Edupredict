@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
       return new Response("Unauthorized", { status: 401 });
     }
 
-    const data = await getAdminDashboardData();
+    const data = await getAdminDashboardData(user.id);
     return NextResponse.json(data);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

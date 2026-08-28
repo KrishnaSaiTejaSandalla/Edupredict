@@ -250,35 +250,37 @@ export default function AdminDashboardClient() {
                 <p className="text-xs text-muted-foreground font-semibold">No students are currently flagged for attendance risks.</p>
               </div>
             ) : (
-              <div className="grid gap-3.5 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+              <div className={`grid grid-flow-col ${attendanceRisks.length <= 1 ? 'grid-rows-1' : 'grid-rows-2'} auto-cols-[290px] sm:auto-cols-[330px] md:auto-cols-[360px] gap-3.5 overflow-x-auto pb-3 pt-1 scrollbar-thin`}>
                 {attendanceRisks.map((student: any) => (
                   <div
                     key={student.id}
-                    className={`rounded-2xl border p-4 transition-all duration-200 bg-background/40 hover:bg-card space-y-2.5 ${
+                    className={`rounded-2xl border p-4 transition-all duration-200 bg-background/40 hover:bg-card space-y-2.5 flex flex-col justify-between ${
                       student.riskLevel === 'high'
                         ? 'border-rose-500/30 shadow-sm shadow-rose-500/5'
                         : 'border-amber-500/30 shadow-sm shadow-amber-500/5'
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <h3 className="text-xs font-bold text-foreground">{student.name}</h3>
-                        <p className="text-[10px] text-muted-foreground">{student.className}</p>
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h3 className="text-xs font-bold text-foreground">{student.name}</h3>
+                          <p className="text-[10px] text-muted-foreground">{student.className}</p>
+                        </div>
+                        <span
+                          className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-lg border shrink-0 ${
+                            student.riskLevel === 'high'
+                              ? 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+                              : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                          }`}
+                        >
+                          {student.riskLevel} Risk
+                        </span>
                       </div>
-                      <span
-                        className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-lg border ${
-                          student.riskLevel === 'high'
-                            ? 'bg-rose-500/15 text-rose-400 border-rose-500/30'
-                            : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-                        }`}
-                      >
-                        {student.riskLevel} Risk
-                      </span>
-                    </div>
 
-                    <p className="text-xs text-secondary leading-relaxed">
-                      {student.reason}
-                    </p>
+                      <p className="text-xs text-secondary leading-relaxed line-clamp-2">
+                        {student.reason}
+                      </p>
+                    </div>
 
                     <div className="flex items-center justify-between pt-2 border-t border-border/20 text-[10px]">
                       <span className="font-mono text-muted-foreground">Rate: <strong className="text-foreground">{student.attendanceRate}%</strong></span>
@@ -303,11 +305,11 @@ export default function AdminDashboardClient() {
                 <p className="text-xs text-muted-foreground font-semibold">No active transport routes or buses registered in the system.</p>
               </div>
             ) : (
-              <div className="grid gap-3.5 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+              <div className={`grid grid-flow-col ${transportDelays.length <= 1 ? 'grid-rows-1' : 'grid-rows-2'} auto-cols-[290px] sm:auto-cols-[330px] md:auto-cols-[360px] gap-3.5 overflow-x-auto pb-3 pt-1 scrollbar-thin`}>
                 {transportDelays.map((bus: any) => (
                   <div
                     key={bus.busId}
-                    className={`rounded-2xl border p-4 transition-all duration-200 bg-background/40 hover:bg-card space-y-2.5 ${
+                    className={`rounded-2xl border p-4 transition-all duration-200 bg-background/40 hover:bg-card space-y-2.5 flex flex-col justify-between ${
                       bus.riskLevel === 'high'
                         ? 'border-rose-500/30'
                         : bus.riskLevel === 'medium'
@@ -315,32 +317,34 @@ export default function AdminDashboardClient() {
                         : 'border-border/30'
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <h3 className="text-xs font-bold text-foreground">Bus {bus.busNumber}</h3>
-                        <p className="text-[10px] text-muted-foreground truncate max-w-[170px]">{bus.routeName}</p>
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h3 className="text-xs font-bold text-foreground">Bus {bus.busNumber}</h3>
+                          <p className="text-[10px] text-muted-foreground truncate max-w-[170px]">{bus.routeName}</p>
+                        </div>
+                        <span
+                          className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-lg border shrink-0 ${
+                            bus.riskLevel === 'high'
+                              ? 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+                              : bus.riskLevel === 'medium'
+                              ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                              : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                          }`}
+                        >
+                          {bus.expectedIssue}
+                        </span>
                       </div>
-                      <span
-                        className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-lg border ${
-                          bus.riskLevel === 'high'
-                            ? 'bg-rose-500/15 text-rose-400 border-rose-500/30'
-                            : bus.riskLevel === 'medium'
-                            ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-                            : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                        }`}
-                      >
-                        {bus.expectedIssue}
-                      </span>
-                    </div>
 
-                    <p className="text-xs text-secondary leading-relaxed">
-                      {bus.reason}
-                    </p>
+                      <p className="text-xs text-secondary leading-relaxed line-clamp-2">
+                        {bus.reason}
+                      </p>
+                    </div>
 
                     <div className="flex items-center justify-between pt-2 border-t border-border/20 text-[10px]">
                       <span className="text-muted-foreground">Status: <strong className="text-foreground capitalize">{bus.lastKnownStatus || 'Normal'}</strong></span>
                       {bus.affectedStops && (
-                        <span className="text-cyan-400 font-semibold">{bus.affectedStops}</span>
+                        <span className="text-cyan-400 font-semibold truncate max-w-[140px]">{bus.affectedStops}</span>
                       )}
                     </div>
                   </div>
@@ -358,45 +362,47 @@ export default function AdminDashboardClient() {
                 <p className="text-xs text-muted-foreground font-semibold">No faculty workload metrics available yet.</p>
               </div>
             ) : (
-              <div className="grid gap-3.5 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+              <div className={`grid grid-flow-col ${teacherWorkloads.length <= 1 ? 'grid-rows-1' : 'grid-rows-2'} auto-cols-[290px] sm:auto-cols-[330px] md:auto-cols-[360px] gap-3.5 overflow-x-auto pb-3 pt-1 scrollbar-thin`}>
                 {teacherWorkloads.map((teacher: any) => (
                   <div
                     key={teacher.teacherId}
-                    className={`rounded-2xl border p-4 transition-all duration-200 bg-background/40 hover:bg-card space-y-2.5 ${
+                    className={`rounded-2xl border p-4 transition-all duration-200 bg-background/40 hover:bg-card space-y-2.5 flex flex-col justify-between ${
                       teacher.status === 'High Workload'
                         ? 'border-amber-500/30'
                         : 'border-border/30'
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <h3 className="text-xs font-bold text-foreground">{teacher.name}</h3>
-                        <p className="text-[10px] text-muted-foreground">
-                          {teacher.classLoad} sections • {teacher.studentCount} students
-                        </p>
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h3 className="text-xs font-bold text-foreground">{teacher.name}</h3>
+                          <p className="text-[10px] text-muted-foreground">
+                            {teacher.classLoad} sections • {teacher.studentCount} students
+                          </p>
+                        </div>
+                        <span
+                          className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-lg border shrink-0 ${
+                            teacher.status === 'High Workload'
+                              ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                              : teacher.status === 'Underloaded'
+                              ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                              : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                          }`}
+                        >
+                          {teacher.status}
+                        </span>
                       </div>
-                      <span
-                        className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-lg border ${
-                          teacher.status === 'High Workload'
-                            ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-                            : teacher.status === 'Underloaded'
-                            ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
-                            : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                        }`}
-                      >
-                        {teacher.status}
-                      </span>
-                    </div>
 
-                    {teacher.imbalanceReason ? (
-                      <p className="text-xs text-secondary leading-relaxed">
-                        {teacher.imbalanceReason}
-                      </p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        Balanced academic responsibility across assigned subject classes.
-                      </p>
-                    )}
+                      {teacher.imbalanceReason ? (
+                        <p className="text-xs text-secondary leading-relaxed line-clamp-2">
+                          {teacher.imbalanceReason}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+                          Balanced academic responsibility across assigned subject classes.
+                        </p>
+                      )}
+                    </div>
 
                     <div className="flex items-center justify-between pt-2 border-t border-border/20 text-[10px]">
                       <span className="text-muted-foreground">Subjects: <strong className="text-foreground">{teacher.subjectCount}</strong></span>

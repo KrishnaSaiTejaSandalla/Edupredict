@@ -17,15 +17,20 @@ export default function RealtimeListener({ role }: { role?: string }) {
         const res = await fetch('/api/notifications/latest', { headers });
         if (res.ok) {
           const data = await res.json();
+          const items = Array.isArray(data) ? data : data.items || [];
+          const prefs = (!Array.isArray(data) && data.preferences) ? data.preferences : null;
           const store = useNotificationStore.getState();
+          if (prefs) {
+            store.setPreferences(prefs);
+          }
           // Only hydrate if the store is empty — avoid overwriting
           // a larger set loaded by the notifications page (100 items)
           if (!store.isHydrated || store.notifications.length === 0) {
-            store.setNotifications(data);
+            store.setNotifications(items);
           } else {
             // Merge any new notifications the store doesn't have yet
             const existingIds = new Set(store.notifications.map(n => n.id));
-            for (const n of data) {
+            for (const n of items) {
               if (!existingIds.has(n.id)) {
                 store.addNotification(n);
               }

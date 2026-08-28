@@ -12,8 +12,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  LineChart,
-  Line,
   Legend
 } from "recharts";
 
@@ -96,11 +94,17 @@ export default function StudentPerformanceClient({ data, insufficientMessage }: 
     Predicted: Math.round((s.predictedMin + s.predictedMax) / 2),
   }));
 
-  // Find academic advice text
-  const mathMath = predictions.find(p => p.subjectName?.toLowerCase() === "mathematics");
-  const mathAdvice = mathMath
-    ? `Your mathematics performance is projected to reach ${Math.round(Number(mathMath.predictedScoreMin))}-${Math.round(Number(mathMath.predictedScoreMax))}% based on recent assignments.`
-    : "Review subject recommendations below to raise your grades.";
+  // Dynamic multi-subject analysis across all performance aspects
+  const sortedPreds = [...predictions].sort((a, b) => Number(b.currentScore) - Number(a.currentScore));
+  const topSubject = sortedPreds[0];
+  const lowSubject = sortedPreds[sortedPreds.length - 1];
+
+  let performanceSummary = `Your Academic Health Score is estimated at ${overallHealth}/100 based on your aggregated marks, class attendance, and assignment completion.`;
+  if (topSubject && lowSubject && topSubject !== lowSubject) {
+    performanceSummary = `Your Academic Health Score is ${overallHealth}/100. You are performing strongest in ${topSubject.subjectName} (projected ${Math.round(Number(topSubject.predictedScoreMin))}-${Math.round(Number(topSubject.predictedScoreMax))}%), while ${lowSubject.subjectName} needs targeted focus to raise your overall grade bracket.`;
+  } else if (topSubject) {
+    performanceSummary = `Your Academic Health Score is ${overallHealth}/100 with ${topSubject.subjectName} tracking toward ${Math.round(Number(topSubject.predictedScoreMin))}-${Math.round(Number(topSubject.predictedScoreMax))}%.`;
+  }
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-7xl mx-auto">
@@ -112,7 +116,7 @@ export default function StudentPerformanceClient({ data, insufficientMessage }: 
           </span>
           <h1 className="mt-3 text-3xl font-black text-primary">Academic Projections</h1>
           <p className="mt-1.5 text-xs text-secondary max-w-lg">
-            Understand your performance, view expected scores and receive personalized resource recommendations.
+            Understand your holistic forecast factoring in exam marks, attendance consistency, and homework submissions.
           </p>
         </div>
 
@@ -133,10 +137,17 @@ export default function StudentPerformanceClient({ data, insufficientMessage }: 
       </div>
 
       {/* AI Score Overview Card */}
-      <div className="rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-500/10 via-purple-500/5 to-transparent p-5 relative overflow-hidden shadow-sm">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-violet-400">🧠 AI Performance Analysis</h3>
-        <p className="text-sm font-semibold text-primary mt-2 leading-relaxed">
-          Your estimated Academic Health Score is **{overallHealth}%**. {mathAdvice}
+      <div className="rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-500/10 via-purple-500/5 to-transparent p-5 relative overflow-hidden shadow-sm space-y-2">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-violet-400 flex items-center gap-1.5">
+            <span>🧠</span> AI Multi-Pillar Performance Analysis
+          </h3>
+          <span className="text-[10px] font-bold text-muted uppercase tracking-wider">
+            Marks · Attendance · Assignments
+          </span>
+        </div>
+        <p className="text-sm font-semibold text-primary leading-relaxed">
+          {performanceSummary}
         </p>
       </div>
 
@@ -234,75 +245,194 @@ export default function StudentPerformanceClient({ data, insufficientMessage }: 
 
         {/* Attendance vs Grade Correlation */}
         <div className="rounded-2xl border border-theme bg-surface p-5 space-y-4 shadow-sm md:col-span-2">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-400">Attendance vs Grade Impact</h3>
-          <div className="h-60 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={attendanceData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="subject" stroke="rgba(255,255,255,0.4)" fontSize={10} tickLine={false} />
-                <YAxis stroke="rgba(255,255,255,0.4)" fontSize={10} tickLine={false} domain={[0, 100]} />
-                <Tooltip contentStyle={{ background: "#111", border: "1px solid rgba(255,255,255,0.1)" }} />
-                <Legend iconSize={8} wrapperStyle={{ fontSize: 10 }} />
-                <Line type="monotone" dataKey="attendance" stroke="#fb923c" name="Attendance %" strokeWidth={2} />
-                <Line type="monotone" dataKey="score" stroke="#22d3ee" name="Grade Score %" strokeWidth={2.5} />
-              </LineChart>
-            </ResponsiveContainer>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-400">Attendance vs Grade Impact</h3>
+            <div className="flex items-center gap-4 text-[10px] text-secondary">
+              <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-0.5 rounded bg-orange-400"></span>Attendance %</span>
+              <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-0.5 rounded bg-cyan-400"></span>Grade Score %</span>
+            </div>
+          </div>
+          <div className="h-64 w-full">
+            {attendanceData.length < 2 ? (
+              <div className="flex flex-col items-center justify-center h-full gap-2 text-muted">
+                <span className="text-3xl">📊</span>
+                <p className="text-xs text-center">More data needed across subjects to show the correlation wave.<br/>Keep attending classes to unlock this chart.</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={attendanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="attendanceGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#fb923c" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#fb923c" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="scoreGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#22d3ee" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.06)" />
+                  <XAxis
+                    dataKey="subject"
+                    stroke="rgba(255,255,255,0.3)"
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: "rgba(255,255,255,0.5)" }}
+                  />
+                  <YAxis
+                    stroke="rgba(255,255,255,0.3)"
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
+                    domain={[50, 100]}
+                    tick={{ fill: "rgba(255,255,255,0.5)" }}
+                    tickFormatter={(v) => `${v}%`}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "rgba(10,10,20,0.95)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      borderRadius: "10px",
+                      fontSize: "11px",
+                      boxShadow: "0 8px 24px rgba(0,0,0,0.4)"
+                    }}
+                    formatter={(value: number, name: string) => [`${value}%`, name]}
+                    labelStyle={{ color: "rgba(255,255,255,0.7)", marginBottom: "4px", fontWeight: 600 }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="attendance"
+                    stroke="#fb923c"
+                    strokeWidth={2.5}
+                    fill="url(#attendanceGrad)"
+                    name="Attendance %"
+                    dot={{ r: 4, fill: "#fb923c", strokeWidth: 2, stroke: "rgba(0,0,0,0.4)" }}
+                    activeDot={{ r: 6, fill: "#fb923c", stroke: "#fff", strokeWidth: 2 }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="score"
+                    stroke="#22d3ee"
+                    strokeWidth={2.5}
+                    fill="url(#scoreGrad)"
+                    name="Grade Score %"
+                    dot={{ r: 4, fill: "#22d3ee", strokeWidth: 2, stroke: "rgba(0,0,0,0.4)" }}
+                    activeDot={{ r: 6, fill: "#22d3ee", stroke: "#fff", strokeWidth: 2 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
       </div>
 
-      {/* AI Recommendations */}
-      <div className="rounded-2xl border border-theme bg-surface p-5 space-y-4 shadow-sm">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-400">Personalized AI Suggestions</h3>
-        <div className="space-y-3">
-          {recommendations.filter(r => r.type !== "resource").map((rec, i) => (
-            <div key={i} className="rounded-xl border border-theme bg-hover/20 p-4 flex gap-3 items-start">
-              <span className="text-xl">{rec.type === "attendance" ? "📅" : "💡"}</span>
-              <div>
-                <h4 className="text-xs font-bold text-primary">{rec.title}</h4>
-                <p className="text-[11px] text-secondary mt-0.5 leading-relaxed">{rec.description}</p>
+      {/* Personalized AI Suggestions */}
+      <div className="rounded-2xl border border-theme bg-surface p-6 space-y-4 shadow-sm">
+        <div className="flex items-center justify-between border-b border-theme pb-3">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-2">
+            <span>✨</span> Personalized AI Suggestions & Strategies
+          </h3>
+          <span className="text-[10px] text-muted font-medium">Tailored for your academic profile</span>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          {recommendations.filter(r => r.type !== "resource").map((rec, i) => {
+            const getIcon = () => {
+              if (rec.type === "attendance") return "📅";
+              if (rec.type === "assignment") return "📝";
+              if (rec.type === "strategy") return "⚡";
+              if (rec.type === "mindset") return "🏆";
+              if (rec.title.includes("AI Coach")) return "🤖";
+              return "💡";
+            };
+
+            const getTagColor = () => {
+              if (rec.type === "attendance") return "bg-amber-500/10 text-amber-400 border-amber-500/20";
+              if (rec.type === "assignment") return "bg-cyan-500/10 text-cyan-400 border-cyan-500/20";
+              if (rec.type === "strategy" || rec.title.includes("AI Coach")) return "bg-violet-500/10 text-violet-400 border-violet-500/20";
+              return "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+            };
+
+            return (
+              <div key={i} className="rounded-xl border border-theme bg-hover/20 p-4 flex gap-3.5 items-start transition hover:border-cyan-500/30">
+                <span className="text-2xl p-2 rounded-xl bg-white/5 border border-white/5 shrink-0">{getIcon()}</span>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="text-xs font-bold text-primary truncate">{rec.title}</h4>
+                    <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border shrink-0 ${getTagColor()}`}>
+                      {rec.type.replace("_", " ")}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-secondary leading-relaxed">{rec.description}</p>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {recommendations.filter(r => r.type !== "resource").length === 0 && (
-            <p className="text-xs text-muted-foreground italic">No recommendations required. Maintain your current study plans!</p>
+            <p className="text-xs text-muted-foreground italic col-span-2 py-4 text-center">
+              No critical interventions required right now. Keep up your regular revision schedule!
+            </p>
           )}
         </div>
       </div>
 
       {/* Learning Recommendations */}
-      <div className="rounded-2xl border border-theme bg-surface p-5 space-y-4 shadow-sm">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-400">Learning Recommendations</h3>
-        <p className="text-[11px] text-secondary">
-          AI detected weak topics based on assessment projections. Review these materials shared by teachers:
-        </p>
+      <div className="rounded-2xl border border-theme bg-surface p-6 space-y-4 shadow-sm">
+        <div className="flex items-center justify-between border-b border-theme pb-3">
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-2">
+              <span>📚</span> Target Learning Recommendations
+            </h3>
+            <p className="text-[11px] text-secondary mt-0.5">
+              Subject-specific study material and guidance mapped from your performance diagnostics:
+            </p>
+          </div>
+          <a
+            href="/student/resources"
+            className="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 transition shrink-0 hidden sm:block"
+          >
+            Explore Library Grid →
+          </a>
+        </div>
 
-        <div className="space-y-3 pt-2">
+        <div className="space-y-3 pt-1">
           {recommendations.filter(r => r.resourceId !== null).map((rec, i) => (
-            <div key={i} className="rounded-xl border border-theme bg-hover/10 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div key={i} className="rounded-xl border border-theme bg-hover/10 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition hover:border-cyan-500/30">
               <div className="flex gap-3 items-start min-w-0">
-                <span className="text-xl">📚</span>
+                <span className="text-2xl p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shrink-0">📖</span>
                 <div className="min-w-0">
-                  <h4 className="text-xs font-bold text-primary truncate">{rec.resourceTitle}</h4>
-                  <p className="text-[10px] text-secondary mt-0.5">{rec.description}</p>
+                  <h4 className="text-xs font-bold text-primary truncate">{rec.resourceTitle || rec.title}</h4>
+                  <p className="text-[11px] text-secondary mt-0.5 leading-relaxed">{rec.description}</p>
                 </div>
               </div>
 
-              {rec.resourceFileUrl && (
-                <a
-                  href={rec.resourceFileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="rounded-lg bg-cyan-400 hover:bg-cyan-300 text-slate-950 px-4 py-2 text-[10px] font-bold text-center transition shrink-0 whitespace-nowrap"
-                >
-                  Download Notes
-                </a>
-              )}
+              <div className="flex items-center gap-2 shrink-0">
+                {rec.resourceFileUrl ? (
+                  <a
+                    href={rec.resourceFileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 px-4 py-2 text-[10px] font-bold text-center transition shadow-sm"
+                  >
+                    Open Resource 🔗
+                  </a>
+                ) : (
+                  <a
+                    href="/student/resources"
+                    className="rounded-xl border border-theme bg-hover px-4 py-2 text-[10px] font-bold text-primary hover:bg-surface transition text-center"
+                  >
+                    View in Library
+                  </a>
+                )}
+              </div>
             </div>
           ))}
 
           {recommendations.filter(r => r.resourceId !== null).length === 0 && (
-            <p className="text-xs text-muted-foreground italic">No specific topics are identified as weak. Great job!</p>
+            <div className="rounded-xl border border-dashed border-theme p-6 text-center">
+              <p className="text-xs text-muted font-medium">All subjects are currently performing above risk thresholds. Keep revising regularly!</p>
+            </div>
           )}
         </div>
       </div>

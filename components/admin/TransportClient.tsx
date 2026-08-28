@@ -836,11 +836,10 @@ export default function TransportClient({
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`rounded-lg px-5 py-2.5 text-xs font-semibold uppercase tracking-wide transition duration-150 border border-transparent ${
-                activeTab === tab
+              className={`rounded-lg px-5 py-2.5 text-xs font-semibold uppercase tracking-wide transition duration-150 border border-transparent ${activeTab === tab
                   ? "bg-cyan-500/20 text-cyan-400 shadow-sm border-cyan-500/20"
                   : "text-muted-foreground hover:text-foreground"
-              }`}
+                }`}
             >
               {tab === "vehicles" && "Vehicles"}
               {tab === "routes" && "Routes"}
@@ -1314,11 +1313,11 @@ export default function TransportClient({
                       {activeTab === "vehicles" && (
                         <>
                           <td className="p-4 px-6">
-                             <div className="flex flex-col">
-                               <span className="font-semibold text-primary">{item.registrationNumber}</span>
-                               {item.nickname && <span className="text-[10px] text-muted-foreground italic">"{item.nickname}"</span>}
-                             </div>
-                           </td>
+                            <div className="flex flex-col">
+                              <span className="font-semibold text-primary">{item.registrationNumber}</span>
+                              {item.nickname && <span className="text-[10px] text-muted-foreground italic">"{item.nickname}"</span>}
+                            </div>
+                          </td>
                           <td className="p-4 px-6 font-medium text-foreground">{item.actualRouteName || "—"}</td>
                           <td className="p-4 px-6">
                             <span className={`font-semibold ${Number(item.assignedCount || 0) >= Number(item.capacity || 0) ? 'text-amber-500 font-bold' : 'text-secondary'}`}>
@@ -1336,9 +1335,8 @@ export default function TransportClient({
                             )}
                           </td>
                           <td className="p-4 px-6">
-                            <span className={`inline-flex rounded-full px-2 py-0.5 text-[9px] font-bold ${
-                              item.isActive ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                            }`}>
+                            <span className={`inline-flex rounded-full px-2 py-0.5 text-[9px] font-bold ${item.isActive ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                              }`}>
                               {item.isActive ? "Active" : "Inactive"}
                             </span>
                           </td>
@@ -1695,7 +1693,7 @@ export default function TransportClient({
 
       {/* ────────────────── STUDENT ASSIGN MODAL ────────────────── */}
       {showAssignModal && assigningStudent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl space-y-4 animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between">
               <div>

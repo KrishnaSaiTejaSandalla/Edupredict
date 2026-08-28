@@ -9,7 +9,7 @@ type Props = {
 
 /**
  * Robust, lightweight Markdown & formatted text renderer for AI outputs.
- * Parses headers (##, ###), bold (**text**), bullet points (- / â€¢), numbered items,
+ * Parses headers (##, ###), bold (**text**), bullet points (- / •), numbered items,
  * tables, blockquotes, and horizontal dividers cleanly without raw markdown artifacts.
  */
 export default function FormattedText({ text, className = "" }: Props) {
@@ -182,14 +182,14 @@ export default function FormattedText({ text, className = "" }: Props) {
       return;
     }
 
-    // Bullet points (- or â€¢ or *)
-    const bulletMatch = line.match(/^[-â€¢*]\s+(.*)/);
+    // Bullet points (- or • or *)
+    const bulletMatch = line.match(/^[-•*]\s+(.*)/);
     if (bulletMatch) {
       if (isNumberedList) flushList();
       isNumberedList = false;
       currentList.push(
         <li key={idx} className="flex items-start gap-2 text-xs leading-relaxed text-foreground">
-          <span className="text-cyan-400 font-bold shrink-0 mt-0.5">â€¢</span>
+          <span className="text-cyan-400 font-bold shrink-0 mt-0.5">•</span>
           <span>{renderFormattedInline(bulletMatch[1])}</span>
         </li>
       );

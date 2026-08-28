@@ -5,74 +5,173 @@ import PageHeader from "@/components/shared/PageHeader";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import CustomSelect from "../ui/CustomSelect";
 
-// ── Prediction Card ──────────────────────────────────────────────────────────
-function PredictionCard({ trendData, avgPct }: { trendData: { percentage: number }[]; avgPct: number }) {
+// ── Holistic Prediction Card ──────────────────────────────────────────────────────────
+function PredictionCard({
+  trendData,
+  avgPct,
+  attendancePercent = 85,
+  assignmentStats = { total: 0, submitted: 0, completionRate: 100, avgGrade: 85 },
+}: {
+  trendData: { percentage: number }[];
+  avgPct: number;
+  attendancePercent?: number;
+  assignmentStats?: { total: number; submitted: number; completionRate: number; avgGrade: number };
+}) {
   const prediction = useMemo(() => {
     const n = trendData.length;
-    if (n < 2) return { score: avgPct, confidence: 50, trend: "stable" as const };
+    let baseScore = avgPct;
+    let slope = 0;
 
-    // Simple linear regression on index → percentage
-    const xs = trendData.map((_, i) => i);
+    if (n >= 2) {
+      // Linear regression on index → percentage
+      const xs = trendData.map((_, i) => i);
+      const ys = trendData.map((d) => d.percentage);
+      const meanX = xs.reduce((a, b) => a + b, 0) / n;
+      const meanY = ys.reduce((a, b) => a + b, 0) / n;
+      const num = xs.reduce((s, x, i) => s + (x - meanX) * (ys[i] - meanY), 0);
+      const den = xs.reduce((s, x) => s + (x - meanX) ** 2, 0);
+      slope = den !== 0 ? num / den : 0;
+      const intercept = meanY - slope * meanX;
+      baseScore = intercept + slope * n;
+    }
+
+    // 1. Attendance Modifier (-8% to +4%)
+    let attendanceMod = 0;
+    let attendanceReason = "";
+    let attendanceColor = "text-cyan-400";
+    if (attendancePercent >= 92) {
+      attendanceMod = +3;
+      attendanceReason = `Attendance is high (${attendancePercent}%) · Boosts exam readiness`;
+      attendanceColor = "text-emerald-400";
+    } else if (attendancePercent >= 80) {
+      attendanceMod = 0;
+      attendanceReason = `Attendance is balanced (${attendancePercent}%) · Stable foundation`;
+      attendanceColor = "text-cyan-400";
+    } else if (attendancePercent >= 70) {
+      attendanceMod = -3;
+      attendanceReason = `Attendance is sub-optimal (${attendancePercent}%) · Minor drag on forecast`;
+      attendanceColor = "text-amber-400";
+    } else {
+      attendanceMod = -7;
+      attendanceReason = `Attendance is low (${attendancePercent}%) · Significant drag on performance`;
+      attendanceColor = "text-rose-400";
+    }
+
+    // 2. Assignment Submission Modifier (-6% to +3%)
+    let assignmentMod = 0;
+    let assignmentReason = "";
+    let assignmentColor = "text-cyan-400";
+    const compRate = assignmentStats.completionRate;
+    if (compRate >= 90) {
+      assignmentMod = +2;
+      assignmentReason = `Assignment completion is high (${compRate}%) · Strong practice retention`;
+      assignmentColor = "text-emerald-400";
+    } else if (compRate >= 70) {
+      assignmentMod = 0;
+      assignmentReason = `Assignment submission is balanced (${compRate}%)`;
+      assignmentColor = "text-cyan-400";
+    } else if (compRate >= 50) {
+      assignmentMod = -3;
+      assignmentReason = `Assignment submission is low (${compRate}%) · Missing practical reinforcement`;
+      assignmentColor = "text-amber-400";
+    } else {
+      assignmentMod = -6;
+      assignmentReason = `Assignment submission is very low (${compRate}%) · Holding back grade potential`;
+      assignmentColor = "text-rose-400";
+    }
+
+    // 3. Exam Momentum
+    let momentumReason = "";
+    let momentumColor = "text-cyan-400";
+    if (slope > 1) {
+      momentumReason = "Exam trajectory is accelerating upward";
+      momentumColor = "text-emerald-400";
+    } else if (slope < -1) {
+      momentumReason = "Recent exam scores show downward variance";
+      momentumColor = "text-rose-400";
+    } else {
+      momentumReason = "Exam score consistency is steady";
+      momentumColor = "text-cyan-400";
+    }
+
+    // Holistic composite predicted score
+    const finalPredicted = Math.min(100, Math.max(0, Math.round(baseScore + attendanceMod + assignmentMod)));
+
+    // Confidence calculation (considers volume of data + consistency)
     const ys = trendData.map((d) => d.percentage);
-    const meanX = xs.reduce((a, b) => a + b, 0) / n;
-    const meanY = ys.reduce((a, b) => a + b, 0) / n;
-    const num = xs.reduce((s, x, i) => s + (x - meanX) * (ys[i] - meanY), 0);
-    const den = xs.reduce((s, x) => s + (x - meanX) ** 2, 0);
-    const slope = den !== 0 ? num / den : 0;
-    const intercept = meanY - slope * meanX;
-    const predicted = Math.min(100, Math.max(0, Math.round(intercept + slope * n)));
-
-    // Confidence: lower variance → higher confidence
-    const variance = ys.reduce((s, y) => s + (y - meanY) ** 2, 0) / n;
-    const confidence = Math.max(30, Math.min(95, Math.round(100 - variance / 10)));
+    const meanY = ys.length > 0 ? ys.reduce((a, b) => a + b, 0) / ys.length : avgPct;
+    const variance = ys.length > 0 ? ys.reduce((s, y) => s + (y - meanY) ** 2, 0) / ys.length : 10;
+    const dataBonus = Math.min(20, n * 3 + (assignmentStats.total > 0 ? 5 : 0));
+    const confidence = Math.max(35, Math.min(96, Math.round(80 - variance / 15 + dataBonus)));
 
     const trend = slope > 1 ? "up" : slope < -1 ? "down" : "stable";
-    return { score: predicted, confidence, trend } as const;
-  }, [trendData, avgPct]);
+
+    const drivers = [
+      { icon: "📅", label: "Attendance Impact", reason: attendanceReason, impact: attendanceMod, color: attendanceColor },
+      { icon: "📝", label: "Assignments Impact", reason: assignmentReason, impact: assignmentMod, color: assignmentColor },
+      { icon: "📈", label: "Exam Momentum", reason: momentumReason, impact: slope > 1 ? +2 : slope < -1 ? -2 : 0, color: momentumColor },
+    ];
+
+    return { score: finalPredicted, confidence, trend, drivers } as const;
+  }, [trendData, avgPct, attendancePercent, assignmentStats]);
 
   const trendColor =
     prediction.trend === "up" ? "text-emerald-400" : prediction.trend === "down" ? "text-rose-400" : "text-amber-400";
   const trendIcon = prediction.trend === "up" ? "▲" : prediction.trend === "down" ? "▼" : "→";
-  const trendLabel = prediction.trend === "up" ? "Improving" : prediction.trend === "down" ? "Declining" : "Stable";
-
-  const tips =
-    prediction.trend === "down"
-      ? ["Review last 3 exam topics", "Increase practice time", "Ask teacher for feedback"]
-      : prediction.trend === "up"
-      ? ["Keep up the momentum!", "Focus on weak subjects", "Try harder practice papers"]
-      : ["Maintain consistency", "Target areas below 60%", "Review exam notes weekly"];
+  const trendLabel = prediction.trend === "up" ? "Improving Trajectory" : prediction.trend === "down" ? "Needs Attention" : "Stable Performance";
 
   return (
-    <div className="rounded-2xl border border-theme bg-surface p-6 shadow-xl flex flex-col justify-between gap-5">
+    <div className="rounded-2xl border border-fuchsia-500/20 bg-gradient-to-br from-fuchsia-500/10 via-purple-500/5 to-surface p-6 shadow-xl flex flex-col justify-between gap-5">
       <div>
-        <p className="text-xs font-bold text-secondary uppercase tracking-wider mb-3 flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-fuchsia-400" />
-          Predicted Next Score
-        </p>
-        <div className="flex items-end gap-2">
-          <span className="text-5xl font-black text-fuchsia-400">{prediction.score}%</span>
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <p className="text-xs font-bold text-secondary uppercase tracking-wider flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-fuchsia-400" />
+            Predicted Next Score
+          </p>
+          <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-300 border border-fuchsia-500/20">
+            Overall AI Forecast
+          </span>
         </div>
-        <div className="mt-2 flex items-center gap-2">
+
+        <div className="flex items-baseline gap-3">
+          <span className="text-5xl font-black text-fuchsia-400 tracking-tight">{prediction.score}%</span>
+          <span className="text-xs text-muted font-medium">Marks + Attendance + Assignments</span>
+        </div>
+
+        <div className="mt-3 flex items-center gap-2">
           <span className={`text-xs font-bold ${trendColor}`}>{trendIcon} {trendLabel}</span>
-          <span className="text-[10px] text-muted">· {prediction.confidence}% confidence</span>
+          <span className="text-[10px] text-muted">· {prediction.confidence}% AI confidence</span>
         </div>
+
         {/* Confidence bar */}
         <div className="mt-3 h-1.5 w-full bg-hover rounded-full overflow-hidden">
           <div
-            className="h-full rounded-full bg-fuchsia-500 transition-all duration-700"
+            className="h-full rounded-full bg-gradient-to-r from-fuchsia-500 to-violet-500 transition-all duration-700"
             style={{ width: `${prediction.confidence}%` }}
           />
         </div>
       </div>
 
-      <div className="border-t border-theme pt-4 space-y-2">
-        <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">AI Tips</p>
-        {tips.map((tip) => (
-          <div key={tip} className="flex items-start gap-1.5">
-            <span className="mt-0.5 text-fuchsia-400 text-xs">✦</span>
-            <span className="text-[11px] text-primary leading-snug">{tip}</span>
-          </div>
-        ))}
+      {/* Diagnostic Forecast Drivers / Reasons */}
+      <div className="border-t border-theme/60 pt-4 space-y-2.5">
+        <p className="text-[10px] font-bold text-secondary uppercase tracking-wider">
+          Prediction Breakdown & Drivers:
+        </p>
+        <div className="space-y-2">
+          {prediction.drivers.map((d, i) => (
+            <div key={i} className="rounded-xl bg-surface/70 border border-theme/50 p-2.5 flex items-start justify-between gap-2">
+              <div className="flex items-start gap-2 min-w-0">
+                <span className="text-xs shrink-0 mt-0.5">{d.icon}</span>
+                <p className="text-[11px] text-primary leading-snug truncate">
+                  {d.reason}
+                </p>
+              </div>
+              <span className={`text-[10px] font-bold shrink-0 ${d.impact > 0 ? "text-emerald-400" : d.impact < 0 ? "text-rose-400" : "text-secondary"}`}>
+                {d.impact > 0 ? `+${d.impact}%` : d.impact < 0 ? `${d.impact}%` : "0%"}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -95,9 +194,19 @@ type Props = {
   classSize: number;
   subjectMetrics: { subjectName: string; studentAvg: number; classAvg: number }[];
   gpa: number;
+  attendancePercent?: number;
+  assignmentStats?: { total: number; submitted: number; completionRate: number; avgGrade: number };
 };
 
-export default function StudentResultsClient({ initialResults, classRank, classSize, subjectMetrics, gpa }: Props) {
+export default function StudentResultsClient({
+  initialResults,
+  classRank,
+  classSize,
+  subjectMetrics,
+  gpa,
+  attendancePercent = 85,
+  assignmentStats = { total: 0, submitted: 0, completionRate: 100, avgGrade: 85 },
+}: Props) {
   const [filterSubject, setFilterSubject] = useState("all");
   const [filterExamType, setFilterExamType] = useState("all");
   const [filterMonth, setFilterMonth] = useState("all");
@@ -242,7 +351,12 @@ export default function StudentResultsClient({ initialResults, classRank, classS
               </div>
 
               {/* Predicted Next Exam Score Card (1/3) */}
-              <PredictionCard trendData={trendData} avgPct={avgPct} />
+              <PredictionCard
+                trendData={trendData}
+                avgPct={avgPct}
+                attendancePercent={attendancePercent}
+                assignmentStats={assignmentStats}
+              />
             </div>
           )}
 

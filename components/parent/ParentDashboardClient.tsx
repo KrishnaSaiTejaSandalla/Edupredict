@@ -144,6 +144,10 @@ export default function ParentDashboardClient({ childrenList, selectedStudent, d
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   const [isUploadingStudentProfile, setIsUploadingStudentProfile] = useState(false);
   const studentFileInputRef = useRef<HTMLInputElement>(null);
+  const trendDelta = data.performanceTrend.length >= 2
+    ? data.performanceTrend[data.performanceTrend.length - 1].score - data.performanceTrend[0].score
+    : null;
+  const latestTrendScore = data.performanceTrend[data.performanceTrend.length - 1]?.score;
 
   const handleStudentImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -510,8 +514,24 @@ export default function ParentDashboardClient({ childrenList, selectedStudent, d
               )}
             </div>
           </div>
-          <div className="rounded-xl border border-theme bg-hover/20 p-3.5 text-[10px] text-secondary font-bold flex items-center gap-2 mt-4">
-            📈 Consistent progress tracked across past terms.
+          <div className="rounded-xl border border-theme bg-hover/20 p-3.5 mt-4 space-y-1.5">
+            {trendDelta === null ? (
+              <p className="text-[10px] text-secondary font-bold">Add a few assessment results to unlock a meaningful trend story.</p>
+            ) : (
+              <>
+                <p className="text-[10px] text-primary font-bold">
+                  {trendDelta >= 5 ? "↑ Positive momentum" : trendDelta <= -5 ? "↓ A gentle reset may help" : "→ Steady progress"}
+                  {latestTrendScore !== undefined ? ` · Latest average: ${latestTrendScore}%` : ""}
+                </p>
+                <p className="text-[10px] text-secondary leading-relaxed">
+                  {trendDelta >= 5
+                    ? `Performance has grown by ${trendDelta} points. Ask what study habit feels most helpful and protect that routine.`
+                    : trendDelta <= -5
+                    ? `Performance has moved ${Math.abs(trendDelta)} points. Use calm check-ins, one small goal, and encouragement instead of pressure.`
+                    : "Scores are stable. A 15-minute review of one class topic each day can help create the next improvement."}
+                </p>
+              </>
+            )}
           </div>
         </div>
 
@@ -623,8 +643,8 @@ export default function ParentDashboardClient({ childrenList, selectedStudent, d
         </div>
 
         {/* AI Insight Quotes */}
-        <div className="rounded-3xl border border-theme bg-gradient-to-br from-slate-900 to-emerald-950 p-6 shadow-sm lg:col-span-1 flex flex-col justify-between min-h-[290px] border-emerald-500/20">
-          <div>
+        <div className="rounded-3xl border border-theme bg-gradient-to-br from-slate-900 to-emerald-950 p-6 shadow-sm lg:col-span-1 flex h-[290px] flex-col border-emerald-500/20">
+          <div className="shrink-0">
             <div className="flex justify-between items-center border-b border-emerald-500/10 pb-3">
               <h3 className="text-sm font-bold text-emerald-400 flex items-center gap-1.5">
                 <span>🧠</span> AI Insights
@@ -633,19 +653,19 @@ export default function ParentDashboardClient({ childrenList, selectedStudent, d
                 Beta
               </span>
             </div>
-            <div className="mt-4 space-y-3 text-xs leading-relaxed text-emerald-100 font-semibold italic">
-              <span className="text-2xl font-black text-emerald-500 leading-none">“</span>
+            <div className="mt-4 max-h-[178px] space-y-2.5 overflow-y-auto pr-1 text-xs leading-relaxed text-emerald-100 scrollbar-hide">
               {data.aiInsights.map((insight, idx) => (
-                <p key={idx} className="mt-1">
-                  {insight}
+                <p key={idx} className="flex gap-2.5 rounded-xl border border-emerald-500/10 bg-emerald-500/5 p-2.5">
+                  <span className="text-emerald-400 font-black">{idx + 1}</span>
+                  <span>{insight}</span>
                 </p>
               ))}
               {data.aiInsights.length === 0 && (
-                <p className="mt-1">Insights compile daily as student grades and homework activities register.</p>
+                <p className="mt-1">Insights will appear as academic and attendance data is recorded.</p>
               )}
             </div>
           </div>
-          <span className="text-[9px] text-emerald-500/70 font-bold uppercase tracking-widest block pt-2 border-t border-emerald-500/10">
+          <span className="mt-auto shrink-0 text-[9px] text-emerald-500/70 font-bold uppercase tracking-widest block pt-2 border-t border-emerald-500/10">
             Powered by EduPredict AI
           </span>
         </div>

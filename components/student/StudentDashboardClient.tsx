@@ -16,12 +16,24 @@ type ClassEntry = {
   isHomeworkCompleted: boolean;
 };
 
+type AIStudyBuddy = {
+  tier: "high" | "mid" | "needs_boost";
+  stars: number;
+  starLabel: string;
+  badge: string;
+  headline: string;
+  quote: string;
+  actionPoints: { icon: string; title: string; detail: string; tag?: string }[];
+  quickTips: string[];
+};
+
 type DashboardData = {
   student: { id: number; classId: number; rollNumber: string | null; displayClass: string };
   kpis: { attendancePercent: number; averageScore: number; pendingAssignments: number; upcomingExams: number };
   recentResults: { subjectName: string; examName: string; marks: number; maxMarks: number; date: string }[];
   todaysClasses: ClassEntry[];
   aiStudyTips: string[];
+  aiStudyBuddy?: AIStudyBuddy;
   performanceTrend: { month: string; avgScore: number }[];
   attendanceTrend: { month: string; present: number; total: number }[];
   predictions: {
@@ -207,20 +219,96 @@ export default function StudentDashboardClient({ userName, data }: Props) {
           ) : <p className="text-sm text-muted text-center py-8">No results recorded yet.</p>}
         </div>
 
-        {/* AI Study Tips */}
-        <div className="rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-500/5 to-purple-500/5 p-6">
-          <h2 className="text-sm font-bold text-primary mb-4 flex items-center gap-2">
-            <span className="text-base">🤖</span> AI Study Tips
-          </h2>
-          <div className="space-y-3">
-            {(data?.aiStudyTips || ["Start revising your subjects 20 mins per day.", "Take 5-min breaks every 30 mins!", "Review your notes from today's classes.", "Practice 5 problems in your weakest subject.", "You're making great progress — keep it up!"]).map((tip, i) => (
-              <div key={i} className="flex items-start gap-2.5 rounded-xl bg-white/5 border border-white/5 px-3 py-2.5">
-                <span className="text-xs font-black text-violet-400 shrink-0 mt-0.5">{i + 1}.</span>
-                <p className="text-xs text-secondary leading-relaxed">{tip}</p>
+        {/* AI Study Buddy & Tips */}
+        {(() => {
+          const buddy = data?.aiStudyBuddy;
+          const tier = buddy?.tier || "mid";
+          const borderClass =
+            tier === "high"
+              ? "border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-purple-500/5 to-transparent"
+              : tier === "mid"
+              ? "border-cyan-500/30 bg-gradient-to-br from-cyan-500/10 via-violet-500/5 to-transparent"
+              : "border-rose-500/30 bg-gradient-to-br from-rose-500/10 via-amber-500/5 to-transparent";
+
+          const badgeBg =
+            tier === "high"
+              ? "bg-amber-500/15 text-amber-300 border-amber-500/30"
+              : tier === "mid"
+              ? "bg-cyan-500/15 text-cyan-300 border-cyan-500/30"
+              : "bg-rose-500/15 text-rose-300 border-rose-500/30";
+
+          return (
+            <div className={`rounded-2xl border p-6 shadow-xl relative overflow-hidden flex flex-col justify-between ${borderClass}`}>
+              <div className="space-y-4">
+                {/* Header with Buddy Persona & Star Rating */}
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3.5">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 text-base shadow-sm">
+                      🤖
+                    </span>
+                    <div>
+                      <h2 className="text-xs font-black uppercase tracking-wider text-primary flex items-center gap-1.5">
+                        AI Study Buddy
+                        <span className="text-[10px] text-muted font-normal">· Your 24/7 Companion</span>
+                      </h2>
+                      <p className="text-[10px] text-secondary font-medium">
+                        {buddy?.starLabel || "⭐⭐⭐⭐ Daily Progress"}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-wider ${badgeBg}`}>
+                    {buddy?.badge || "Study Mode ⚡"}
+                  </span>
+                </div>
+
+                {/* Headline & Friendly Motivation */}
+                <div className="rounded-xl bg-white/5 border border-white/5 p-3.5 space-y-1.5">
+                  <p className="text-xs font-bold text-primary leading-snug">
+                    {buddy?.headline || "Hey buddy! Let's make today count!"}
+                  </p>
+                  <p className="text-[11px] text-secondary italic leading-relaxed">
+                    "{buddy?.quote || "Every step you take today brings you closer to your academic dreams. Let's do this together!"}"
+                  </p>
+                </div>
+
+                {/* Tailored Action Points */}
+                <div className="space-y-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-secondary">
+                    Personalized Action Plan:
+                  </p>
+                  {buddy?.actionPoints && buddy.actionPoints.length > 0 ? (
+                    buddy.actionPoints.map((pt, i) => (
+                      <div
+                        key={i}
+                        className="rounded-xl bg-surface/80 border border-theme/60 p-3 flex items-start gap-2.5 transition hover:border-accent/40"
+                      >
+                        <span className="text-base shrink-0 mt-0.5">{pt.icon}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2 mb-0.5">
+                            <span className="text-xs font-bold text-primary truncate">{pt.title}</span>
+                            {pt.tag && (
+                              <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/5 text-secondary shrink-0 border border-white/5">
+                                {pt.tag}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-secondary leading-relaxed">{pt.detail}</p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    (data?.aiStudyTips || ["Start revising your subjects 20 mins per day.", "Practice 5 problems in your weakest subject.", "You're making great progress — keep it up!"]).map((tip, i) => (
+                      <div key={i} className="flex items-start gap-2.5 rounded-xl bg-white/5 border border-white/5 px-3 py-2">
+                        <span className="text-xs font-black text-cyan-400 shrink-0 mt-0.5">{i + 1}.</span>
+                        <p className="text-xs text-secondary leading-relaxed">{tip}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Row 3: Charts */}
@@ -272,7 +360,7 @@ export default function StudentDashboardClient({ userName, data }: Props) {
         ) : (
           <div className="rounded-2xl border border-dashed border-theme p-10 text-center">
             <p className="text-3xl mb-2">📅</p>
-            <p className="text-sm text-muted">No classes scheduled for today or timetable not set up yet.</p>
+            <p className="text-sm text-muted">No homeworks posted for today.</p>
           </div>
         )}
       </div>

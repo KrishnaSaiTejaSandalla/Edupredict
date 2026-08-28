@@ -6,6 +6,9 @@ import { mkdir, writeFile } from 'fs/promises';
 
 export const dynamic = "force-dynamic";
 
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'audio/mpeg', 'audio/wav', 'audio/webm']);
+
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser(req);
   if (!user) {
@@ -14,9 +17,9 @@ export async function POST(req: NextRequest) {
 
   try {
     const formData = await req.formData();
-    const file = formData.get('file') as File;
-    if (!file) {
-      return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    const file = formData.get('file');
+    if (!(file instanceof File) || file.size === 0 || file.size > MAX_UPLOAD_BYTES || !ALLOWED_TYPES.has(file.type)) {
+      return NextResponse.json({ error: "Invalid file" }, { status: 400 });
     }
 
     const bytes = await file.arrayBuffer();
@@ -27,7 +30,8 @@ export async function POST(req: NextRequest) {
       await mkdir(uploadsDir, { recursive: true });
     }
 
-    const uniqueName = `${Date.now()}-${file.name.replace(/\s+/g, '_')}`;
+    const extension = file.type === 'application/pdf' ? 'pdf' : file.type.split('/')[1].replace(/[^a-z0-9]/gi, '');
+    const uniqueName = `${crypto.randomUUID()}.${extension}`;
     const filePath = join(uploadsDir, uniqueName);
     await writeFile(filePath, buffer);
 
@@ -37,7 +41,8 @@ export async function POST(req: NextRequest) {
       mediaSize: file.size,
       mediaType: file.type,
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    console.error('Chat upload failed:', error);
+    return NextResponse.json({ error: 'Upload could not be completed' }, { status: 500 });
   }
 }

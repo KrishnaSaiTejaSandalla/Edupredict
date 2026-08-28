@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import {
   teachers, classes, students, users, attendance,
   assignments, assignmentSubmissions, results, subjects,
-  classSubjects, resources,
+  classSubjects, resources, exams,
 } from "@/lib/schema";
 import { eq, and, inArray, gte, lte, sql, desc, isNull, isNotNull } from "drizzle-orm";
 
@@ -104,21 +104,38 @@ export async function GET(request: Request) {
       return total > 5 && (present / total) * 100 < 75;
     });
 
-    // 2. Marks / Results this month
+    // 2. Marks / Results this month (percentages based on exam maxMarks)
     const marksRows = await db
-      .select({ studentId: results.studentId, marks: results.marks, subjectName: subjects.name, recordedDate: results.recordedDate })
+      .select({
+        studentId: results.studentId,
+        marks: results.marks,
+        maxMarks: exams.maxMarks,
+        subjectName: subjects.name,
+        recordedDate: results.recordedDate,
+      })
       .from(results)
+      .leftJoin(exams, eq(results.examId, exams.id))
       .leftJoin(subjects, eq(results.subjectId, subjects.id))
       .where(and(inArray(results.studentId, studentIds), gte(results.recordedDate, monthStart), lte(results.recordedDate, monthEnd)));
 
     // Prior month marks for comparison
     const priorMarksRows = await db
-      .select({ studentId: results.studentId, marks: results.marks })
+      .select({
+        studentId: results.studentId,
+        marks: results.marks,
+        maxMarks: exams.maxMarks,
+      })
       .from(results)
+      .leftJoin(exams, eq(results.examId, exams.id))
       .where(and(inArray(results.studentId, studentIds), gte(results.recordedDate, priorStart), lte(results.recordedDate, priorEnd)));
 
-    const currentScores = marksRows.map(r => Number(r.marks || 0));
-    const priorScores = priorMarksRows.map(r => Number(r.marks || 0));
+    const calcScorePct = (r: { marks: any; maxMarks: any }) => {
+      const maxM = Number(r.maxMarks || 100);
+      return maxM > 0 ? (Number(r.marks || 0) / maxM) * 100 : Number(r.marks || 0);
+    };
+
+    const currentScores = marksRows.map(calcScorePct);
+    const priorScores = priorMarksRows.map(calcScorePct);
     const avgMarksThis = currentScores.length > 0 ? Math.round(currentScores.reduce((a, b) => a + b, 0) / currentScores.length) : null;
     const avgMarksPrior = priorScores.length > 0 ? Math.round(priorScores.reduce((a, b) => a + b, 0) / priorScores.length) : null;
 
@@ -126,12 +143,12 @@ export async function GET(request: Request) {
     const studentScoreMap = new Map<number, number[]>();
     marksRows.forEach(r => {
       if (!studentScoreMap.has(r.studentId)) studentScoreMap.set(r.studentId, []);
-      studentScoreMap.get(r.studentId)!.push(Number(r.marks || 0));
+      studentScoreMap.get(r.studentId)!.push(calcScorePct(r));
     });
     const priorStudentScoreMap = new Map<number, number[]>();
     priorMarksRows.forEach(r => {
       if (!priorStudentScoreMap.has(r.studentId)) priorStudentScoreMap.set(r.studentId, []);
-      priorStudentScoreMap.get(r.studentId)!.push(Number(r.marks || 0));
+      priorStudentScoreMap.get(r.studentId)!.push(calcScorePct(r));
     });
 
     let improvingCount = 0, decliningCount = 0;

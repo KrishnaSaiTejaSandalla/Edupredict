@@ -177,6 +177,32 @@ export default function ParentShell({ children, user, childName, alerts: initial
     pathname.startsWith("/parent/timetable") ||
     pathname.startsWith("/parent/exams");
 
+  // Prevent accidental Ctrl/Cmd + wheel zoom and Ctrl/Cmd + key zoom interactions
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        (e.key === "+" || e.key === "-" || e.key === "=" || e.key === "0")
+      ) {
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener("wheel", handleWheel, { passive: false });
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("wheel", handleWheel);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
   useEffect(() => {
     if (!showNotifications && !showProfileMenu) return;
     const handleOutsideClick = (e: MouseEvent) => {
@@ -191,6 +217,16 @@ export default function ParentShell({ children, user, childName, alerts: initial
     window.addEventListener("click", handleOutsideClick);
     return () => window.removeEventListener("click", handleOutsideClick);
   }, [showNotifications, showProfileMenu]);
+
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("wheel", handleWheel, { passive: false });
+    return () => window.removeEventListener("wheel", handleWheel);
+  }, []);
 
   useEffect(() => setMobileOpen(false), [pathname]);
 

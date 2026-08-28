@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { notifications } from "@/lib/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { getParentChildren } from "@/lib/parent-actions";
+import { getUserNotificationPreferences } from "@/lib/notification-actions";
+import { isNotificationAllowedByPrefs } from "@/lib/notification-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +15,10 @@ export default async function ParentLayout({
   children: React.ReactNode;
 }) {
   const user = await requireRole("parent");
-  const myChildren = await getParentChildren(user.id);
+  const [myChildren, prefs] = await Promise.all([
+    getParentChildren(user.id),
+    getUserNotificationPreferences(user.id),
+  ]);
   const childName = myChildren[0]?.name || "Student";
 
   const unreadNotifs = await db
@@ -22,6 +27,7 @@ export default async function ParentLayout({
       title: notifications.title,
       message: notifications.message,
       priority: notifications.priority,
+      type: notifications.type,
       createdAt: notifications.createdAt,
     })
     .from(notifications)
@@ -32,9 +38,16 @@ export default async function ParentLayout({
       )
     )
     .orderBy(desc(notifications.createdAt))
-    .limit(5);
+    .limit(20);
 
-  const alerts = unreadNotifs.map((n) => ({
+  const allowedUnreadNotifs = unreadNotifs.filter((n) =>
+    isNotificationAllowedByPrefs(
+      { type: n.type, title: n.title, message: n.message },
+      prefs
+    )
+  ).slice(0, 5);
+
+  const alerts = allowedUnreadNotifs.map((n) => ({
     id: n.id.toString(),
     title: n.title ?? "Notification",
     message: n.message ?? "",
@@ -71,3 +84,4 @@ export default async function ParentLayout({
     </ParentShell>
   );
 }
+

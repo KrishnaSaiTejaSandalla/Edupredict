@@ -830,3 +830,521 @@ h6 {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ============================================================
+   EDUPREDICT LANDING PAGE UTILITIES & ANIMATIONS
+   ============================================================ */
+@keyframes float-slow {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(1.5deg);
+  }
+}
+
+@keyframes float-reverse {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(10px) rotate(-1.5deg);
+  }
+}
+
+@keyframes float-delayed {
+  0%, 100% {
+    transform: translateY(0px) scale(1);
+  }
+  50% {
+    transform: translateY(-8px) scale(1.03);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.75;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes grid-move {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 40px 40px;
+  }
+}
+
+.animate-float-slow {
+  animation: float-slow 6s ease-in-out infinite;
+}
+
+.animate-float-reverse {
+  animation: float-reverse 7s ease-in-out infinite;
+}
+
+.animate-float-delayed {
+  animation: float-delayed 8s ease-in-out 1s infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 5s ease-in-out infinite;
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 3s ease-in-out infinite;
+}
+
+.bg-grid-pattern {
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+}
+
+.bg-dots-pattern {
+  background-image: radial-gradient(rgba(34, 211, 238, 0.15) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+/* ============================================================
+   PUBLIC THEME SYSTEM
+   Semantic custom properties used exclusively by landing & login
+   pages. Driven by [data-public-theme] on <html>.
+   Components consume these vars — not hardcoded colors.
+   ============================================================ */
+
+/* ── Dark public theme (default / fallback) ── */
+:root,
+html[data-public-theme="dark"] {
+  color-scheme: dark;
+
+  /* Backgrounds */
+  --pub-bg-page:        #070b16;
+  --pub-bg-section:     #070b16;
+  --pub-bg-card:        rgba(255,255,255,0.035);
+  --pub-bg-card-hover:  rgba(255,255,255,0.065);
+  --pub-bg-surface:     rgba(15,23,42,0.70);
+  --pub-bg-chip:        rgba(255,255,255,0.04);
+
+  /* Borders */
+  --pub-border:         rgba(255,255,255,0.10);
+  --pub-border-strong:  rgba(255,255,255,0.18);
+  --pub-border-accent:  rgba(34,211,238,0.28);
+  --pub-border-emerald: rgba(52,211,153,0.28);
+  --pub-border-blue:    rgba(96,165,250,0.28);
+  --pub-border-amber:   rgba(251,191,36,0.28);
+
+  /* Text */
+  --pub-text-primary:   #f1f5f9;
+  --pub-text-secondary: #94a3b8;
+  --pub-text-muted:     #64748b;
+  --pub-text-accent:    #22d3ee;
+  --pub-text-emerald:   #34d399;
+  --pub-text-blue:      #60a5fa;
+  --pub-text-amber:     #fbbf24;
+  --pub-text-inverted:  #0f172a;
+
+  /* Section-level gradients */
+  --pub-hero-bg:       radial-gradient(circle at 50% 0%,  rgba(34,211,238,0.12) 0%, transparent 60%),
+                       radial-gradient(circle at 80% 50%, rgba(52,211,153,0.07) 0%, transparent 40%),
+                       #070b16;
+  --pub-mockup-bg:     linear-gradient(160deg, #0b171c 0%, #070b16 100%);
+  --pub-mockup-bg-alt: linear-gradient(160deg, #0d1428 0%, #070b16 100%);
+  --pub-mockup-bg-sch: linear-gradient(160deg, #0a1224 0%, #070b16 100%);
+
+  /* Header / nav */
+  --pub-header-bg:     rgba(7,11,22,0.85);
+  --pub-header-border: rgba(34,211,238,0.15);
+  --pub-nav-bg:        rgba(255,255,255,0.03);
+  --pub-nav-border:    rgba(255,255,255,0.08);
+  --pub-nav-text:      #94a3b8;
+  --pub-nav-hover:     #22d3ee;
+
+  /* Progress bar track */
+  --pub-progress-track: #1e293b;
+
+  /* Login panels */
+  --pub-login-left-bg:    linear-gradient(160deg, #0e1622 0%, #070b16 100%);
+  --pub-login-right-bg:   radial-gradient(circle at 28% 28%, rgba(34,211,238,0.14), transparent 40%),
+                          radial-gradient(circle at 78% 72%, rgba(52,211,153,0.10), transparent 40%),
+                          #0b1020;
+  --pub-login-right-border: rgba(34,211,238,0.15);
+
+  /* Theme toggle */
+  --pub-toggle-bg:          rgba(255,255,255,0.06);
+  --pub-toggle-border:      rgba(255,255,255,0.14);
+  --pub-toggle-text:        #94a3b8;
+  --pub-toggle-hover-border: rgba(34,211,238,0.45);
+  --pub-toggle-hover-text:   #22d3ee;
+
+  /* Intervention alert */
+  --pub-alert-bg:     rgba(120,70,0,0.20);
+  --pub-alert-border: rgba(251,191,36,0.32);
+  --pub-alert-title:  #fbbf24;
+  --pub-alert-text:   #94a3b8;
+
+  /* Chart */
+  --pub-chart-bg:     rgba(15,23,42,0.80);
+  --pub-chart-border: rgba(255,255,255,0.05);
+  --pub-chart-grid:   rgba(255,255,255,0.05);
+  --pub-chart-label:  #64748b;
+  --pub-chart-legend: #94a3b8;
+
+  /* Chips */
+  --pub-chip-cyan-bg:       rgba(34,211,238,0.10);
+  --pub-chip-cyan-border:   rgba(34,211,238,0.30);
+  --pub-chip-cyan-text:     #22d3ee;
+  --pub-chip-emerald-bg:    rgba(52,211,153,0.10);
+  --pub-chip-emerald-border:rgba(52,211,153,0.30);
+  --pub-chip-emerald-text:  #34d399;
+  --pub-chip-amber-bg:      rgba(251,191,36,0.10);
+  --pub-chip-amber-border:  rgba(251,191,36,0.30);
+  --pub-chip-amber-text:    #fbbf24;
+  --pub-chip-blue-bg:       rgba(96,165,250,0.10);
+  --pub-chip-blue-border:   rgba(96,165,250,0.30);
+  --pub-chip-blue-text:     #60a5fa;
+}
+
+/* ── Light public theme — ultra-premium, clean, modern SaaS aesthetic ── */
+html[data-public-theme="light"] {
+  color-scheme: light;
+
+  /* Backgrounds */
+  --pub-bg-page:        #f8fafc;
+  --pub-bg-section:     #f8fafc;
+  --pub-bg-card:        #ffffff;
+  --pub-bg-card-hover:  #ffffff;
+  --pub-bg-surface:     #ffffff;
+  --pub-bg-chip:        rgba(6, 182, 212, 0.08);
+
+  /* Borders */
+  --pub-border:         #e2e8f0;
+  --pub-border-strong:  #cbd5e1;
+  --pub-border-accent:  rgba(6, 182, 212, 0.35);
+  --pub-border-emerald: rgba(16, 185, 129, 0.30);
+  --pub-border-blue:    rgba(59, 130, 246, 0.25);
+  --pub-border-amber:   rgba(245, 158, 11, 0.30);
+
+  /* Text */
+  --pub-text-primary:   #0f172a;
+  --pub-text-secondary: #475569;
+  --pub-text-muted:     #64748b;
+  --pub-text-accent:    #0284c7;
+  --pub-text-emerald:   #059669;
+  --pub-text-blue:      #2563eb;
+  --pub-text-amber:     #d97706;
+  --pub-text-inverted:  #ffffff;
+
+  /* Section-level gradients */
+  --pub-hero-bg:       radial-gradient(circle at 50% -10%, rgba(6, 182, 212, 0.08) 0%, transparent 60%),
+                       radial-gradient(circle at 85% 60%,  rgba(16, 185, 129, 0.05) 0%, transparent 40%),
+                       #f8fafc;
+  --pub-mockup-bg:     linear-gradient(170deg, #ffffff 0%, #f8fafc 100%);
+  --pub-mockup-bg-alt: linear-gradient(170deg, #ffffff 0%, #f8fafc 100%);
+  --pub-mockup-bg-sch: linear-gradient(170deg, #ffffff 0%, #f8fafc 100%);
+
+  /* Header / nav */
+  --pub-header-bg:     rgba(255, 255, 255, 0.85);
+  --pub-header-border: #e2e8f0;
+  --pub-nav-bg:        #ffffff;
+  --pub-nav-border:    #e2e8f0;
+  --pub-nav-text:      #475569;
+  --pub-nav-hover:     #0284c7;
+
+  /* Progress bar track */
+  --pub-progress-track: #e2e8f0;
+
+  /* Login panels */
+  --pub-login-left-bg:    #ffffff;
+  --pub-login-right-bg:   radial-gradient(circle at 30% 30%, rgba(6, 182, 212, 0.12), transparent 45%),
+                          radial-gradient(circle at 75% 75%, rgba(16, 185, 129, 0.10), transparent 45%),
+                          #f0fdf4;
+  --pub-login-right-border: #e2e8f0;
+
+  /* Theme toggle */
+  --pub-toggle-bg:           #ffffff;
+  --pub-toggle-border:       #cbd5e1;
+  --pub-toggle-text:         #475569;
+  --pub-toggle-hover-border: #0284c7;
+  --pub-toggle-hover-text:   #0284c7;
+
+  /* Intervention alert */
+  --pub-alert-bg:     #fffbeb;
+  --pub-alert-border: #fcd34d;
+  --pub-alert-title:  #92400e;
+  --pub-alert-text:   #78350f;
+
+  /* Chart */
+  --pub-chart-bg:     #f8fafc;
+  --pub-chart-border: #e2e8f0;
+  --pub-chart-grid:   #f1f5f9;
+  --pub-chart-label:  #64748b;
+  --pub-chart-legend: #475569;
+
+  /* Chips */
+  --pub-chip-cyan-bg:       #ecfeff;
+  --pub-chip-cyan-border:   #a5f3fc;
+  --pub-chip-cyan-text:     #0369a1;
+  --pub-chip-emerald-bg:    #ecfdf5;
+  --pub-chip-emerald-border:#a7f3d0;
+  --pub-chip-emerald-text:  #047857;
+  --pub-chip-amber-bg:      #fffbeb;
+  --pub-chip-amber-border:  #fde68a;
+  --pub-chip-amber-text:    #b45309;
+  --pub-chip-blue-bg:       #eff6ff;
+  --pub-chip-blue-border:   #bfdbfe;
+  --pub-chip-blue-text:     #1d4ed8;
+}
+
+/* ============================================================
+   PUBLIC PAGE BASE STYLES
+   ============================================================ */
+
+.public-page {
+  background: var(--pub-bg-page);
+  color: var(--pub-text-primary);
+  transition: background 0.3s ease, color 0.2s ease;
+}
+
+.landing-page section {
+  background: var(--pub-bg-section);
+  transition: background 0.3s ease;
+}
+
+/* Grid pattern adapts to public theme */
+html[data-public-theme="light"] .bg-grid-pattern {
+  background-image:
+    linear-gradient(to right, rgba(14,116,144,0.07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(14,116,144,0.07) 1px, transparent 1px) !important;
+}
+
+/* ── Header ── */
+.public-header {
+  background: var(--pub-header-bg);
+  border-color: var(--pub-header-border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+/* ── Nav pill ── */
+.public-nav-pill {
+  background: var(--pub-nav-bg);
+  border-color: var(--pub-nav-border);
+}
+
+.public-nav-link        { color: var(--pub-nav-text); }
+.public-nav-link:hover  { color: var(--pub-nav-hover); }
+
+/* ── Theme toggle ── */
+.public-theme-toggle {
+  background:    var(--pub-toggle-bg) !important;
+  border-color:  var(--pub-toggle-border) !important;
+  color:         var(--pub-toggle-text) !important;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.public-theme-toggle:hover {
+  border-color: var(--pub-toggle-hover-border) !important;
+  color:        var(--pub-toggle-hover-text) !important;
+  box-shadow: 0 0 0 3px rgba(6,182,212,0.14);
+}
+
+/* ── Login panels ── */
+.login-panel-left {
+  background: var(--pub-login-left-bg);
+  transition: background 0.3s ease;
+}
+
+.login-panel-right {
+  background:   var(--pub-login-right-bg);
+  border-color: var(--pub-login-right-border);
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+/* ── Mockup containers ── */
+.pub-mockup {
+  background:   var(--pub-mockup-bg);
+  border-color: var(--pub-border-accent);
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.pub-mockup-alt {
+  background:   var(--pub-mockup-bg-alt);
+  border-color: var(--pub-border-emerald);
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.pub-mockup-school {
+  background:   var(--pub-mockup-bg-sch);
+  border-color: var(--pub-border-blue);
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+/* ── Inner cards ── */
+.pub-card {
+  background:   var(--pub-bg-card);
+  border-color: var(--pub-border);
+  transition: background 0.25s ease, border-color 0.25s ease;
+}
+
+.pub-card:hover { background: var(--pub-bg-card-hover); }
+
+.pub-surface {
+  background:   var(--pub-bg-surface);
+  border-color: var(--pub-border);
+  transition: background 0.25s ease, border-color 0.25s ease;
+}
+
+/* ── Text helpers ── */
+.pub-text-primary   { color: var(--pub-text-primary); }
+.pub-text-secondary { color: var(--pub-text-secondary); }
+.pub-text-muted     { color: var(--pub-text-muted); }
+.pub-text-accent    { color: var(--pub-text-accent); }
+.pub-text-emerald   { color: var(--pub-text-emerald); }
+.pub-text-blue      { color: var(--pub-text-blue); }
+.pub-text-amber     { color: var(--pub-text-amber); }
+
+/* ── Dividers ── */
+.pub-divide > :not([hidden]) ~ :not([hidden]) {
+  border-top: 1px solid var(--pub-border);
+}
+
+.pub-border-line { border-color: var(--pub-border); }
+
+/* ── Chips / badges ── */
+.pub-chip-cyan {
+  background:   var(--pub-chip-cyan-bg);
+  border-color: var(--pub-chip-cyan-border);
+  color:        var(--pub-chip-cyan-text);
+}
+
+.pub-chip-emerald {
+  background:   var(--pub-chip-emerald-bg);
+  border-color: var(--pub-chip-emerald-border);
+  color:        var(--pub-chip-emerald-text);
+}
+
+.pub-chip-amber {
+  background:   var(--pub-chip-amber-bg);
+  border-color: var(--pub-chip-amber-border);
+  color:        var(--pub-chip-amber-text);
+}
+
+.pub-chip-blue {
+  background:   var(--pub-chip-blue-bg);
+  border-color: var(--pub-chip-blue-border);
+  color:        var(--pub-chip-blue-text);
+}
+
+/* ── Progress bar track ── */
+.pub-progress-track { background: var(--pub-progress-track); }
+
+/* ── Chart ── */
+.pub-chart {
+  background:   var(--pub-chart-bg);
+  border-color: var(--pub-chart-border);
+}
+
+.pub-chart-grid-line { border-color: var(--pub-chart-grid); }
+
+/* ── Intervention alert ── */
+.pub-alert {
+  background:   var(--pub-alert-bg);
+  border-color: var(--pub-alert-border);
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.pub-alert-title { color: var(--pub-alert-title); }
+.pub-alert-text  { color: var(--pub-alert-text); }
+
+/* ── Hero gradient headline ── */
+html[data-public-theme="light"] .pub-hero-gradient {
+  background: linear-gradient(135deg, #0891b2 0%, #047857 50%, #0e7490 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Contact card (About) ── */
+html[data-public-theme="light"] .public-contact-card {
+  border: 1px solid rgba(6,182,212,0.30);
+  background: linear-gradient(135deg, #ecfeff 0%, #f0fdfa 52%, #ffffff 100%);
+  box-shadow: 0 20px 48px -30px rgba(8,145,178,0.28);
+}
+
+html[data-public-theme="light"] .public-contact-card h3 { color: #0f172a; }
+html[data-public-theme="light"] .public-contact-card p  { color: #475569; }
+
+html[data-public-theme="dark"] .public-contact-card {
+  border: 1px solid rgba(34,211,238,0.25);
+  background: linear-gradient(135deg, rgba(8,47,73,0.68), rgba(15,23,42,0.94) 55%, rgba(6,78,59,0.48));
+  box-shadow: 0 24px 60px -34px rgba(6,182,212,0.32);
+}
+
+html[data-public-theme="dark"] .public-contact-card h3 { color: #f8fafc; }
+html[data-public-theme="dark"] .public-contact-card p  { color: #cbd5e1; }
+
+/* ── Info pages (privacy, terms) ── */
+html[data-public-theme="dark"] .public-info-page > header,
+html[data-public-theme="dark"] .public-info-page article,
+html[data-public-theme="dark"] .public-info-page [class*="bg-white"] {
+  background-color: #0f172a !important;
+  background-image: none !important;
+  border-color: rgba(148,163,184,0.22) !important;
+}
+
+html[data-public-theme="dark"] .public-info-page [class*="text-slate-9"] { color: #f8fafc !important; }
+
+html[data-public-theme="dark"] .public-info-page [class*="text-slate-6"],
+html[data-public-theme="dark"] .public-info-page [class*="text-slate-5"] { color: #cbd5e1 !important; }
+
+/* ── Checkbox custom component ── */
+.pub-checkbox-box {
+  background-color: var(--pub-card);
+  border: 1px solid var(--pub-border-strong);
+  color: var(--pub-text-primary);
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+html[data-public-theme="light"] .pub-checkbox-box {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+html[data-public-theme="dark"] .pub-checkbox-box {
+  background-color: #0b1020 !important;
+  border-color: #334155 !important;
+}
+
+.pub-checkbox-checked {
+  background-color: #06b6d4 !important;
+  border-color: #06b6d4 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.2) !important;
+}

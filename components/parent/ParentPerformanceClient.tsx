@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   RadarChart,
   PolarGrid,
@@ -51,6 +52,14 @@ type Props = {
   studentName: string;
 };
 
+const PARENT_MOTIVATIONS = [
+  "A child may forget a difficult worksheet, but they will remember the calm voice that said, ‘We will figure this out together.’",
+  "Children grow strongest when home feels like a safe place to ask questions, make mistakes, and try again.",
+  "Your time, attention, and belief are powerful study tools. A few meaningful minutes each day can change a child’s confidence.",
+  "Success is not only a mark on a paper; it is the courage a child builds when a parent notices every honest effort.",
+  "Be the person who asks, ‘What did you discover today?’—curiosity at home helps learning travel far beyond the classroom.",
+];
+
 export default function ParentPerformanceClient({
   subjectStats,
   performanceTrend,
@@ -61,6 +70,12 @@ export default function ParentPerformanceClient({
   confidenceScore,
   studentName,
 }: Props) {
+  const [motivationIndex, setMotivationIndex] = useState(0);
+
+  useEffect(() => {
+    setMotivationIndex(Math.floor(Math.random() * PARENT_MOTIVATIONS.length));
+  }, []);
+
   // Radar data format
   const radarData = subjectStats.map((s) => ({
     subject: s.subject.length > 10 ? s.subject.substring(0, 10) + ".." : s.subject,
@@ -79,6 +94,13 @@ export default function ParentPerformanceClient({
     }
   };
 
+  const focusSubjects = weakSubjects.length > 0 ? weakSubjects.slice(0, 2).join(" and ") : "the topics that feel hardest right now";
+  const risingRiskSubjects = predictedGrades
+    .filter((item) => item.riskLevel.toLowerCase() !== "low")
+    .map((item) => item.subject)
+    .slice(0, 2);
+  const practicalFocus = risingRiskSubjects.length > 0 ? risingRiskSubjects.join(" and ") : focusSubjects;
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-8 animate-in fade-in duration-300">
       {/* Header */}
@@ -94,24 +116,50 @@ export default function ParentPerformanceClient({
         </p>
       </div>
 
-      {/* Row 1: AI Predictive Insights Block */}
+      {/* Row 1: Parent Guidance & Academic Predictions */}
       <div className="rounded-3xl border border-theme bg-surface p-6 sm:p-8 shadow-md relative overflow-hidden">
         <div className="absolute right-0 top-0 h-40 w-40 rounded-full bg-cyan-500/5 blur-3xl" />
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-500 dark:text-cyan-400">
-            <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
-            </svg>
-          </span>
-          <div>
-            <h3 className="text-sm font-bold text-primary">AI Academic Predictions</h3>
-            <p className="text-[10px] text-muted">Analysis confidence index: {confidenceScore}%</p>
+        <div className="relative space-y-6">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-500 dark:text-cyan-400">
+              <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
+              </svg>
+            </span>
+            <div>
+              <h3 className="text-sm font-bold text-primary">AI Academic Predictions</h3>
+              <p className="text-[10px] text-muted">Analysis confidence index: {confidenceScore}%</p>
+            </div>
           </div>
-        </div>
 
-        <p className="mt-4 text-xs text-secondary leading-relaxed whitespace-pre-wrap italic">
-          "{aiParagraph}"
-        </p>
+          <div className="rounded-2xl border border-violet-500/20 bg-gradient-to-r from-violet-500/10 via-cyan-500/5 to-transparent p-4 sm:p-5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-violet-400">A note for you, today</p>
+            <p className="mt-2 text-sm font-medium leading-relaxed text-primary">“{PARENT_MOTIVATIONS[motivationIndex]}”</p>
+          </div>
+
+          <p className="text-xs text-secondary leading-relaxed whitespace-pre-wrap">
+            {aiParagraph}
+          </p>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-400">Help improve</p>
+              <p className="mt-2 text-xs leading-relaxed text-secondary">Make {practicalFocus} a gentle priority. Ask {studentName} to show one small concept each day, then celebrate the effort before correcting mistakes.</p>
+            </div>
+            <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-400">What to do this week</p>
+              <p className="mt-2 text-xs leading-relaxed text-secondary">Set aside 20 calm minutes on three days: review class notes together, solve one example, and end by asking what support would help next.</p>
+            </div>
+            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Build confidence</p>
+              <p className="mt-2 text-xs leading-relaxed text-secondary">Spend device-free time talking, reading, exploring the world, or making something together. Feeling seen at home gives children the courage to learn.</p>
+            </div>
+          </div>
+
+          <p className="rounded-xl border border-theme bg-hover/20 px-4 py-3 text-xs leading-relaxed text-secondary">
+            <span className="font-bold text-primary">Moral support matters:</span> reassure {studentName} that marks are feedback, not a label. Say “I am proud of your effort, and I am here with you” often.
+          </p>
+        </div>
       </div>
 
       {/* Row 2: Radar Chart & Strengths / Weaknesses */}

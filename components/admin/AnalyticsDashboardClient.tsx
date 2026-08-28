@@ -589,71 +589,72 @@ export default function AnalyticsDashboardClient() {
             </button>
           </div>
         ) : (
-          /* Smooth horizontal scrolling container for smaller screens */
-          <div className="overflow-x-auto pb-3 -mx-2 px-2 scrollbar-thin">
-            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 min-w-[650px] lg:min-w-0">
-              {filteredTeachers.map((teacher: any, idx: number) => (
-                <div key={idx} className="bg-background/30 border border-border/20 rounded-2xl p-5 shadow-sm space-y-4 hover:border-border/60 transition">
-                  <div className="flex justify-between items-start border-b border-border/20 pb-3">
-                    <div>
-                      <h3 className="text-sm font-bold text-foreground">{teacher.name}</h3>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {teacher.subjects && teacher.subjects.length > 0 ? (
-                          teacher.subjects.map((sub: string, i: number) => (
-                            <span key={i} className="text-[9px] font-semibold px-1.5 py-0.5 rounded-md bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-                              {sub}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground">Faculty</span>
-                        )}
-                      </div>
+          /* 1-Line Horizontal scrolling row with hidden scrollbar */
+          <div className="flex gap-4 overflow-x-auto pb-3 -mx-2 px-2 scrollbar-hide [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            {filteredTeachers.map((teacher: any, idx: number) => (
+              <div
+                key={idx}
+                className="min-w-[300px] sm:min-w-[320px] max-w-[340px] shrink-0 bg-background/30 border border-border/20 rounded-2xl p-5 shadow-sm space-y-4 hover:border-border/60 transition"
+              >
+                <div className="flex justify-between items-start border-b border-border/20 pb-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-foreground">{teacher.name}</h3>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {teacher.subjects && teacher.subjects.length > 0 ? (
+                        teacher.subjects.map((sub: string, i: number) => (
+                          <span key={i} className="text-[9px] font-semibold px-1.5 py-0.5 rounded-md bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                            {sub}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">Faculty</span>
+                      )}
                     </div>
-                    <span className="text-[10px] px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded-full border border-emerald-500/20 font-bold shrink-0">
-                      Active
-                    </span>
                   </div>
+                  <span className="text-[10px] px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded-full border border-emerald-500/20 font-bold shrink-0">
+                    Active
+                  </span>
+                </div>
 
-                  {teacher.classes && teacher.classes.length > 0 && (
-                    <div className="text-[10px] text-muted-foreground flex items-center gap-1.5 flex-wrap">
-                      <span className="font-semibold text-foreground/80">Cohorts:</span>
-                      {teacher.classes.map((cls: string, i: number) => (
-                        <span key={i} className="px-1.5 py-0.5 rounded bg-muted/40 text-foreground border border-border/30">
-                          {cls}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                {teacher.classes && teacher.classes.length > 0 && (
+                  <div className="text-[10px] text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                    <span className="font-semibold text-foreground/80">Cohorts:</span>
+                    {teacher.classes.map((cls: string, i: number) => (
+                      <span key={i} className="px-1.5 py-0.5 rounded bg-muted/40 text-foreground border border-border/30">
+                        {cls}
+                      </span>
+                    ))}
+                  </div>
+                )}
 
-                  <div className="grid grid-cols-2 gap-4 text-xs">
-                    <div>
-                      <span className="text-[10px] text-muted-foreground block">Class Load</span>
-                      <span className="font-extrabold text-foreground">{teacher.classLoad} sections</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-muted-foreground block">Student Score Avg</span>
-                      <span className="font-extrabold text-cyan-500">{teacher.avgStudentPerformance}%</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-muted-foreground block">Assignments Given</span>
-                      <span className="font-extrabold text-foreground">{teacher.assignmentsGiven}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-muted-foreground block">Evaluated (MoM)</span>
-                      <span className="font-extrabold text-violet-500">{teacher.assignmentsEvaluated}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-muted-foreground block">Approved Leaves</span>
-                      <span className="font-extrabold text-amber-500">{teacher.leaveCount} days</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-muted-foreground block">Resources uploaded</span>
-                      <span className="font-extrabold text-foreground">{teacher.resourcesUploaded}</span>
-                    </div>
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block">Class Load</span>
+                    <span className="font-extrabold text-foreground">{teacher.classLoad} sections</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block">Student Score Avg</span>
+                    <span className="font-extrabold text-cyan-500">{teacher.avgStudentPerformance}%</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block">Assignments Given</span>
+                    <span className="font-extrabold text-foreground">{teacher.assignmentsGiven}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block">Evaluated (MoM)</span>
+                    <span className="font-extrabold text-violet-500">{teacher.assignmentsEvaluated}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block">Approved Leaves</span>
+                    <span className="font-extrabold text-amber-500">{teacher.leaveCount} days</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block">Resources uploaded</span>
+                    <span className="font-extrabold text-foreground">{teacher.resourcesUploaded}</span>
                   </div>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
         )}
       </section>

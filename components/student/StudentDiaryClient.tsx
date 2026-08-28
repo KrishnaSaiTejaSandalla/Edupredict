@@ -43,7 +43,7 @@ function DiaryDetailModal({
   if (typeof window === "undefined") return null;
   return createPortal(
     <div
-      className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-[99999] flex items-center justify-center backdrop-blur-sm"
       onClick={onClose}
     >
       <div
@@ -95,11 +95,10 @@ function DiaryDetailModal({
             <button
               onClick={onToggle}
               disabled={isPending}
-              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all duration-200 border ${
-                isCompleted
+              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all duration-200 border ${isCompleted
                   ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
                   : "bg-violet-500/10 text-violet-400 border-violet-500/20 hover:bg-violet-500/20"
-              }`}
+                }`}
             >
               {isCompleted ? "✓ Completed" : "Mark as Done"}
             </button>
@@ -252,11 +251,10 @@ export default function StudentDiaryClient({ initialEntries, initialProgress }: 
                   <button
                     key={opt}
                     onClick={() => setFilter(opt)}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all duration-200 ${
-                      filter === opt
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all duration-200 ${filter === opt
                         ? "bg-violet-500/20 text-violet-400 border border-violet-500/30"
                         : "text-secondary hover:text-primary"
-                    }`}
+                      }`}
                   >
                     {opt}
                   </button>
@@ -273,11 +271,10 @@ export default function StudentDiaryClient({ initialEntries, initialProgress }: 
                 <button
                   key={e.id}
                   onClick={() => setSelectedEntry(e)}
-                  className={`text-left rounded-2xl border p-4 transition-all duration-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 ${
-                    isCompleted
+                  className={`text-left rounded-2xl border p-4 transition-all duration-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 ${isCompleted
                       ? "border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10"
                       : "border-theme bg-surface hover:bg-hover"
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[9px] font-extrabold text-violet-400 uppercase tracking-widest truncate max-w-[70%]">
@@ -285,11 +282,10 @@ export default function StudentDiaryClient({ initialEntries, initialProgress }: 
                     </span>
                     {e.homework && (
                       <span
-                        className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider ${
-                          isCompleted
+                        className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider ${isCompleted
                             ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
                             : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                        }`}
+                          }`}
                       >
                         {isCompleted ? "✓ Done" : "HW"}
                       </span>

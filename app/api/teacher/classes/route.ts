@@ -62,9 +62,6 @@ export async function GET(request: Request) {
       .where(eq(classes.id, classId))
       .limit(1);
 
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
     const studentsWithMetrics = await Promise.all(
       studentList.map(async (s) => {
         const attendanceRows = await db
@@ -73,8 +70,7 @@ export async function GET(request: Request) {
           .where(
             and(
               eq(attendance.studentId, s.id),
-              eq(attendance.classId, classId),
-              gte(attendance.attendanceDate, thirtyDaysAgo)
+              eq(attendance.classId, classId)
             )
           );
 

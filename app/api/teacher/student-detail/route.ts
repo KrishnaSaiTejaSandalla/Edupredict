@@ -183,7 +183,7 @@ if (!tab || tab === "personal") {
       const subjectScores = await db
         .select({
           subject: subjects.name,
-          avgMarks: sql<number>`AVG(CAST(${results.marks} AS DECIMAL(5,2)))`,
+          avgMarks: sql<number>`AVG((CAST(${results.marks} AS DECIMAL(5,2)) / NULLIF(CAST(${exams.maxMarks} AS DECIMAL(5,2)), 0)) * 100)`,
         })
         .from(results)
         .leftJoin(exams, eq(results.examId, exams.id))
@@ -209,41 +209,36 @@ if (!tab || tab === "personal") {
         .where(
           and(
             eq(attendance.studentId, studentId),
-            eq(attendance.classId, student.classId)
+            eq(attendance.classId, student.classId!)
           )
         );
 
       const presentCount = attendanceRows.filter((a) => a.status === "present").length;
       const leaveCount = attendanceRows.filter((a) => a.status === "leave").length;
       const halfDayCount = attendanceRows.filter((a) => a.status === "half_day").length;
-      const totalAtt = attendanceRows.length;
-      const workingDays = totalAtt - leaveCount;
+      const totalCount = attendanceRows.length;
+      const workingDays = totalCount - leaveCount;
       const presentWeight = presentCount + halfDayCount * 0.5;
       const attendancePct = workingDays > 0 ? Math.round((presentWeight / workingDays) * 100) : 100;
 
-      const resultRows = await db
+      const examResults = await db
         .select({ marks: results.marks, maxMarks: exams.maxMarks })
         .from(results)
         .leftJoin(exams, eq(results.examId, exams.id))
         .where(eq(results.studentId, studentId));
 
-      const perfSum = resultRows.reduce((sum, r) => sum + (Number(r.marks || 0) / Number(r.maxMarks || 100) * 100), 0);
-      const examAvg = resultRows.length > 0 ? Math.round(perfSum / resultRows.length) : 0;
+      const examAvg = examResults.length > 0
+        ? Math.round(examResults.reduce((sum, r) => sum + (Number(r.marks || 0) / Number(r.maxMarks || 100) * 100), 0) / examResults.length)
+        : 0;
 
       const submissionRows = await db
         .select({ grade: assignmentSubmissions.grade })
         .from(assignmentSubmissions)
-        .leftJoin(assignments, eq(assignmentSubmissions.assignmentId, assignments.id))
-        .where(
-          and(
-            eq(assignments.classId, student.classId),
-            eq(assignmentSubmissions.studentId, studentId)
-          )
-        );
+        .where(eq(assignmentSubmissions.studentId, studentId));
 
       const gradedCount = submissionRows.filter((s) => s.grade !== null).length;
-      const totalCount = submissionRows.length;
-      const assignmentPct = totalCount > 0 ? Math.round((gradedCount / totalCount) * 100) : 0;
+      const totalSubCount = submissionRows.length;
+      const assignmentPct = totalSubCount > 0 ? Math.round((gradedCount / totalSubCount) * 100) : 0;
 
       const radarData = [
         { subject: "Attendance", value: Math.min(5, Math.max(1, Math.round((attendancePct / 100) * 5 * 10) / 10)) },
@@ -264,7 +259,7 @@ if (!tab || tab === "personal") {
       const performanceTrend = await db
         .select({
           examDate: exams.examDate,
-          avgMarks: sql<number>`AVG(CAST(${results.marks} AS DECIMAL(5,2)))`,
+          avgMarks: sql<number>`AVG((CAST(${results.marks} AS DECIMAL(5,2)) / NULLIF(CAST(${exams.maxMarks} AS DECIMAL(5,2)), 0)) * 100)`,
         })
         .from(results)
         .leftJoin(exams, eq(results.examId, exams.id))

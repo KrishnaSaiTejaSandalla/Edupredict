@@ -15,12 +15,19 @@ export async function generateAIPredictionsForStudent(studentId: number) {
     .limit(1);
   if (!student) throw new Error("Student not found");
 
-  // 2. Fetch all subjects for this class
-  const classSubjs = await db
+  // 2. Fetch distinct subjects for this class
+  const rawClassSubjs = await db
     .select({ subjectId: classSubjects.subjectId, subjectName: subjects.name })
     .from(classSubjects)
     .leftJoin(subjects, eq(subjects.id, classSubjects.subjectId))
     .where(eq(classSubjects.classId, student.classId));
+
+  const seenSubjIds = new Set<number>();
+  const classSubjs = rawClassSubjs.filter((cs) => {
+    if (!cs.subjectId || seenSubjIds.has(cs.subjectId)) return false;
+    seenSubjIds.add(cs.subjectId);
+    return true;
+  });
 
   if (classSubjs.length === 0) {
     return { status: "insufficient_data", message: "Not enough academic data available yet to generate predictions." };
@@ -65,6 +72,7 @@ export async function generateAIPredictionsForStudent(studentId: number) {
 
   interface PredictionItemType {
     subjectId: number;
+    subjectName: string;
     currentScore: number;
     predictedScoreMin: number;
     predictedScoreMax: number;
@@ -172,9 +180,21 @@ export async function generateAIPredictionsForStudent(studentId: number) {
     const avgPredicted = (predictedScoreMin + predictedScoreMax) / 2;
     const riskLevel = avgPredicted < 60 ? 'high' : avgPredicted < 75 ? 'medium' : 'low';
     
-    // Confidence Level based on volume of data
+    // Confidence Level: based on volume of data AND how high/stable the score is
+    // More exams + high score + narrow predicted range = high confidence
     const totalDataPoints = subjExams.length + subjAssignments.length;
-    const confidence = totalDataPoints >= 6 ? 'high' : totalDataPoints >= 3 ? 'medium' : 'low';
+    const predSpread = predictedScoreMax - predictedScoreMin; // 0–6 typically
+    const scoreIsHigh = currentScore >= 80;
+    const scoreIsStable = Math.abs(trendModifier) < 3;
+    
+    let confidence: string;
+    if (totalDataPoints >= 4 && scoreIsHigh && scoreIsStable) {
+      confidence = 'high';
+    } else if (totalDataPoints >= 3 || (scoreIsHigh && scoreIsStable)) {
+      confidence = 'medium';
+    } else {
+      confidence = 'low';
+    }
 
     // Calculate individual academic health score for this subject
     const academicHealthScore = Math.round(
@@ -186,15 +206,16 @@ export async function generateAIPredictionsForStudent(studentId: number) {
 
     // Generate Attendance Impact Description
     const attendanceImpact = attendancePct < 75
-      ? `Your low attendance of ${Math.round(attendancePct)}% in ${sName} is negatively dragging down your performance projection by ${Math.round(Math.abs(predictionModifier))}%`
-      : `Your consistent attendance of ${Math.round(attendancePct)}% in ${sName} keeps your performance projections stable.`;
+      ? `Low attendance of ${Math.round(attendancePct)}% in ${sName} is pulling down your projection by ${Math.round(Math.abs(predictionModifier))}%.`
+      : `Consistent attendance of ${Math.round(attendancePct)}% in ${sName} stabilizes your academic projection.`;
 
     const assignmentImpact = subjAssignments.length === 0
-      ? `No assignments submitted yet for ${sName}. Completing assignments is vital for practice and grades.`
-      : `Your average assignment grade of ${Math.round(assignmentPct)}% contributes positively to your performance.`;
+      ? `No classroom assignments recorded yet.`
+      : `Assignment average of ${Math.round(assignmentPct)}% contributes positively to your grade.`;
 
     predictionsList.push({
       subjectId: sId,
+      subjectName: sName,
       currentScore: Number(currentScore.toFixed(2)),
       predictedScoreMin: Number(predictedScoreMin.toFixed(2)),
       predictedScoreMax: Number(predictedScoreMax.toFixed(2)),
@@ -205,9 +226,8 @@ export async function generateAIPredictionsForStudent(studentId: number) {
       assignmentImpact,
     });
 
-    // 5. Generate Recommendations
-    if (avgPredicted < 75) {
-      // Find a resource in the database for this subject
+    // 5. Generate Target Learning Resource Recommendation for low-scoring subjects
+    if (avgPredicted < 78) {
       const matchingResources = await db
         .select({ id: teacherResources.id, title: teacherResources.title })
         .from(teacherResources)
@@ -218,19 +238,119 @@ export async function generateAIPredictionsForStudent(studentId: number) {
 
       recommendationsList.push({
         type: 'academic',
-        title: `Improve ${sName} Performance`,
-        description: `Your predicted score is ${Math.round(predictedScoreMin)}-${Math.round(predictedScoreMax)}% (${riskLevel} risk). Focus on reviewing previous test mistakes and practice topics.`,
+        title: `Targeted Revision: ${sName}`,
+        description: `Projected at ${Math.round(predictedScoreMin)}–${Math.round(predictedScoreMax)}%. Review key formulas and past test problems to build confidence.`,
         resourceId: recResourceId,
       });
     }
+  }
 
-    if (attendancePct < 80) {
-      recommendationsList.push({
-        type: 'attendance',
-        title: `Boost ${sName} Attendance`,
-        description: `Your attendance in ${sName} is currently ${Math.round(attendancePct)}%. Attending more classes will directly improve your grade predictions.`,
+  // Generate Personalized AI Suggestions & Strategies based on student's actual performance profile
+  if (predictionsList.length > 0) {
+    const sortedByScore = [...predictionsList].sort((a, b) => a.currentScore - b.currentScore);
+    const lowest = sortedByScore[0];
+    const highest = sortedByScore[sortedByScore.length - 1];
+    const avgScore = predictionsList.reduce((sum, p) => sum + p.currentScore, 0) / predictionsList.length;
+
+    // 1. Weakness / Concentration Strategy
+    if (lowest && lowest.currentScore < 85) {
+      recommendationsList.unshift({
+        type: 'strategy',
+        title: `Focus & Concentration: ${lowest.subjectName}`,
+        description: `You scored ${Math.round(lowest.currentScore)}% in ${lowest.subjectName}. Allocate 20% more of your daily learning time here — solving 5 targeted problems each evening will quickly bridge the gap.`,
         resourceId: null,
       });
+    }
+
+    // 2. Mental Calmness & Meditation
+    recommendationsList.push({
+      type: 'mindset',
+      title: 'Brain Calmness & Mindfulness',
+      description: 'Keep your brain calm before study sessions and exams. Practicing 5–10 minutes of daily mindfulness or breathing meditation reduces test anxiety and boosts long-term recall by over 30%.',
+      resourceId: null,
+    });
+
+    // 3. Cognitive Recall / Pomodoro
+    if (avgScore >= 80) {
+      recommendationsList.push({
+        type: 'strategy',
+        title: `Mastery Reinforcement: ${highest.subjectName}`,
+        description: `You are performing strongly in ${highest.subjectName} (${Math.round(highest.currentScore)}%). Teach challenging concepts to a classmate or create one-page summary cheat sheets to lock in 95%+ mastery.`,
+        resourceId: null,
+      });
+    } else {
+      recommendationsList.push({
+        type: 'strategy',
+        title: 'Active Recall & Pomodoro Technique',
+        description: 'Study in 25-minute focused blocks followed by a 5-minute break. At the end of each session, spend 2 minutes writing down everything you remember without opening your notes.',
+        resourceId: null,
+      });
+    }
+  }
+
+  // Generate holistic suggestions via Gemini AI if available (cost-effective single prompt)
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (apiKey && predictionsList.length > 0) {
+    try {
+      const summaryPayload = predictionsList.map(p => {
+        const matched = classSubjs.find(c => c.subjectId === p.subjectId);
+        return {
+          subject: matched?.subjectName || "Subject",
+          current: p.currentScore,
+          predicted: `${p.predictedScoreMin}-${p.predictedScoreMax}%`,
+          risk: p.riskLevel,
+        };
+      });
+
+      const prompt = `You are an elite academic AI coach. Analyze this student's performance data and provide 2 highly actionable, encouraging, and specific recommendations to boost their overall grades and study efficiency.
+Data: ${JSON.stringify(summaryPayload)}
+Respond strictly in JSON array format:
+[
+  { "type": "strategy", "title": "...", "description": "..." },
+  { "type": "mindset", "title": "...", "description": "..." }
+]`;
+
+      const models = ["gemini-3.6-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+      for (const modelName of models) {
+        try {
+          const resp = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { temperature: 0.3, maxOutputTokens: 500 },
+              }),
+            }
+          );
+          if (resp.ok) {
+            const json = await resp.json();
+            const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (rawText) {
+              const cleaned = rawText.replace(/```json\n?|\n?```/g, "").trim();
+              const parsed = JSON.parse(cleaned);
+              if (Array.isArray(parsed)) {
+                for (const item of parsed.slice(0, 2)) {
+                  if (item.title && item.description) {
+                    recommendationsList.unshift({
+                      type: item.type || "ai_coach",
+                      title: `🤖 AI Coach: ${item.title}`,
+                      description: item.description,
+                      resourceId: null,
+                    });
+                  }
+                }
+              }
+              break;
+            }
+          }
+        } catch (e) {
+          // Model fallback
+        }
+      }
+    } catch (aiErr) {
+      console.warn("AI recommendation generation fallback:", aiErr);
     }
   }
 

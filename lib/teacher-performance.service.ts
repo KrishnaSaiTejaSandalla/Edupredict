@@ -6,6 +6,7 @@ import {
   assignments,
   attendance,
   results,
+  exams,
   students,
   classSubjects,
   classes,
@@ -174,10 +175,11 @@ export async function getTeacherPerformance(teacherId: number, userId: number): 
         const effectivenessRows = await db
           .select({
             month: sql<string>`DATE_FORMAT(${results.recordedDate}, '%Y-%m')`,
-            avg: sql<number>`AVG(CAST(${results.marks} AS DECIMAL(5,2)))`,
+            avg: sql<number>`AVG((CAST(${results.marks} AS DECIMAL(5,2)) / NULLIF(CAST(${exams.maxMarks} AS DECIMAL(5,2)), 0)) * 100)`,
           })
           .from(results)
           .leftJoin(students, eq(results.studentId, students.id))
+          .leftJoin(exams, eq(results.examId, exams.id))
           .where(
             and(
               inArray(students.classId, classIds),
@@ -212,9 +214,12 @@ export async function getTeacherPerformance(teacherId: number, userId: number): 
           .limit(1);
 
         const [avgRow] = await db
-          .select({ avg: sql<number>`AVG(CAST(${results.marks} AS DECIMAL(5,2)))` })
+          .select({
+            avg: sql<number>`AVG((CAST(${results.marks} AS DECIMAL(5,2)) / NULLIF(CAST(${exams.maxMarks} AS DECIMAL(5,2)), 0)) * 100)`,
+          })
           .from(results)
           .leftJoin(students, eq(results.studentId, students.id))
+          .leftJoin(exams, eq(results.examId, exams.id))
           .where(eq(students.classId, classId));
 
         const [studentsRow] = await db

@@ -97,7 +97,7 @@ export async function validateMessagePermission(
   const sRole = (sender.role || '').toLowerCase();
   const rRole = (receiver.role || '').toLowerCase();
 
-  // 1. Admin <-> Teacher
+  // 1. Admin <-> Teacher ONLY
   if (
     (sRole === 'admin' && rRole === 'teacher') ||
     (sRole === 'teacher' && rRole === 'admin')
@@ -105,22 +105,93 @@ export async function validateMessagePermission(
     return { allowed: true };
   }
 
-  // 2. Teacher <-> Parent
+  // 2. Teacher <-> Parent (only if teacher is assigned to student's class)
   if (
     (sRole === 'teacher' && rRole === 'parent') ||
     (sRole === 'parent' && rRole === 'teacher')
   ) {
+    const teacherUserId = sRole === 'teacher' ? senderUserId : receiverUserId;
+    const parentUserId = sRole === 'parent' ? senderUserId : receiverUserId;
+
+    const [teacherRow] = await db
+      .select({ id: teachers.id })
+      .from(teachers)
+      .where(eq(teachers.userId, teacherUserId))
+      .limit(1);
+
+    const [parentRow] = await db
+      .select({ id: parents.id })
+      .from(parents)
+      .where(eq(parents.userId, parentUserId))
+      .limit(1);
+
+    if (!teacherRow || !parentRow) {
+      return { allowed: false, reason: 'Teacher or Parent profile record not found.' };
+    }
+
+    const [classTeacherClasses, subjectClasses] = await Promise.all([
+      db.select({ id: classes.id }).from(classes).where(eq(classes.classTeacherId, teacherRow.id)),
+      db.select({ classId: classSubjects.classId }).from(classSubjects).where(eq(classSubjects.teacherId, teacherRow.id)),
+    ]);
+
+    const teacherClassIds = new Set([
+      ...classTeacherClasses.map((c) => c.id),
+      ...subjectClasses.map((c) => c.classId),
+    ]);
+
+    const childRelations = await db
+      .select({ studentId: studentParents.studentId })
+      .from(studentParents)
+      .where(eq(studentParents.parentId, parentRow.id));
+
+    const studentIds = childRelations.map((c) => c.studentId);
+    if (studentIds.length === 0) {
+      return { allowed: false, reason: 'No student linked to this parent.' };
+    }
+
+    const studentClasses = await db
+      .select({ classId: students.classId })
+      .from(students)
+      .where(inArray(students.id, studentIds));
+
+    const parentClassIds = studentClasses.map((sc) => sc.classId);
+
+    const hasCommonClass = parentClassIds.some((cid) => teacherClassIds.has(cid));
+    if (!hasCommonClass) {
+      return {
+        allowed: false,
+        reason: 'Teachers and parents can only communicate if the teacher is assigned to the student\'s class.',
+      };
+    }
+
     return { allowed: true };
   }
 
-  // 3. Student <-> Student
+  // 3. Student <-> Student (Classmates ONLY)
   if (sRole === 'student' && rRole === 'student') {
-    if (sender.schoolId && receiver.schoolId && sender.schoolId !== receiver.schoolId) {
+    const [student1] = await db
+      .select({ id: students.id, classId: students.classId })
+      .from(students)
+      .where(eq(students.userId, senderUserId))
+      .limit(1);
+
+    const [student2] = await db
+      .select({ id: students.id, classId: students.classId })
+      .from(students)
+      .where(eq(students.userId, receiverUserId))
+      .limit(1);
+
+    if (!student1 || !student2) {
+      return { allowed: false, reason: 'Student profile not found.' };
+    }
+
+    if (student1.classId !== student2.classId) {
       return {
         allowed: false,
-        reason: 'Students from different schools cannot message each other.',
+        reason: 'Students are only permitted to message their classmates.',
       };
     }
+
     return { allowed: true };
   }
 
@@ -455,7 +526,7 @@ export async function getChatRecipients(): Promise<ChatContact[]> {
     const userRole = (user.role || '').toLowerCase();
 
     if (userRole === 'admin') {
-      // Admin <-> Teacher ONLY. (Admin <-> Parent is blocked).
+      // Admin <-> Teacher ONLY
       const teacherRecipients = await db
         .select({
           id: users.id,
@@ -617,15 +688,15 @@ export async function getChatRecipients(): Promise<ChatContact[]> {
         rawRecipients = teacherRecipients;
       }
     } else if (userRole === 'student') {
-      // Student <-> Student ONLY (fellow students at same school)
+      // Student <-> Classmates ONLY (same class)
       const [studentRow] = await db
-        .select({ id: students.id, schoolId: students.schoolId })
+        .select({ id: students.id, classId: students.classId })
         .from(students)
         .where(eq(students.userId, user.id))
         .limit(1);
 
       if (studentRow) {
-        const fellowStudents = await db
+        const fellowClassmates = await db
           .select({
             id: users.id,
             name: users.name,
@@ -638,12 +709,12 @@ export async function getChatRecipients(): Promise<ChatContact[]> {
             and(
               eq(users.role, 'student'),
               eq(users.isActive, true),
-              eq(students.schoolId, studentRow.schoolId),
+              eq(students.classId, studentRow.classId),
               ne(users.id, user.id)
             )
           );
 
-        rawRecipients = fellowStudents;
+        rawRecipients = fellowClassmates;
       }
     } else {
       // Driver or other roles -> NO authorized messaging

@@ -12,6 +12,8 @@ import {
   assignments,
   assignmentSubmissions,
   predictions,
+  teachers,
+  classTeacherAssignments,
 } from "@/lib/schema";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 
@@ -20,10 +22,10 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   try {
     const user = await requireRole("teacher");
-    const body = await request.json();
-    const { studentId } = body;
+    const body = await request.json().catch(() => null);
+    const studentId = body?.studentId;
 
-    if (!studentId) {
+    if (!Number.isInteger(Number(studentId)) || Number(studentId) < 1) {
       return NextResponse.json({ error: "studentId is required" }, { status: 400 });
     }
 
@@ -33,6 +35,7 @@ export async function POST(request: Request) {
     const [studentRow] = await db
       .select({
         id: students.id,
+        classId: students.classId,
         name: users.name,
         rollNumber: students.rollNumber,
         className: classes.name,
@@ -48,13 +51,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Student not found" }, { status: 404 });
     }
 
+    const [teacher] = await db.select({ id: teachers.id }).from(teachers).where(eq(teachers.userId, user.id)).limit(1);
+    if (!teacher) return NextResponse.json({ error: "Teacher record not found" }, { status: 403 });
+    const [assignment] = await db
+      .select({ id: classTeacherAssignments.id })
+      .from(classTeacherAssignments)
+      .where(and(eq(classTeacherAssignments.teacherId, teacher.id), eq(classTeacherAssignments.classId, studentRow.classId!)))
+      .limit(1);
+    if (!assignment) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
     // 2. Fetch student results
     const resultsRows = await db
       .select({
         marks: results.marks,
         recordedDate: results.recordedDate,
         subjectName: subjects.name,
-        maxMarks: subjects.maxMarks,
+        maxMarks: exams.maxMarks,
         examName: exams.name,
       })
       .from(results)
@@ -106,37 +118,52 @@ export async function POST(request: Request) {
       });
     }
 
-    // Group subjects
-    const subjectMap: Record<string, number[]> = {};
+    // Group subjects with true percentage scores based on maxMarks
+    const subjectMap: Record<string, { pcts: number[]; recentScores: { marks: number; maxMarks: number; examName: string; date: string }[] }> = {};
     resultsRows.forEach((r) => {
       const sName = r.subjectName || "Subject";
-      if (!subjectMap[sName]) subjectMap[sName] = [];
-      subjectMap[sName].push(Number(r.marks || 0));
+      if (!subjectMap[sName]) subjectMap[sName] = { pcts: [], recentScores: [] };
+      const maxM = Number(r.maxMarks || 100);
+      const marksNum = Number(r.marks || 0);
+      const pct = maxM > 0 ? (marksNum / maxM) * 100 : marksNum;
+      subjectMap[sName].pcts.push(pct);
+      subjectMap[sName].recentScores.push({
+        marks: marksNum,
+        maxMarks: maxM,
+        examName: r.examName || "Exam",
+        date: r.recordedDate instanceof Date ? r.recordedDate.toISOString().split("T")[0] : String(r.recordedDate || ""),
+      });
     });
 
-    const subjectAverages = Object.entries(subjectMap).map(([subject, scores]) => ({
+    const subjectAverages = Object.entries(subjectMap).map(([subject, data]) => ({
       subject,
-      avg: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length),
-      recent: scores[0],
+      avg: Math.round(data.pcts.reduce((a, b) => a + b, 0) / data.pcts.length),
+      recentScorePct: Math.round(data.pcts[0] ?? 0),
+      examCount: data.pcts.length,
     }));
 
     const sortedSubjects = [...subjectAverages].sort((a, b) => b.avg - a.avg);
-    const strongSubjects = sortedSubjects.filter((s) => s.avg >= 70).map((s) => s.subject);
+    const strongSubjects = sortedSubjects.filter((s) => s.avg >= 75).map((s) => s.subject);
+    const moderateSubjects = sortedSubjects.filter((s) => s.avg >= 60 && s.avg < 75).map((s) => s.subject);
     const weakSubjects = sortedSubjects.filter((s) => s.avg < 60).map((s) => s.subject);
 
     const overallAvg = subjectAverages.length > 0
       ? Math.round(subjectAverages.reduce((a, b) => a + b.avg, 0) / subjectAverages.length)
       : null;
 
-    // Determine recent trend
+    // Determine recent trend based on chronological percentages
     let trend: "improving" | "declining" | "stable" = "stable";
     if (resultsRows.length >= 4) {
-      const recent = resultsRows.slice(0, 2).map((r) => Number(r.marks));
-      const older = resultsRows.slice(2, 4).map((r) => Number(r.marks));
+      const calcPct = (r: typeof resultsRows[0]) => {
+        const m = Number(r.maxMarks || 100);
+        return m > 0 ? (Number(r.marks || 0) / m) * 100 : Number(r.marks || 0);
+      };
+      const recent = resultsRows.slice(0, 2).map(calcPct);
+      const older = resultsRows.slice(2, 4).map(calcPct);
       const recentAvg = recent.reduce((a, b) => a + b, 0) / recent.length;
       const olderAvg = older.reduce((a, b) => a + b, 0) / older.length;
-      if (recentAvg - olderAvg >= 5) trend = "improving";
-      else if (olderAvg - recentAvg >= 5) trend = "declining";
+      if (recentAvg - olderAvg >= 4) trend = "improving";
+      else if (olderAvg - recentAvg >= 4) trend = "declining";
     }
 
     const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
@@ -145,32 +172,35 @@ export async function POST(request: Request) {
       try {
         const studentContext = {
           studentName: studentRow.name,
+          rollNumber: studentRow.rollNumber,
           className: `${studentRow.className} ${studentRow.classSection || ""}`,
-          overallAvg: overallAvg !== null ? `${overallAvg}%` : "No scores",
-          attendanceRate: `${attendancePct}% (Working days: ${workingDays})`,
-          subjectBreakdown: subjectAverages,
-          strongSubjects,
-          weakSubjects,
-          trend,
-          assignmentSubmissionsCount: Number(subStats?.submitted || 0),
-          mlRisk: predRow?.riskLevel || "low",
+          overallAssessmentAverage: overallAvg !== null ? `${overallAvg}%` : "No scores recorded",
+          attendanceRate: `${attendancePct}% (Present: ${Math.round(presentDays)}, Total working days: ${workingDays})`,
+          recentTrend: trend,
+          subjectPerformanceBreakdown: subjectAverages.map(s => `${s.subject}: ${s.avg}% average (latest: ${s.recentScorePct}%)`),
+          strongSubjectsList: strongSubjects.length > 0 ? strongSubjects : ["None yet - developing"],
+          moderateSubjectsList: moderateSubjects.length > 0 ? moderateSubjects : ["None"],
+          weakOrStrugglingSubjectsList: weakSubjects.length > 0 ? weakSubjects : ["None - on track across all subjects"],
+          assignmentSubmissionCount: Number(subStats?.submitted || 0),
+          mlRiskLevel: predRow?.riskLevel || "low",
           mlRecommendations: predRow?.recommendations || null,
         };
 
-        const prompt = `You are EduPredict's Academic Diagnostic AI. Analyze the following actual database record for student ${studentRow.name}.
-Do NOT invent fake scores or make medical/psychological claims. Ground all conclusions strictly in the data.
+        const prompt = `You are EduPredict's AI Academic Diagnostic Specialist writing a high-precision pedagogical summary for the class teacher.
+Analyze this exact student record for ${studentRow.name} (${studentContext.className}).
+Base your entire diagnostic strictly on the provided real numbers. Do NOT fabricate numbers, grades, or fake subjects.
 
 STUDENT RECORD:
 ${JSON.stringify(studentContext, null, 2)}
 
-Return a JSON response with the following exact keys:
+Return a JSON object with this exact schema:
 {
-  "performanceOverview": "Concise 2-sentence summary of overall trajectory, strong areas and weak points.",
-  "whyThisMatters": "Evidence-grounded explanation of contributing factors (e.g. attendance correlation, specific subject drops, or assignment gaps).",
+  "performanceOverview": "2-3 sentences analyzing ${studentRow.name}'s performance. Mention their ${overallAvg}% average, ${attendancePct}% attendance, their strongest subjects (${strongSubjects.slice(0, 2).join(', ') || 'general coursework'}), and any specific areas needing improvement (${weakSubjects.join(', ') || 'maintaining consistency'}).",
+  "whyThisMatters": "Evidence-grounded explanation analyzing root factors: link their attendance (${attendancePct}%) and assessment scores in ${sortedSubjects[sortedSubjects.length - 1]?.subject || 'core subjects'} to their academic pacing.",
   "recommendedActions": [
-    "Practical teacher action 1 (e.g. revision recommendation, targeted worksheet)",
-    "Practical teacher action 2 (e.g. assignment recovery, 1-on-1 check-in)",
-    "Practical teacher action 3 (e.g. attendance follow-up or challenge tasks)"
+    "Specific teacher action 1 tailored to their weakest subject (${weakSubjects[0] || sortedSubjects[sortedSubjects.length - 1]?.subject || 'revision'}) or extension task",
+    "Action 2 addressing attendance/engagement (${attendancePct < 75 ? 'guardian outreach on attendance' : 'targeted classroom check-in on practice tasks'})",
+    "Action 3 on test prep or active revision strategy"
   ]
 }`;
 
@@ -182,7 +212,7 @@ Return a JSON response with the following exact keys:
             body: JSON.stringify({
               contents: [{ parts: [{ text: prompt }] }],
               generationConfig: {
-                temperature: 0.4,
+                temperature: 0.3,
                 responseMimeType: "application/json",
               },
             }),
@@ -212,23 +242,38 @@ Return a JSON response with the following exact keys:
       }
     }
 
-    // Deterministic Rule-Based Fallback
-    const overview = `${studentRow.name} maintains an overall assessment average of ${overallAvg !== null ? overallAvg + '%' : 'N/A'} with an attendance rate of ${attendancePct}%. Performance trajectory is currently ${trend}, with notable strength in ${strongSubjects.length > 0 ? strongSubjects.join(', ') : 'foundational coursework'} and lower marks in ${weakSubjects.length > 0 ? weakSubjects.join(', ') : 'none'}.`;
+    // Deterministic Rule-Based Fallback (Accurate & Personalized)
+    const strongText = strongSubjects.length > 0
+      ? `demonstrates strong mastery in ${strongSubjects.join(', ')} (averaging ${strongSubjects.map(s => subjectAverages.find(sa => sa.subject === s)?.avg + '%').join(', ')})`
+      : `shows emerging competency across foundation subjects`;
 
+    const weakText = weakSubjects.length > 0
+      ? `requires targeted remediation in ${weakSubjects.join(', ')} (averaging ${weakSubjects.map(s => subjectAverages.find(sa => sa.subject === s)?.avg + '%').join(', ')})`
+      : moderateSubjects.length > 0
+      ? `maintains steady scores in ${moderateSubjects.join(', ')} with potential for higher mastery`
+      : `is performing consistently above target across all evaluated subjects`;
+
+    const overview = `${studentRow.name} maintains an overall assessment average of ${overallAvg !== null ? overallAvg + '%' : 'N/A'} with an attendance rate of ${attendancePct}%. Performance trajectory is currently ${trend}. The student ${strongText}, while ${weakText}.`;
+
+    const lowestSubject = sortedSubjects[sortedSubjects.length - 1];
     const whyThisMatters = attendancePct < 75
-      ? `The student's attendance is at ${attendancePct}%, which directly reduces classroom instructional contact and correlates with lower scores on recent evaluations.`
+      ? `The student's attendance is at ${attendancePct}%, which directly reduces active classroom hours and correlates with lower retention in ${lowestSubject ? lowestSubject.subject : 'recent topics'}.`
       : weakSubjects.length > 0
-      ? `Assessment results indicate specific concept friction in ${weakSubjects.join(' & ')}, while other subject areas remain stable.`
-      : `The student demonstrates steady academic consistency across active subjects with regular attendance.`;
+      ? `Assessment results indicate specific friction in ${weakSubjects.join(' & ')}, while scores in ${strongSubjects[0] || 'other subjects'} show strong fundamental comprehension.`
+      : `Regular ${attendancePct}% attendance and steady test execution across all subjects provide a solid foundation for upcoming milestone assessments.`;
 
     const recommendedActions = [
       weakSubjects.length > 0
-        ? `Assign a 5-question remedial practice worksheet in ${weakSubjects[0]} to reinforce core concepts.`
-        : `Provide extension and application problems to challenge strong understanding in ${strongSubjects[0] || 'active subjects'}.`,
-      attendancePct < 80
-        ? `Initiate an attendance follow-up with the student and guardian regarding recent absences.`
-        : `Conduct a brief 3-minute 1-on-1 check-in during guided practice to confirm assignment pacing.`,
-      `Review upcoming test preparation milestones to ensure balanced study across all subject areas.`,
+        ? `Assign a targeted practice module in ${weakSubjects[0]} focusing on core foundational problem-solving.`
+        : strongSubjects.length > 0
+        ? `Provide higher-order challenge problems in ${strongSubjects[0]} to nurture advanced competency.`
+        : `Conduct a brief revision check on recent exam topics to reinforce memory retention.`,
+      attendancePct < 75
+        ? `Initiate a guardian conference regarding the ${attendancePct}% attendance rate to prevent further credit deficit.`
+        : Number(subStats?.submitted || 0) === 0
+        ? `Check on assignment submissions and assign a structured study window for outstanding practice tasks.`
+        : `Conduct a 3-minute 1-on-1 check-in during class exercises to verify independent problem-solving confidence.`,
+      `Establish a scheduled review milestone before the next exam cycle covering ${lowestSubject ? lowestSubject.subject : 'key topics'}.`,
     ];
 
     return NextResponse.json({
@@ -242,7 +287,8 @@ Return a JSON response with the following exact keys:
       attendancePct,
       overallAvg,
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || "Failed to generate student insights" }, { status: 500 });
+  } catch (error) {
+    console.error("Student insights generation failed:", error);
+    return NextResponse.json({ error: "Student insights could not be generated" }, { status: 500 });
   }
 }

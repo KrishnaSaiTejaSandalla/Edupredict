@@ -2,9 +2,17 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { helpTickets, notifications } from '@/lib/schema';
 import { eq, desc } from 'drizzle-orm';
+import { getCurrentUser } from '@/lib/auth';
 
-export async function GET() {
+async function requireAdmin(req: Request) {
+  const user = await getCurrentUser(req, 'admin');
+  return user ? null : NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
+}
+
+export async function GET(req: Request) {
   try {
+    const denied = await requireAdmin(req);
+    if (denied) return denied;
     const tickets = await db.select().from(helpTickets).orderBy(desc(helpTickets.createdAt));
     return NextResponse.json({
       success: true,
@@ -15,12 +23,14 @@ export async function GET() {
     });
   } catch (error: any) {
     console.error('[admin/tickets GET]', error);
-    return NextResponse.json({ success: false, message: error?.message || 'Failed to fetch tickets' }, { status: 500 });
+    return NextResponse.json({ success: false, message: 'Request could not be completed' }, { status: 500 });
   }
 }
 
 export async function PATCH(req: Request) {
   try {
+    const denied = await requireAdmin(req);
+    if (denied) return denied;
     const body = await req.json();
     const { ticketId, status, replyMessage } = body;
 
@@ -80,12 +90,14 @@ export async function PATCH(req: Request) {
     });
   } catch (error: any) {
     console.error('[admin/tickets PATCH]', error);
-    return NextResponse.json({ success: false, message: error?.message || 'Failed to update ticket' }, { status: 500 });
+    return NextResponse.json({ success: false, message: 'Request could not be completed' }, { status: 500 });
   }
 }
 
 export async function DELETE(req: Request) {
   try {
+    const denied = await requireAdmin(req);
+    if (denied) return denied;
     const { searchParams } = new URL(req.url);
     const ticketId = searchParams.get('ticketId') || searchParams.get('id');
 
@@ -108,6 +120,6 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ success: true, message: 'Ticket deleted successfully' });
   } catch (error: any) {
     console.error('[admin/tickets DELETE]', error);
-    return NextResponse.json({ success: false, message: error?.message || 'Failed to delete ticket' }, { status: 500 });
+    return NextResponse.json({ success: false, message: 'Request could not be completed' }, { status: 500 });
   }
 }

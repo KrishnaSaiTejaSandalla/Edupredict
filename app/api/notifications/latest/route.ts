@@ -45,7 +45,10 @@ export async function GET(req: NextRequest) {
       readAt: r.readAt ? r.readAt.toISOString() : null,
     }));
 
-    return NextResponse.json(items);
+    return NextResponse.json({
+      items,
+      preferences: prefs,
+    });
   } catch (error: any) {
     console.error("Error fetching latest notifications:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });

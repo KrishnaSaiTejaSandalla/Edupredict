@@ -4,6 +4,7 @@ import { notifications } from "@/lib/schema";
 import { eq, desc } from "drizzle-orm";
 import SharedNotificationsClient from "@/components/shared/NotificationsClient";
 import { getUserNotificationPreferences } from "@/lib/notification-actions";
+import { isNotificationAllowedByPrefs } from "@/lib/notification-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,14 @@ export default async function StudentNotificationsPage() {
     getUserNotificationPreferences(user.id)
   ]);
 
-  const items = allNotifs.map((n) => ({
+  const allowedNotifs = allNotifs.filter((n) =>
+    isNotificationAllowedByPrefs(
+      { type: n.type, title: n.title, message: n.message },
+      prefs
+    )
+  );
+
+  const items = allowedNotifs.map((n) => ({
     id: n.id,
     userId: n.userId,
     title: n.title ?? "Notification",

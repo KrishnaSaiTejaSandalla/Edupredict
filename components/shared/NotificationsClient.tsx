@@ -365,9 +365,9 @@ export default function SharedNotificationsClient({
                     {groupName}
                   </h3>
                   <div className="space-y-3">
-                    {list.map((item) => (
+                    {list.map((item, idx) => (
                       <article
-                        key={item.id}
+                        key={`notif-${item.id ?? 'item'}-${item.createdAt || ''}-${idx}`}
                         onClick={() => item.isRead ? null : handleMarkRead(item.id)}
                         className={`flex gap-4 rounded-xl p-4 transition-all duration-200 hover:bg-hover/40 relative group border border-transparent ${
                           item.isRead ? "bg-hover/10" : getPriorityStyle(item.priority)

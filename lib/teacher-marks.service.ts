@@ -331,22 +331,23 @@ export async function getMarksAnalytics(teacherId: number) {
   }));
 
   // Class comparison with sorting
-  const classMap: Record<string, { total: number; count: number }> = {};
+  const classMap: Record<string, { totalPct: number; count: number }> = {};
   allResults.forEach(r => {
     const className = r.className 
       ? `${r.className}${r.classSection ? ` ${r.classSection}` : ""}` 
       : "Unknown";
     if (!classMap[className]) {
-      classMap[className] = { total: 0, count: 0 };
+      classMap[className] = { totalPct: 0, count: 0 };
     }
-    classMap[className].total += Number(r.marks || 0);
+    const maxM = Number(r.maxMarks || 100);
+    classMap[className].totalPct += maxM > 0 ? (Number(r.marks || 0) / maxM) * 100 : Number(r.marks || 0);
     classMap[className].count += 1;
   });
 
   const classComparison = Object.entries(classMap)
     .map(([className, data]) => ({
       className,
-      avgScore: Math.round(data.total / data.count),
+      avgScore: Math.round(data.totalPct / data.count),
     }))
     .sort((a, b) => {
       const gradeA = parseInt(a.className) || 0;
@@ -356,19 +357,20 @@ export async function getMarksAnalytics(teacherId: number) {
     });
 
   // Top performers (top 5 students)
-  const studentScoreMap: Record<number, { total: number; count: number; name: string }> = {};
+  const studentScoreMap: Record<number, { totalPct: number; count: number; name: string }> = {};
   allResults.forEach(r => {
     if (!studentScoreMap[r.studentId]) {
-      studentScoreMap[r.studentId] = { total: 0, count: 0, name: r.studentName ?? "Unknown" };
+      studentScoreMap[r.studentId] = { totalPct: 0, count: 0, name: r.studentName ?? "Unknown" };
     }
-    studentScoreMap[r.studentId].total += Number(r.marks || 0);
+    const maxM = Number(r.maxMarks || 100);
+    studentScoreMap[r.studentId].totalPct += maxM > 0 ? (Number(r.marks || 0) / maxM) * 100 : Number(r.marks || 0);
     studentScoreMap[r.studentId].count += 1;
   });
 
   const topPerformers = Object.values(studentScoreMap)
     .map(s => ({
       name: s.name,
-      score: Math.round((s.total / s.count / 100) * 100),
+      score: Math.round(s.totalPct / s.count),
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 5);
@@ -389,7 +391,10 @@ export async function getMarksAnalytics(teacherId: number) {
     });
     
     const dayAvg = dayResults.length > 0 
-      ? Math.round(dayResults.reduce((sum, r) => sum + Number(r.marks || 0), 0) / dayResults.length / 100 * 100)
+      ? Math.round(dayResults.reduce((sum, r) => {
+          const maxM = Number(r.maxMarks || 100);
+          return sum + (maxM > 0 ? (Number(r.marks || 0) / maxM) * 100 : Number(r.marks || 0));
+        }, 0) / dayResults.length)
       : 0;
     
     trendData.push({ date: dateStr.slice(5), score: dayAvg });

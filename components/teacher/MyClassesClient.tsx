@@ -121,16 +121,26 @@ function StarRating({ rating }: { rating: number }) {
   return (
     <div className="flex items-center gap-0.5">
       {Array(full).fill(null).map((_, i) => (
-        <span key={`f${i}`} className="text-amber-400 text-xs">â˜…</span>
+        <svg key={`f${i}`} className="w-3 h-3 text-amber-400 fill-current" viewBox="0 0 20 20">
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+        </svg>
       ))}
       {half && (
-        <span className="text-xs relative inline-block w-[12px]">
-          <span className="absolute inset-0 overflow-hidden w-1/2 text-amber-400">â˜…</span>
-          <span className="text-muted">â˜…</span>
+        <span className="relative inline-block w-3 h-3">
+          <svg className="w-3 h-3 text-muted fill-current" viewBox="0 0 20 20">
+            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+          </svg>
+          <span className="absolute inset-0 overflow-hidden w-1/2">
+            <svg className="w-3 h-3 text-amber-400 fill-current" viewBox="0 0 20 20">
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+            </svg>
+          </span>
         </span>
       )}
       {Array(empty).fill(null).map((_, i) => (
-        <span key={`e${i}`} className="text-muted text-xs">â˜…</span>
+        <svg key={`e${i}`} className="w-3 h-3 text-muted/40 fill-current" viewBox="0 0 20 20">
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+        </svg>
       ))}
     </div>
   );
@@ -350,6 +360,12 @@ export default function MyClassesClient({
     }
   }, [selectedStudent]);
 
+  useEffect(() => {
+    if (profileTab === "performance" && selectedStudent && !studentAIData && !generatingStudentAI) {
+      handleGenerateStudentAI(selectedStudent.id);
+    }
+  }, [profileTab, selectedStudent]);
+
   const filtered = students.filter((s) =>
     s.name.toLowerCase().includes(search.toLowerCase()) ||
     s.rollNumber.toLowerCase().includes(search.toLowerCase())
@@ -370,7 +386,7 @@ export default function MyClassesClient({
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.35em] text-cyan-500 dark:text-cyan-400">Faculty Portal</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-primary sm:text-4xl">My Classes</h1>
-          <p className="mt-2 text-sm text-secondary">Class Teacher Overview â€” student profiles, performance ratings, and academic insights.</p>
+          <p className="mt-2 text-sm text-secondary">Class Teacher Overview — student profiles, performance ratings, and academic insights.</p>
         </div>
         <EmptyState title="No Class Assigned" message="Contact administrator to assign a class." />
       </div>
@@ -391,9 +407,9 @@ export default function MyClassesClient({
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.28em] text-cyan-500 dark:text-cyan-400">Faculty Portal Â· Class Teacher</p>
+          <p className="text-xs font-bold uppercase tracking-[0.28em] text-cyan-500 dark:text-cyan-400">Faculty Portal · Class Teacher</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-primary sm:text-4xl">My Classes</h1>
-          <p className="mt-2 text-sm text-secondary">Class Teacher Overview â€” student profiles, performance ratings, and academic insights.</p>
+          <p className="mt-2 text-sm text-secondary">Class Teacher Overview — student profiles, performance ratings, and academic insights.</p>
         </div>
       </div>
 
@@ -524,7 +540,7 @@ export default function MyClassesClient({
                         <p className="text-[10px] text-muted-foreground font-medium">Roll No.{student.rollNumber}</p>
                       </div>
                       <span className={`text-base font-bold ${trend === "up" ? "text-emerald-500" : trend === "down" ? "text-rose-500" : "text-muted-foreground"}`}>
-                        {trend === "up" ? "â†‘" : trend === "down" ? "â†“" : "â†’"}
+                        {trend === "up" ? "↑" : trend === "down" ? "↓" : "→"}
                       </span>
                     </div>
 
@@ -680,16 +696,16 @@ export default function MyClassesClient({
                           { label: "Full Name", value: selectedStudent.name },
                           { label: "Roll Number", value: selectedStudent.rollNumber },
                           { label: "Class", value: profileDetails.personal.className || selectedStudent.className },
-                          { label: "Gender", value: profileDetails.personal.gender || "â€”" },
-                          { label: "Date of Birth", value: profileDetails.personal.dateOfBirth || "â€”" },
+                          { label: "Gender", value: profileDetails.personal.gender || "—" },
+                          { label: "Date of Birth", value: profileDetails.personal.dateOfBirth || "—" },
                           {
                             label: "Age",
                             value: profileDetails.personal.dateOfBirth
                               ? `${Math.floor((Date.now() - new Date(profileDetails.personal.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} Years`
-                              : "â€”",
+                              : "—",
                           },
-                          { label: "Phone", value: profileDetails.personal.phoneNumber || "â€”" },
-                          { label: "Address", value: profileDetails.personal.address || "â€”" },
+                          { label: "Phone", value: profileDetails.personal.phoneNumber || "—" },
+                          { label: "Address", value: profileDetails.personal.address || "—" },
                         ].map(({ label, value }) => (
                           <div key={label} className="flex justify-between items-start gap-3 py-1 border-b border-border/50 last:border-0">
                             <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium shrink-0">{label}</span>
@@ -705,10 +721,10 @@ export default function MyClassesClient({
                         <h3 className="text-xs font-bold uppercase tracking-widest text-accent mb-4">Academic Status</h3>
                         <div className="space-y-3">
                           {[
-                            { label: "Join Date", value: profileDetails.personal.joinDate || "â€”" },
-                            { label: "Admission No.", value: profileDetails.personal.admissionNumber || "â€”" },
-                            { label: "Current GPA", value: profileDetails.personal.currentGPA || "â€”" },
-                            { label: "Class Rank", value: profileDetails.personal.currentRank ? `#${profileDetails.personal.currentRank}` : "â€”" },
+                            { label: "Join Date", value: profileDetails.personal.joinDate || "—" },
+                            { label: "Admission No.", value: profileDetails.personal.admissionNumber || "—" },
+                            { label: "Current GPA", value: profileDetails.personal.currentGPA || "—" },
+                            { label: "Class Rank", value: profileDetails.personal.currentRank ? `#${profileDetails.personal.currentRank}` : "—" },
                           ].map(({ label, value }) => (
                             <div key={label} className="flex justify-between items-start gap-3 py-1 border-b border-border/50 last:border-0">
                               <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium shrink-0">{label}</span>
@@ -776,7 +792,7 @@ export default function MyClassesClient({
                             ))}
                           </select>
 
-                          {/* Pagination arrows â€” only shown when needed */}
+                          {/* Pagination arrows — only shown when needed */}
                           {filteredExams.length > EXAMS_PER_PAGE && (
                             <div className="flex items-center gap-1">
                               <button
@@ -813,7 +829,7 @@ export default function MyClassesClient({
                           <p className="text-xs text-muted-foreground mt-1">Try selecting a different subject or "All Subjects".</p>
                         </div>
                       ) : (
-                        /* Horizontally scrollable table â€” modal size stays fixed */
+                        /* Horizontally scrollable table — modal size stays fixed */
                         <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
                           <table
                             className="w-full text-left text-sm"
@@ -847,7 +863,7 @@ export default function MyClassesClient({
                                             <span className="text-[10px] text-muted-foreground">/ {exam.maxMarks}</span>
                                           </div>
                                         ) : (
-                                          <span className="text-muted-foreground">â€”</span>
+                                          <span className="text-muted-foreground">—</span>
                                         )}
                                       </td>
                                     );
@@ -1006,12 +1022,12 @@ export default function MyClassesClient({
                                   <div className="flex flex-wrap gap-2 pt-1">
                                     {studentAIData.strongSubjects?.map((sub) => (
                                       <span key={sub} className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 text-emerald-400 px-2 py-0.5 text-[10px] font-semibold border border-emerald-500/20">
-                                        âœ“ Strong: {sub}
+                                        ✓ Strong: {sub}
                                       </span>
                                     ))}
                                     {studentAIData.weakSubjects?.map((sub) => (
                                       <span key={sub} className="inline-flex items-center gap-1 rounded-md bg-rose-500/10 text-rose-400 px-2 py-0.5 text-[10px] font-semibold border border-rose-500/20">
-                                        âš  Needs Focus: {sub}
+                                        ⚠  Needs Focus: {sub}
                                       </span>
                                     ))}
                                   </div>
@@ -1048,7 +1064,7 @@ export default function MyClassesClient({
                           <div className="space-y-2.5">
                             {profileDetails.performance.aiInsights.map((insight, i) => (
                               <div key={i} className="flex gap-3 rounded-xl bg-amber-500/5 border border-amber-500/15 p-3">
-                                <span className="text-amber-500 shrink-0 mt-0.5">ðŸ’¡</span>
+                                <span className="text-amber-500 shrink-0 mt-0.5">💡</span>
                                 <FormattedText text={insight} className="text-xs" />
                               </div>
                             ))}
@@ -1078,11 +1094,11 @@ export default function MyClassesClient({
                         <h3 className="text-xs font-bold uppercase tracking-widest text-accent mb-4">Contact Information</h3>
                         <div className="space-y-3">
                           {[
-                            { label: "Parent / Guardian Name", value: profileDetails.guardian.parentName || "â€”" },
-                            { label: "Relationship", value: profileDetails.guardian.relationship || "â€”" },
-                            { label: "Phone Number", value: profileDetails.guardian.phone || "â€”" },
-                            { label: "Email Address", value: profileDetails.guardian.email || "â€”" },
-                            { label: "Occupation", value: profileDetails.guardian.occupation || "â€”" },
+                            { label: "Parent / Guardian Name", value: profileDetails.guardian.parentName || "—" },
+                            { label: "Relationship", value: profileDetails.guardian.relationship || "—" },
+                            { label: "Phone Number", value: profileDetails.guardian.phone || "—" },
+                            { label: "Email Address", value: profileDetails.guardian.email || "—" },
+                            { label: "Occupation", value: profileDetails.guardian.occupation || "—" },
                           ].map(({ label, value }) => (
                             <div key={label} className="flex justify-between items-start gap-3 py-2 border-b border-border/50 last:border-0">
                               <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold shrink-0">{label}</span>

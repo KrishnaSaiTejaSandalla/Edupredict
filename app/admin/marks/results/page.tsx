@@ -36,17 +36,27 @@ export default async function ResultsPage({ searchParams }: Props) {
 
   const classList = await db.select().from(classes);
   
-  // Filter subjectList to show only those taught in the selected class (classSubjects mapping)
+  // Filter subjectList to show only distinct subjects taught in the selected class (classSubjects mapping)
   let subjectList = [];
   if (classId) {
     const classSubjectRows = await db
-      .select({ s: subjects })
+      .selectDistinct({
+        id: subjects.id,
+        name: subjects.name,
+        code: subjects.code,
+        schoolId: subjects.schoolId,
+        description: subjects.description,
+        maxMarks: subjects.maxMarks,
+        passingMarks: subjects.passingMarks,
+        createdAt: subjects.createdAt,
+        updatedAt: subjects.updatedAt,
+      })
       .from(subjects)
       .innerJoin(classSubjects, eq(classSubjects.subjectId, subjects.id))
       .where(eq(classSubjects.classId, classId))
       .orderBy(subjects.name);
     
-    subjectList = classSubjectRows.map(r => r.s);
+    subjectList = classSubjectRows;
     if (subjectList.length === 0) {
       subjectList = await db.select().from(subjects).orderBy(subjects.name);
     }

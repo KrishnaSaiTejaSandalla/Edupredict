@@ -3,6 +3,12 @@ import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
+const MATERIAL_TYPES = new Set<MaterialType>([
+  "lesson_plan", "notes", "revision", "question_paper", "quiz", "mcqs", "short_answer", "long_answer", "worksheet", "homework",
+  "summary", "concept_explanation", "remedial", "advanced", "answer_key",
+]);
+const DIFFICULTY_LEVELS = new Set(["easy", "medium", "hard", "mixed"]);
+
 type MaterialType =
   | "lesson_plan" | "notes" | "revision" | "question_paper" | "quiz"
   | "mcqs" | "short_answer" | "long_answer" | "worksheet" | "homework"
@@ -26,7 +32,7 @@ const MATERIAL_LABELS: Record<string, string> = {
   answer_key: "Answer Key with Solutions",
 };
 
-// Subject domain context â€” tells the LLM what kind of content is appropriate
+// Subject domain context — tells the LLM what kind of content is appropriate
 function getSubjectDomainContext(subject: string): string {
   const s = subject.toLowerCase().trim();
 
@@ -123,7 +129,7 @@ DO NOT include biology, chemistry, or history content.`;
 function getMaterialTypeInstructions(tool: string, topic: string, subject: string, classLevel: string, difficulty: string): string {
   const diffLabel = difficulty === "easy" ? "foundational/introductory"
     : difficulty === "hard" ? "advanced/high-order"
-    : difficulty === "mixed" ? "graduated (easy â†’ medium â†’ hard)"
+    : difficulty === "mixed" ? "graduated (easy → medium → hard)"
     : "standard curriculum";
 
   switch (tool) {
@@ -175,9 +181,9 @@ Difficulty: ${diffLabel}`;
     case "question_paper":
       return `Generate a formal examination paper on "${topic}" for ${classLevel}. REQUIRED structure:
 **Header**: Subject, Class, Time: 1 hour, Max Marks: 40
-**Section A** (Objective - 10 marks): 10 Ã— 1-mark questions
-**Section B** (Short Answer - 15 marks): 5 Ã— 3-mark questions
-**Section C** (Long Answer - 15 marks): 3 Ã— 5-mark questions
+**Section A** (Objective - 10 marks): 10 × 1-mark questions
+**Section B** (Short Answer - 15 marks): 5 × 3-mark questions
+**Section C** (Long Answer - 15 marks): 3 × 5-mark questions
 Include **General Instructions** at the top.
 Include a separate **Marking Scheme / Answer Key** at the end.
 Difficulty: ${diffLabel}`;
@@ -210,7 +216,7 @@ Difficulty: ${diffLabel}`;
       return `Generate remedial support material for ${classLevel} students struggling with "${topic}". REQUIRED approach:
 - Use the simplest possible language
 - Break every concept into smallest possible steps
-- Provide at least 3 worked examples going from very simple â†’ slightly harder
+- Provide at least 3 worked examples going from very simple → slightly harder
 - Include "Try It Yourself" practice with hints
 - Avoid jargon; explain every term used
 - End with a confidence builder (3 easy questions the student can definitely answer)
@@ -280,7 +286,7 @@ Difficulty: ${diffLabel}`;
   }
 }
 
-// Subject & Tool aware deterministic fallback â€” generates strictly tool-tailored content
+// Subject & Tool aware deterministic fallback — generates strictly tool-tailored content
 function generateSubjectAwareFallback(
   tool: string,
   subject: string,
@@ -296,12 +302,12 @@ function generateSubjectAwareFallback(
 
   switch (tool) {
     case "quiz":
-      return `# ${subject} â€” Diagnostic Quiz: ${topic}
+      return `# ${subject} — Diagnostic Quiz: ${topic}
 **Class:** ${classLevel} | **Difficulty:** ${diffLabel} | **Max Marks:** 20 | **Time:** 25 mins${objLine}
 ${contextNote}
 ---
 
-## Part A: Recall & Concepts (1 Mark Each â€” Total: 3 Marks)
+## Part A: Recall & Concepts (1 Mark Each — Total: 3 Marks)
 1. State the fundamental definition or primary law governing **${topic}**.
 2. Give one standard real-world example or unit of measurement related to **${topic}**.
 3. Identify whether the following statement is True or False regarding **${topic}**:
@@ -309,7 +315,7 @@ ${contextNote}
 
 ---
 
-## Part B: Application & Understanding (2 Marks Each â€” Total: 8 Marks)
+## Part B: Application & Understanding (2 Marks Each — Total: 8 Marks)
 4. Explain how **${topic}** is applied to solve standard problems in ${subject}.
 5. Differentiate between the primary components of **${topic}** with a brief comparative point.
 6. A student attempts a problem on **${topic}** and arrives at an inconsistent result. What is the most likely misconception or calculation step missed?
@@ -317,14 +323,14 @@ ${contextNote}
 
 ---
 
-## Part C: Analysis & High-Order Thinking (3 Marks Each â€” Total: 9 Marks)
+## Part C: Analysis & High-Order Thinking (3 Marks Each — Total: 9 Marks)
 8. Analyze a complex case scenario involving **${topic}**. What will happen if the primary variable or condition is doubled or altered?
 9. Propose a step-by-step strategy for verifying solutions related to **${topic}**.
 10. Synthesize the relationship between **${topic}** and broader topics in ${subject}.
 
 ---
 
-## ðŸ—ï¸ Answer Key & Marking Scheme
+## 🗂️ Answer Key & Marking Scheme
 1. **Model Answer:** A precise definition of ${topic} including key terminology. *(1 Mark)*
 2. **Model Answer:** Accurate example/unit matching the curriculum standard. *(1 Mark)*
 3. **Model Answer:** True / False with 1-line justification. *(1 Mark)*
@@ -337,7 +343,7 @@ ${contextNote}
 10. **Model Answer:** Comprehensive conceptual synthesis. *(3 Marks)*`;
 
     case "mcqs":
-      return `# ${subject} â€” Multiple Choice Question Bank: ${topic}
+      return `# ${subject} — Multiple Choice Question Bank: ${topic}
 **Class:** ${classLevel} | **Difficulty:** ${diffLabel} | **Total Questions:** 15${objLine}
 ${contextNote}
 ---
@@ -459,11 +465,11 @@ ${contextNote}
 
 ---
 
-## ðŸ“Š Quick Answer Key Summary
+## 📊 Quick Answer Key Summary
 1: B | 2: A | 3: B | 4: A | 5: A | 6: A | 7: A | 8: A | 9: A | 10: A | 11: A | 12: A | 13: A | 14: A | 15: A`;
 
     case "question_paper":
-      return `# ${subject} â€” Examination Paper
+      return `# ${subject} — Examination Paper
 **Class:** ${classLevel} | **Time Allowed:** 1 Hour | **Maximum Marks:** 40
 **Topic / Unit:** ${topic}${objLine}
 ${contextNote}
@@ -478,7 +484,7 @@ ${contextNote}
 
 ---
 
-### SECTION A: Objective Questions (10 Ã— 1 = 10 Marks)
+### SECTION A: Objective Questions (10 × 1 = 10 Marks)
 1. Define the fundamental term in **${topic}**.
 2. State the SI unit / standard convention used in **${topic}**.
 3. Fill in the blank: *The primary factor influencing ${topic} is ________.*
@@ -492,7 +498,7 @@ ${contextNote}
 
 ---
 
-### SECTION B: Short Answer Questions (5 Ã— 3 = 15 Marks)
+### SECTION B: Short Answer Questions (5 × 3 = 15 Marks)
 11. Explain the mechanism / working process of **${topic}** with a brief structured diagram or flow.
 12. Solve the following numerical/conceptual problem regarding **${topic}**:
     > *Calculate or deduce the outcome when the primary parameters are set to standard test values.*
@@ -502,7 +508,7 @@ ${contextNote}
 
 ---
 
-### SECTION C: Long Answer / Analytical Questions (3 Ã— 5 = 15 Marks)
+### SECTION C: Long Answer / Analytical Questions (3 × 5 = 15 Marks)
 16. **Comprehensive Analysis:**
     - (a) Derive or explain in detail the complete formulation of **${topic}**. *(3 Marks)*
     - (b) Apply the derived concept to a multi-step real-world case scenario. *(2 Marks)*
@@ -516,26 +522,26 @@ ${contextNote}
 
 ---
 
-### ðŸ“ Marking Scheme & Solutions
+### 📌 Marking Scheme & Solutions
 - **Q1-Q10:** 1 Mark for precise definition/value.
 - **Q11-Q15:** 1 Mark for formula/rule, 1 Mark for step-by-step working, 1 Mark for accurate conclusion.
 - **Q16-Q18:** 2 Marks for conceptual derivation, 2 Marks for mathematical/logical execution, 1 Mark for units & diagram accuracy.`;
 
     case "worksheet":
-      return `# ${subject} â€” Practice Worksheet: ${topic}
+      return `# ${subject} — Practice Worksheet: ${topic}
 **Class:** ${classLevel} | **Student Name:** ___________________ | **Date:** ___________
 **Difficulty:** ${diffLabel}${objLine}
 ${contextNote}
 ---
 
-## âš¡ Warm-Up Drill (2 Mins)
+## ⚡ Warm-Up Drill (2 Mins)
 1. Write 2 keywords that come to mind when you hear **${topic}**:
    - (a) ____________________________
    - (b) ____________________________
 
 ---
 
-## âœï¸ Section A: Fill in the Blanks
+## ✍️ Section A: Fill in the Blanks
 1. The standard representation of **${topic}** is denoted by ____________.
 2. When applying **${topic}**, we must always ensure that the units are in ____________.
 3. The relationship between the two primary factors of **${topic}** is ____________.
@@ -544,7 +550,7 @@ ${contextNote}
 
 ---
 
-## ðŸ§© Section B: Short Practice Questions
+## 🧩 Section B: Short Practice Questions
 1. **Problem 1:** Apply the standard formula/rule of **${topic}** with given values $X = 10, Y = 5$. Find the resultant.
    > *Space for working:*
    \n\n\n
@@ -557,7 +563,7 @@ ${contextNote}
 
 ---
 
-## ðŸš€ Section C: Multi-Step Application Drill
+## 🚀 Section C: Multi-Step Application Drill
 1. A real-world system utilizes **${topic}** to achieve optimal efficiency.
    - Step 1: Formulate the initial equation/condition.
    - Step 2: Calculate the intermediate transformation.
@@ -565,23 +571,23 @@ ${contextNote}
 
 ---
 
-## ðŸ† Bonus Challenge (Fast Finishers)
+## 🏆 Bonus Challenge (Fast Finishers)
 *Investigate what happens if the input parameter is quadrupled while all other conditions remain constant. Justify your answer mathematically or logically.*
 
 ---
 
-## ðŸ’¡ Answer Key (For Self-Correction)
+## 💡 Answer Key (For Self-Correction)
 - **Section A:** 1. Standard symbol | 2. Standard SI units | 3. Direct/Inverse proportional | 4. Increase/Decrease proportionally | 5. Primary Curriculum Module
 - **Section B1:** Working steps: Substitute $X=10, Y=5$ into formula $\rightarrow$ Final value evaluated.
 - **Section B2:** Units must be uniform before arithmetic operations.`;
 
     case "revision":
-      return `# ${subject} â€” 7-Day High-Yield Revision Plan: ${topic}
+      return `# ${subject} — 7-Day High-Yield Revision Plan: ${topic}
 **Class:** ${classLevel} | **Target:** Exam Mastery & 100% Concept Retention${objLine}
 ${contextNote}
 ---
 
-## ðŸŽ¯ High-Yield Concept Summary (Top 5 Things to Memorize)
+## 🎯 High-Yield Concept Summary (Top 5 Things to Memorize)
 1. **Core Law/Definition:** Master the 1-sentence textbook definition of **${topic}**.
 2. **Key Equation/Formula:** Know every single variable and its unit cold.
 3. **Primary Graph/Diagram:** Be able to sketch the standard diagram with labels from memory in 60 seconds.
@@ -590,7 +596,7 @@ ${contextNote}
 
 ---
 
-## ðŸ“… 7-Day Revision Schedule
+## 📅 7-Day Revision Schedule
 
 | Day | Focus Area | Recommended Time | Goal / Actionable Task |
 |-----|------------|------------------|------------------------|
@@ -604,14 +610,14 @@ ${contextNote}
 
 ---
 
-## âš ï¸ 3 Costly Mistakes Students Make in Exams
+## ⚠ ï¸ 3 Costly Mistakes Students Make in Exams
 1. **Rushing without writing the formula:** Examiners award step marks for formulas even if arithmetic fails.
 2. **Unit Conversion Omission:** Forgetting to convert minutes to seconds, or cm to meters.
 3. **Misreading the Keyword:** Confusing *"explain"* with *"state"* or *"calculate"* with *"estimate"*.
 
 ---
 
-## ðŸ“ 5 Self-Test Practice Questions
+## 📌 5 Self-Test Practice Questions
 1. State the fundamental theorem of **${topic}**. *(2 Marks)*
 2. Calculate the value when standard initial values are provided. *(3 Marks)*
 3. Draw a neat labeled diagram illustrating **${topic}**. *(3 Marks)*
@@ -619,7 +625,7 @@ ${contextNote}
 5. Justify why **${topic}** holds true under standard atmospheric/system conditions. *(3 Marks)*`;
 
     default: // notes, remedial, advanced, summary, lesson_plan, etc.
-      return `# ${subject} â€” ${MATERIAL_LABELS[tool] || "Study Notes"}: ${topic}
+      return `# ${subject} — ${MATERIAL_LABELS[tool] || "Study Notes"}: ${topic}
 **Class:** ${classLevel} | **Difficulty:** ${diffLabel}${objLine}
 ${contextNote}
 ---
@@ -678,7 +684,10 @@ ${contextNote}
 export async function POST(request: Request) {
   try {
     await requireRole("teacher");
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== "object") {
+      return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    }
     const {
       tool = "notes",
       subject = "Subject",
@@ -690,6 +699,18 @@ export async function POST(request: Request) {
       refinementPrompt = "",
       previousContent = "",
     } = body;
+
+    if (
+      !MATERIAL_TYPES.has(tool) ||
+      !DIFFICULTY_LEVELS.has(difficultyLevel) ||
+      [subject, classLevel, topic, learningObjective, resourceContext, refinementPrompt, previousContent]
+        .some((value) => typeof value !== "string") ||
+      subject.length > 128 || classLevel.length > 64 || topic.length > 500 ||
+      learningObjective.length > 1_000 || resourceContext.length > 12_000 ||
+      refinementPrompt.length > 2_000 || previousContent.length > 12_000
+    ) {
+      return NextResponse.json({ error: "Invalid generation request" }, { status: 400 });
+    }
 
     if (!topic?.trim() && !resourceContext?.trim()) {
       return NextResponse.json(
@@ -739,7 +760,7 @@ ${subjectContext}
 MATERIAL TYPE REQUIREMENTS:
 ${materialInstructions}
 ${learningObjective ? `\nSPECIFIC LEARNING OBJECTIVE: "${learningObjective}"\n` : ""}
-${resourceContext ? `\nTEACHER'S REFERENCE NOTES (use as primary source â€” ground all content in these notes):\n"""\n${resourceContext.slice(0, 4000)}\n"""\n` : ""}
+${resourceContext ? `\nTEACHER'S REFERENCE NOTES (use as primary source — ground all content in these notes):\n"""\n${resourceContext.slice(0, 4000)}\n"""\n` : ""}
 ${resourceContext ? "" : `\nIMPORTANT: Since no reference notes were provided, generate content based entirely on standard ${classLevel} ${subject} curriculum for the topic "${topic}". All examples, questions, and explanations must be directly about "${topic}" in ${subject}.\n`}
 
 OUTPUT REQUIREMENTS:
@@ -801,7 +822,8 @@ OUTPUT REQUIREMENTS:
     );
 
     return NextResponse.json({ content: fallbackContent, isTemplate: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || "Material generation failed" }, { status: 500 });
+  } catch (error) {
+    console.error("Material generation failed:", error);
+    return NextResponse.json({ error: "Material generation could not be completed" }, { status: 500 });
   }
 }

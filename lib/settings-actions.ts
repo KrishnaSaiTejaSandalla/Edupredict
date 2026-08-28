@@ -226,6 +226,12 @@ export async function uploadUserProfileImage(userId: number, formData: FormData)
 
   revalidatePath('/admin/settings');
   revalidatePath('/admin');
+  revalidatePath('/teacher/settings');
+  revalidatePath('/teacher');
+  revalidatePath('/student/settings');
+  revalidatePath('/student');
+  revalidatePath('/parent/settings');
+  revalidatePath('/parent');
   return { success: true, profileImageUrl: publicUrl };
 }
 

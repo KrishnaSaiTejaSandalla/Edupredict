@@ -112,29 +112,40 @@ export default async function StudentPerformancePage() {
     predictedMax: Math.round(Number(p.predictedScoreMax)),
   }));
 
-  // Fetch subject attendance for correlation chart
+  // Build attendance data per subject for correlation chart
+  // Use predictions (which already compute attendancePct per subject) as the source of truth
+  // This ensures all subjects appear and match the prediction subjects
   const attendanceRows = await db
     .select({
       subjectName: subjects.name,
       status: attendance.status,
+      subjectId: attendance.subjectId,
     })
     .from(attendance)
     .leftJoin(subjects, eq(subjects.id, attendance.subjectId))
     .where(eq(attendance.studentId, studentRow.id));
 
+  // Build per-subject attendance map
   const attendanceMap: Record<string, { present: number; total: number }> = {};
   for (const row of attendanceRows) {
-    const sName = row.subjectName || "General";
+    const sName = row.subjectName || null;
+    if (!sName) continue; // skip rows without subject link
     if (!attendanceMap[sName]) attendanceMap[sName] = { present: 0, total: 0 };
     attendanceMap[sName].total++;
-    if (row.status.toLowerCase() === "present") attendanceMap[sName].present++;
+    if (row.status.toLowerCase() === 'present' || row.status.toLowerCase() === 'half_day') {
+      attendanceMap[sName].present += row.status.toLowerCase() === 'half_day' ? 0.5 : 1;
+    }
   }
 
-  const attendanceData = Object.entries(attendanceMap).map(([subject, val]) => {
-    const pct = val.total > 0 ? Math.round((val.present / val.total) * 100) : 100;
-    const matchedPred = preds.find(p => p.subjectName === subject);
-    const score = matchedPred ? Math.round(Number(matchedPred.currentScore)) : 80;
-    return { subject, attendance: pct, score };
+  // Build chart data from predictions — guarantees all predicted subjects appear
+  const attendanceData = preds.map((p) => {
+    const sName = p.subjectName || 'Subject';
+    const subjectAttMap = attendanceMap[sName];
+    const attPct = subjectAttMap && subjectAttMap.total > 0
+      ? Math.min(100, Math.round((subjectAttMap.present / subjectAttMap.total) * 100))
+      : 100; // Default to 100% if no explicit absence records
+    const score = Math.round(Number(p.currentScore));
+    return { subject: sName, attendance: attPct, score };
   });
 
   const responsePayload = {

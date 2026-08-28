@@ -1,6 +1,6 @@
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { students, results, exams, subjects, classes } from "@/lib/schema";
+import { students, results, exams, subjects, classes, attendance, assignments, assignmentSubmissions } from "@/lib/schema";
 import { eq, desc, inArray } from "drizzle-orm";
 import StudentResultsClient from "@/components/student/StudentResultsClient";
 
@@ -22,6 +22,45 @@ export default async function StudentResultsPage() {
       </div>
     );
   }
+
+  // Attendance metrics for prediction
+  const attendanceRows = await db
+    .select({ status: attendance.status })
+    .from(attendance)
+    .where(eq(attendance.studentId, student.id));
+  
+  const totalAttendanceDays = attendanceRows.filter(a => a.status !== 'leave').length;
+  const presentDays = attendanceRows.filter(a => a.status === 'present' || a.status === 'half_day').reduce((acc, a) => acc + (a.status === 'half_day' ? 0.5 : 1), 0);
+  const attendancePercent = totalAttendanceDays > 0 ? Math.round((presentDays / totalAttendanceDays) * 100) : 100;
+
+  // Assignment metrics for prediction
+  const classAssignments = await db
+    .select({ id: assignments.id, maxMarks: assignments.maxMarks })
+    .from(assignments)
+    .where(eq(assignments.classId, student.classId));
+
+  const studentSubs = await db
+    .select({
+      assignmentId: assignmentSubmissions.assignmentId,
+      grade: assignmentSubmissions.grade,
+    })
+    .from(assignmentSubmissions)
+    .where(eq(assignmentSubmissions.studentId, student.id));
+
+  const totalAssignments = classAssignments.length;
+  const submittedCount = studentSubs.length;
+  const assignmentCompletionRate = totalAssignments > 0 ? Math.round((submittedCount / totalAssignments) * 100) : 100;
+
+  let totalAssignObtained = 0;
+  let totalAssignMax = 0;
+  studentSubs.forEach(s => {
+    if (s.grade !== null) {
+      const matchedAss = classAssignments.find(a => a.id === s.assignmentId);
+      totalAssignObtained += Number(s.grade);
+      totalAssignMax += Number(matchedAss?.maxMarks || 100);
+    }
+  });
+  const assignmentAvgGrade = totalAssignMax > 0 ? Math.round((totalAssignObtained / totalAssignMax) * 100) : 80;
 
   // 1. Get all classmate student records to compute class rank and denominator
   const classmates = await db
@@ -158,6 +197,13 @@ export default async function StudentResultsPage() {
       classSize={classSize}
       subjectMetrics={subjectMetrics}
       gpa={gpa}
+      attendancePercent={attendancePercent}
+      assignmentStats={{
+        total: totalAssignments,
+        submitted: submittedCount,
+        completionRate: assignmentCompletionRate,
+        avgGrade: assignmentAvgGrade,
+      }}
     />
   );
 }

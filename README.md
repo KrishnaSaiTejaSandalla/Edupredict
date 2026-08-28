@@ -204,3 +204,4 @@ edupredict/
 * **Zero Hardcoded Secrets**: All API tokens and database credentials are fully parameterized through `.env` and excluded via `.gitignore`.
 * **Database Verification**: All dashboard figures, charts, and metrics are backed by live relational database queries with zero mock stubs in production routes.
 * **TypeScript Integrity**: Verified via `npx tsc --noEmit`.
+
